@@ -1,0 +1,20 @@
+[package]
+name = "dualcode-workbench"
+version = "0.1.5"
+description = "Local AI collaborative development workbench"
+authors = ["DualCode Contributors"]
+edition = "2021"
+
+[lib]
+name = "dualcode_workbench_lib"
+crate-type = ["staticlib", "cdylib", "rlib"]
+
+[build-dependencies]
+tauri-build = { version = "2", features = [] }
+
+[dependencies]
+tauri = { version = "2", features = [] }
+tauri-plugin-shell = "2"
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+tauri-plugin-dialog = "2.4.2"

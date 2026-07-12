@@ -1,0 +1,1 @@
+import {test,expect} from '@playwright/test';test('opens workbench and switches task',async({page})=>{await page.goto('/');await expect(page.getByText('本地 AI 协作开发工作台')).toBeVisible();await page.getByText('附件隔离与校验').click();await expect(page.getByText('加入截图附件支持。')).toBeVisible();await expect(page.getByText('Git Diff')).toBeVisible()});

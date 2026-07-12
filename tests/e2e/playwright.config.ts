@@ -1,0 +1,1 @@
+import {defineConfig} from '@playwright/test';export default defineConfig({testDir:'.',webServer:{command:'corepack pnpm --filter @dualcode/desktop dev',url:'http://localhost:1420',reuseExistingServer:true},use:{baseURL:'http://localhost:1420',channel:'chrome',headless:true},reporter:'list'});

@@ -1,0 +1,14 @@
+{
+  "name": "dualcode-workbench",
+  "private": true,
+  "version": "0.1.0",
+  "packageManager": "pnpm@11.7.0",
+  "scripts": {
+    "dev": "corepack pnpm --filter @dualcode/desktop dev",
+    "build": "corepack pnpm --filter @dualcode/desktop build",
+    "typecheck": "corepack pnpm --filter @dualcode/desktop typecheck",
+    "test": "corepack pnpm --filter @dualcode/desktop test",
+    "test:e2e": "corepack pnpm --filter @dualcode/e2e test",
+    "check": "corepack pnpm typecheck && corepack pnpm test && corepack pnpm build"
+  }
+}
