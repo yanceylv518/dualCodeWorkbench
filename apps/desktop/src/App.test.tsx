@@ -182,4 +182,17 @@ describe("workbench", () => {
 
     expect(scrollIntoView).not.toHaveBeenCalled();
   });
+
+  it("opens a project with the Ctrl+O shortcut", async () => {
+    const openWorkspace = vi.fn(async () => undefined);
+    vi.spyOn(window, "prompt").mockReturnValue("D:/Project");
+    useStore.setState({ backend: "online", openWorkspace });
+    render(<App />);
+
+    fireEvent.keyDown(window, { key: "o", ctrlKey: true });
+
+    await vi.waitFor(() =>
+      expect(openWorkspace).toHaveBeenCalledWith("D:/Project"),
+    );
+  });
 });

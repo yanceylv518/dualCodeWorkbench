@@ -123,8 +123,9 @@ ESLint（0 error）、Prettier 与 Rust `cargo check` 全部通过。Phase 0 到
 - **验证结果（2026-07-13）**：消息流使用 80px 跟随阈值，上翻后停止自动滚动并显示“回到最新”；前端类型检查与 12 项测试通过。
 
 ### P1-6 假快捷键与菜单收起
-- [ ] 实现真实的 Ctrl+O（打开项目）全局快捷键，或删掉 `App.tsx:112` 的 `<kbd>Ctrl+O</kbd>` 标识（推荐实现）。
-- [ ] `projectMenu`（App.tsx:116）：点击菜单外任意处与按 Esc 收起。
+- [x] 实现真实的 Ctrl+O（打开项目）全局快捷键，或删掉 `App.tsx:112` 的 `<kbd>Ctrl+O</kbd>` 标识（推荐实现）。
+- [x] `projectMenu`（App.tsx:116）：点击菜单外任意处与按 Esc 收起。
+- **验证结果（2026-07-13）**：Ctrl/Cmd+O 在非编辑控件聚焦时打开项目；项目菜单支持外部点击与 Esc 收起。前端类型检查与 13 项测试通过。
 
 ### P1-7 ProcessingCard 显示运行中的 agent
 - [ ] `App.tsx:131` 不再传 `store.mode`，改为从当前 run 事件（`run.state_changed` 的 `payload.agent`，store 已接收）记录"正在运行的 agent"并传入。

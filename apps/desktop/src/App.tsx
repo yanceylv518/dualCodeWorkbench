@@ -200,6 +200,31 @@ export default function App() {
       : window.prompt("输入本地空目录的绝对路径");
     return typeof selected === "string" ? selected : undefined;
   };
+  useEffect(() => {
+    const keydown = (event: KeyboardEvent) => {
+      const target = event.target;
+      const editing =
+        target instanceof HTMLElement &&
+        target.matches("input, textarea, select, [contenteditable=true]");
+      if (!editing && (event.ctrlKey || event.metaKey) && event.key.toLowerCase() === "o") {
+        event.preventDefault();
+        void openWorkspace();
+      }
+      if (event.key === "Escape") setProjectMenu(undefined);
+    };
+    const pointerdown = (event: PointerEvent) => {
+      if (!projectMenu) return;
+      const target = event.target as HTMLElement | null;
+      if (!target?.closest(".project-menu, [data-project-menu-trigger]"))
+        setProjectMenu(undefined);
+    };
+    window.addEventListener("keydown", keydown);
+    window.addEventListener("pointerdown", pointerdown);
+    return () => {
+      window.removeEventListener("keydown", keydown);
+      window.removeEventListener("pointerdown", pointerdown);
+    };
+  }, [projectMenu, openWorkspace]);
   const run = () => {
     if (store.backend !== "online") return;
     if (!text.trim() && store.draftAttachments.length === 0) return;
@@ -367,6 +392,7 @@ export default function App() {
                     <small title={item.path}>{item.path}</small>
                   </div>
                   <button
+                    data-project-menu-trigger
                     onClick={() =>
                       setProjectMenu((current) =>
                         current === item.id ? undefined : item.id,
