@@ -2,6 +2,7 @@ import asyncio
 from abc import ABC, abstractmethod
 from collections.abc import AsyncIterator
 from dataclasses import dataclass, field
+from enum import StrEnum
 from pathlib import Path
 
 
@@ -37,6 +38,22 @@ class AgentResponse:
     content: str
 
 
+class AgentStreamEventType(StrEnum):
+    DELTA = "delta"
+    TOOL_EVENT = "tool_event"
+    TERMINAL = "terminal"
+    FINAL = "final"
+
+
+@dataclass(frozen=True)
+class AgentStreamEvent:
+    type: AgentStreamEventType
+    session_id: str = ""
+    text: str = ""
+    event: str = ""
+    item: dict[str, object] = field(default_factory=dict)
+
+
 class AgentAdapter(ABC):
     capabilities = AgentCapabilities()
 
@@ -45,6 +62,12 @@ class AgentAdapter(ABC):
     @abstractmethod
     async def stream(self, request: AgentRequest) -> AsyncIterator[str]:
         yield ""
+
+    async def stream_events(self, request: AgentRequest) -> AsyncIterator[AgentStreamEvent]:
+        async for chunk in self.stream(request):
+            if chunk:
+                yield AgentStreamEvent(AgentStreamEventType.DELTA, text=chunk)
+        yield AgentStreamEvent(AgentStreamEventType.FINAL)
 
     @abstractmethod
     async def cancel(self, run_id: str) -> None: ...

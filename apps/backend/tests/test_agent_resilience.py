@@ -6,7 +6,7 @@ from pathlib import Path
 
 import pytest
 
-from dualcode.adapters import AgentRequest
+from dualcode.adapters import AgentRequest, AgentStreamEvent, AgentStreamEventType
 from dualcode.cli_adapters import ClaudeCliAdapter, CodexCliAdapter
 from dualcode.events import EventType
 
@@ -152,29 +152,29 @@ async def test_health_check_timeout_kills_probe(monkeypatch):
 
 
 class FakeAdapter:
-    def __init__(self, chunks):
-        self.chunks = chunks
+    def __init__(self, events):
+        self.events = events
 
-    async def stream(self, request):
-        for chunk in self.chunks:
-            yield chunk
+    async def stream_events(self, request):
+        for event in self.events:
+            yield event
 
 
 @pytest.mark.asyncio
 @pytest.mark.parametrize(
-    ("agent", "chunks", "expected_session", "expected_text"),
+    ("agent", "events", "expected_session", "expected_text"),
     [
-        ("codex", [json.dumps({"type": "thread.started", "thread_id": "cx-2"}), json.dumps({"type": "item.completed", "item": {"type": "agent_message", "text": "second"}})], "cx-2", "second"),
-        ("claude", [json.dumps({"type": "system", "session_id": "cl-2"}), json.dumps({"type": "assistant", "message": {"content": [{"type": "text", "text": "continued"}]}})], "cl-2", "continued"),
+        ("codex", [AgentStreamEvent(AgentStreamEventType.DELTA, "cx-2", "second")], "cx-2", "second"),
+        ("claude", [AgentStreamEvent(AgentStreamEventType.DELTA, "cl-2", "continued")], "cl-2", "continued"),
     ],
 )
-async def test_scheduler_stream_preserves_session_for_next_turn(agent, chunks, expected_session, expected_text):
+async def test_scheduler_stream_preserves_session_for_next_turn(agent, events, expected_session, expected_text):
     emitted = []
 
     async def emit(kind, payload):
         emitted.append((kind, payload))
 
-    response = await RunScheduler._stream_agent(None, FakeAdapter(chunks), request=None, agent=agent, emit=emit)
+    response = await RunScheduler._stream_agent(None, FakeAdapter(events), request=None, agent=agent, emit=emit)
 
     assert response.run_id == expected_session
     assert response.content == expected_text
@@ -183,19 +183,18 @@ async def test_scheduler_stream_preserves_session_for_next_turn(agent, chunks, e
 
 @pytest.mark.asyncio
 async def test_scheduler_streams_safe_codex_reasoning_and_tool_progress():
-    chunks = [
-        json.dumps({"type": "thread.started", "thread_id": "cx-progress"}),
-        json.dumps({"type": "item.completed", "item": {"id": "r1", "type": "reasoning", "text": "Inspecting the repository structure"}}),
-        json.dumps({"type": "item.started", "item": {"id": "c1", "type": "command_execution", "command": "git status"}}),
-        json.dumps({"type": "item.completed", "item": {"id": "c1", "type": "command_execution", "command": "git status", "exit_code": 0}}),
-        json.dumps({"type": "item.completed", "item": {"type": "agent_message", "text": "finished"}}),
+    events = [
+        AgentStreamEvent(AgentStreamEventType.TOOL_EVENT, "cx-progress", event="item.completed", item={"id": "r1", "type": "reasoning", "text": "Inspecting the repository structure"}),
+        AgentStreamEvent(AgentStreamEventType.TOOL_EVENT, "cx-progress", event="item.started", item={"id": "c1", "type": "command_execution", "command": "git status"}),
+        AgentStreamEvent(AgentStreamEventType.TOOL_EVENT, "cx-progress", event="item.completed", item={"id": "c1", "type": "command_execution", "command": "git status", "exit_code": 0}),
+        AgentStreamEvent(AgentStreamEventType.DELTA, "cx-progress", "finished"),
     ]
     emitted = []
 
     async def emit(kind, payload):
         emitted.append((kind, payload))
 
-    response = await RunScheduler._stream_agent(None, FakeAdapter(chunks), request=None, agent="codex", emit=emit)
+    response = await RunScheduler._stream_agent(None, FakeAdapter(events), request=None, agent="codex", emit=emit)
 
     assert response.content == "finished"
     progress = [payload for kind, payload in emitted if kind == EventType.TOOL_EVENT]

@@ -3,7 +3,7 @@ import json
 
 import pytest
 
-from dualcode.adapters import AgentRequest
+from dualcode.adapters import AgentRequest, AgentStreamEventType
 from dualcode.codex_app_server import AppServerProtocolError, CodexAppServerAdapter
 
 
@@ -86,6 +86,31 @@ async def test_app_server_streams_real_deltas_and_activity(monkeypatch, tmp_path
     assert response.content == "hello world"
     methods = [item.get("method") for item in process.stdin.writes]
     assert methods[:4] == ["initialize", "initialized", "thread/start", "turn/start"]
+    await adapter.close()
+
+
+@pytest.mark.asyncio
+async def test_app_server_exposes_normalized_stream_events(monkeypatch, tmp_path):
+    process = FakeProcess()
+    adapter = CodexAppServerAdapter("fake")
+    monkeypatch.setattr(adapter, "resolve_executable", lambda: "fake")
+    monkeypatch.setattr(asyncio, "create_subprocess_exec", lambda *a, **k: asyncio.sleep(0, result=process))
+
+    events = [
+        event
+        async for event in adapter.stream_events(
+            AgentRequest("local-thread", "hello", {"workspace_path": str(tmp_path)})
+        )
+    ]
+
+    assert [event.type for event in events] == [
+        AgentStreamEventType.TOOL_EVENT,
+        AgentStreamEventType.DELTA,
+        AgentStreamEventType.DELTA,
+        AgentStreamEventType.FINAL,
+    ]
+    assert all(event.session_id == "thread-app-1" for event in events)
+    assert "".join(event.text for event in events) == "hello world"
     await adapter.close()
 
 

@@ -5,7 +5,14 @@ import uuid
 from pathlib import Path, PurePosixPath
 
 from sqlalchemy import select
-from .adapters import AgentAttachment, AgentRequest, AgentResponse, MockClaudeAdapter, MockCodexAdapter
+from .adapters import (
+    AgentAttachment,
+    AgentRequest,
+    AgentResponse,
+    AgentStreamEventType,
+    MockClaudeAdapter,
+    MockCodexAdapter,
+)
 from .approvals import approval_gate
 from .cli_adapters import ClaudeCliAdapter
 from .codex_app_server import CodexAppServerAdapter
@@ -317,46 +324,18 @@ class RunScheduler:
     async def _stream_agent(self, adapter, request: AgentRequest, agent: str, emit) -> AgentResponse:
         session_id = ""
         content_parts: list[str] = []
-        async for chunk in adapter.stream(request):
-            text = ""
-            try:
-                event = json.loads(chunk)
-            except json.JSONDecodeError:
-                event = None
-                text = chunk
-            if isinstance(event, dict):
-                session_id = str(event.get("thread_id") or event.get("session_id") or session_id)
-                if agent == "codex":
-                    if event.get("type") == "agent_message.delta":
-                        text = str(event.get("text") or "")
-                    elif event.get("type") == "activity.event":
-                        item = event.get("item")
-                        if isinstance(item, dict):
-                            await emit(EventType.TOOL_EVENT, {"agent": agent, "event": event.get("event"), "item": item})
-                    elif event.get("type") == "activity.delta":
-                        item = event.get("item")
-                        if isinstance(item, dict):
-                            await emit(EventType.TOOL_EVENT, {"agent": agent, "event": "delta", "item": item})
-                    elif event.get("type") == "terminal.delta":
-                        await emit(EventType.TERMINAL_OUTPUT, {"channel": "codex", "text": str(event.get("text") or "")})
-                    item = event.get("item")
-                    if not text and isinstance(item, dict) and event.get("type") == "item.completed" and item.get("type") == "agent_message":
-                        text = str(item.get("text") or "")
-                    elif isinstance(item, dict) and item.get("type") in {
-                        "reasoning", "command_execution", "file_change", "mcp_tool_call", "web_search"
-                    }:
-                        await emit(EventType.TOOL_EVENT, {"agent": agent, "event": event.get("type"), "item": item})
-                else:
-                    if event.get("type") == "assistant":
-                        message = event.get("message")
-                        if isinstance(message, dict):
-                            blocks = message.get("content", [])
-                            text = "".join(str(block.get("text", "")) for block in blocks if isinstance(block, dict) and block.get("type") == "text")
-                    elif event.get("type") == "result" and not content_parts:
-                        text = str(event.get("result") or "")
-            if text:
-                content_parts.append(text)
-                await emit(EventType.AGENT_DELTA, {"agent": agent, "text": text})
+        async for event in adapter.stream_events(request):
+            session_id = event.session_id or session_id
+            if event.type == AgentStreamEventType.DELTA and event.text:
+                content_parts.append(event.text)
+                await emit(EventType.AGENT_DELTA, {"agent": agent, "text": event.text})
+            elif event.type == AgentStreamEventType.TOOL_EVENT:
+                await emit(
+                    EventType.TOOL_EVENT,
+                    {"agent": agent, "event": event.event, "item": event.item},
+                )
+            elif event.type == AgentStreamEventType.TERMINAL and event.text:
+                await emit(EventType.TERMINAL_OUTPUT, {"channel": agent, "text": event.text})
         return AgentResponse(session_id or str(uuid.uuid4()), "".join(content_parts))
 
 

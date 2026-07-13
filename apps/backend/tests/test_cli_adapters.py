@@ -2,7 +2,7 @@ from pathlib import Path
 
 import pytest
 
-from dualcode.adapters import AgentAttachment, AgentRequest
+from dualcode.adapters import AgentAttachment, AgentRequest, AgentStreamEventType
 from dualcode.cli_adapters import ClaudeCliAdapter, CodexCliAdapter
 
 
@@ -48,3 +48,27 @@ def test_claude_resume_uses_explicit_session():
 async def test_missing_cli_is_unhealthy():
     adapter = CodexCliAdapter("definitely-not-a-real-dualcode-cli")
     assert not await adapter.health_check()
+
+
+@pytest.mark.asyncio
+async def test_claude_exposes_normalized_stream_events(monkeypatch):
+    adapter = ClaudeCliAdapter()
+
+    async def protocol_stream(_request):
+        yield '{"type":"assistant","session_id":"claude-1","message":{"content":[{"type":"text","text":"分析"},{"type":"tool_use","name":"Read","input":{}}]}}'
+        yield '{"type":"result","session_id":"claude-1","result":"分析"}'
+
+    monkeypatch.setattr(adapter, "stream", protocol_stream)
+    events = [
+        event
+        async for event in adapter.stream_events(
+            AgentRequest("thread-1", "review", {"workspace_path": "."})
+        )
+    ]
+
+    assert [event.type for event in events] == [
+        AgentStreamEventType.DELTA,
+        AgentStreamEventType.TOOL_EVENT,
+        AgentStreamEventType.FINAL,
+    ]
+    assert all(event.session_id == "claude-1" for event in events)

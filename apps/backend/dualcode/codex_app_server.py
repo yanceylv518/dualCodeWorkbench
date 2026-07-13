@@ -8,7 +8,13 @@ from collections.abc import AsyncIterator
 from contextlib import suppress
 from pathlib import Path
 
-from .adapters import AgentCapabilities, AgentRequest, AgentResponse
+from .adapters import (
+    AgentCapabilities,
+    AgentRequest,
+    AgentResponse,
+    AgentStreamEvent,
+    AgentStreamEventType,
+)
 from .cli_adapters import BaseCliAdapter, CliUnavailableError
 
 
@@ -275,6 +281,36 @@ class CodexAppServerAdapter(BaseCliAdapter):
             if event.get("type") == "agent_message.delta":
                 content.append(str(event.get("text") or ""))
         return AgentResponse(session_id or str(uuid.uuid4()), "".join(content))
+
+    async def stream_events(self, request: AgentRequest) -> AsyncIterator[AgentStreamEvent]:
+        session_id = ""
+        async for chunk in self.stream(request):
+            event = json.loads(chunk)
+            session_id = str(event.get("thread_id") or session_id)
+            event_type = event.get("type")
+            if event_type == "agent_message.delta":
+                yield AgentStreamEvent(
+                    AgentStreamEventType.DELTA,
+                    session_id=session_id,
+                    text=str(event.get("text") or ""),
+                )
+            elif event_type in {"activity.event", "activity.delta"}:
+                item = event.get("item")
+                if isinstance(item, dict):
+                    yield AgentStreamEvent(
+                        AgentStreamEventType.TOOL_EVENT,
+                        session_id=session_id,
+                        event=str(event.get("event") or ("delta" if event_type == "activity.delta" else "")),
+                        item=item,
+                    )
+            elif event_type == "terminal.delta":
+                yield AgentStreamEvent(
+                    AgentStreamEventType.TERMINAL,
+                    session_id=session_id,
+                    text=str(event.get("text") or ""),
+                )
+            elif event_type == "turn.completed":
+                yield AgentStreamEvent(AgentStreamEventType.FINAL, session_id=session_id)
 
     async def cancel(self, run_id: str) -> None:
         # Active streams issue turn/interrupt from their cancellation handler.

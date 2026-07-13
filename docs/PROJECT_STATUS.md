@@ -6,6 +6,7 @@
 - Phase 3 前置 R6 已完成：InputDialog 增加输入法组合态守卫，避免候选确认时误提交，并补组件回归测试；TypeScript、严格 ESLint、Prettier 与前端 33 项通过。Phase 3 已解锁。
 - P3-1 已完成：Alembic 接管数据库 schema，新增冻结 baseline 与旧手写补丁兼容 revision；全新、补丁前和补丁后数据库均可保留数据升级。后端 98 项、Ruff、sidecar 构建及正式 windowed 产物空库迁移启动通过。
 - P3-2 已完成：原 1465 行单体 API 按执行任务、Agent 设置、协作治理、工作区会话和附件五个领域拆为独立 router，公共运行态与交接提示词独立封装；98 项后端测试、Ruff、桌面端类型检查及路由重复检查通过。
+- P3-3 已完成：Codex app-server 与 Claude stream-json 的协议解析下沉到各自 adapter，对调度器统一输出 `delta / tool_event / terminal / final` 事件；scheduler 仅做事件转发和结果聚合，协议与韧性测试迁移后后端 100 项通过。
 
 ## 2026-07-13 Phase 2 前端设计与信息架构
 
