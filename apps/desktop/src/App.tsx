@@ -4,11 +4,37 @@ import { isTauri } from "@tauri-apps/api/core";
 import { getCurrentWindow } from "@tauri-apps/api/window";
 import { open } from "@tauri-apps/plugin-dialog";
 import {
-  AlertTriangle, Bot, Check, ChevronDown, Circle, Cloud, Code2,
-  FolderGit2, GitBranch, ImagePlus, LoaderCircle, MessageSquarePlus, MoreHorizontal,
-  Paperclip, Play, Plus, Search, Settings2, ShieldCheck, Square, SquareTerminal,
-  TestTube2, X, PanelLeftClose, PanelLeftOpen, PanelRightClose, PanelRightOpen,
-  Minus, Maximize2, RefreshCw, RotateCcw,
+  AlertTriangle,
+  Bot,
+  Check,
+  ChevronDown,
+  Circle,
+  Cloud,
+  Code2,
+  FolderGit2,
+  GitBranch,
+  ImagePlus,
+  LoaderCircle,
+  MessageSquarePlus,
+  MoreHorizontal,
+  Paperclip,
+  Play,
+  Plus,
+  Search,
+  Settings2,
+  ShieldCheck,
+  Square,
+  SquareTerminal,
+  TestTube2,
+  X,
+  PanelLeftClose,
+  PanelLeftOpen,
+  PanelRightClose,
+  PanelRightOpen,
+  Minus,
+  Maximize2,
+  RefreshCw,
+  RotateCcw,
 } from "lucide-react";
 import { SettingsDialog } from "./SettingsDialog";
 import { ProjectDialog } from "./ProjectDialog";
@@ -19,24 +45,62 @@ import "./recovery.css";
 import "./message-actions.css";
 import { useStore, type Mode } from "./store";
 import * as api from "./api";
-import type { Agent, AgentSettings, ExecutionJob, GitStatus, Message, RunState, Thread, WorkspaceRemoteStatus } from "./types";
+import type {
+  Agent,
+  AgentSettings,
+  ExecutionJob,
+  GitStatus,
+  Message,
+  RunState,
+  Thread,
+  WorkspaceRemoteStatus,
+} from "./types";
 
-const stateLabel: Record<RunState, string> = { CREATED: "空闲", PLANNING: "Claude 回复中", WAITING_APPROVAL: "等待授权", IMPLEMENTING: "Codex 回复中", TESTING: "测试运行中", REVIEWING: "Claude 回复中", COMPLETED: "已完成", FAILED: "失败", CANCELLED: "已取消", FALLBACK_TO_CODEX: "Codex 回复中" };
-const modeLabel: Record<Mode, string> = { codex: "发送给 Codex", claude: "发送给 Claude" };
-const activeStates = new Set<RunState>(["PLANNING", "WAITING_APPROVAL", "IMPLEMENTING", "TESTING", "REVIEWING", "FALLBACK_TO_CODEX"]);
+const stateLabel: Record<RunState, string> = {
+  CREATED: "空闲",
+  PLANNING: "Claude 回复中",
+  WAITING_APPROVAL: "等待授权",
+  IMPLEMENTING: "Codex 回复中",
+  TESTING: "测试运行中",
+  REVIEWING: "Claude 回复中",
+  COMPLETED: "已完成",
+  FAILED: "失败",
+  CANCELLED: "已取消",
+  FALLBACK_TO_CODEX: "Codex 回复中",
+};
+const modeLabel: Record<Mode, string> = {
+  codex: "发送给 Codex",
+  claude: "发送给 Claude",
+};
+const activeStates = new Set<RunState>([
+  "PLANNING",
+  "WAITING_APPROVAL",
+  "IMPLEMENTING",
+  "TESTING",
+  "REVIEWING",
+  "FALLBACK_TO_CODEX",
+]);
 
 export default function App() {
   const store = useStore();
-  const workspace = store.workspaces.find((item) => item.id === store.workspaceId);
+  const workspace = store.workspaces.find(
+    (item) => item.id === store.workspaceId,
+  );
   const thread = workspace?.threads.find((item) => item.id === store.threadId);
   const [text, setText] = useState("");
   const [query, setQuery] = useState("");
-  const [rightTab, setRightTab] = useState<"status" | "contract" | "handoff" | "recovery">("status");
-  const [statusTab, setStatusTab] = useState<"repository" | "diff" | "logs">("repository");
+  const [rightTab, setRightTab] = useState<
+    "status" | "contract" | "handoff" | "recovery"
+  >("status");
+  const [statusTab, setStatusTab] = useState<"repository" | "diff" | "logs">(
+    "repository",
+  );
   const [showSettings, setShowSettings] = useState(false);
   const [showProjectDialog, setShowProjectDialog] = useState(false);
   const [projectMenu, setProjectMenu] = useState<string>();
-  const [settingsTarget, setSettingsTarget] = useState<"general" | "tests">("general");
+  const [settingsTarget, setSettingsTarget] = useState<"general" | "tests">(
+    "general",
+  );
   const [agentSettings, setAgentSettings] = useState<AgentSettings>();
   const [leftWidth, setLeftWidth] = useState(258);
   const [rightWidth, setRightWidth] = useState(360);
@@ -44,12 +108,51 @@ export default function App() {
   const [rightHidden, setRightHidden] = useState(false);
   const fileInput = useRef<HTMLInputElement>(null);
   const messageEnd = useRef<HTMLDivElement>(null);
-  const activeTasks = useMemo(() => store.workspaces.flatMap((item) => item.threads.map((task) => ({ workspace: item.name, task }))).filter(({ task }) => activeStates.has(task.state)), [store.workspaces]);
-  const hasRecovery = store.executionJobs.some((job) => job.status === "FAILED" || job.status === "INTERRUPTED")
-    || Boolean(store.details?.runs.some((run) => run.state === "FAILED" || run.state === "CANCELLED" || run.can_undo));
-  const filteredWorkspaces = useMemo(() => store.workspaces.map((item) => ({ ...item, threads: item.threads.filter((task) => !query || `${item.name} ${task.title}`.toLowerCase().includes(query.toLowerCase())) })).filter((item) => item.threads.length || item.name.toLowerCase().includes(query.toLowerCase())), [store.workspaces, query]);
+  const activeTasks = useMemo(
+    () =>
+      store.workspaces
+        .flatMap((item) =>
+          item.threads.map((task) => ({ workspace: item.name, task })),
+        )
+        .filter(({ task }) => activeStates.has(task.state)),
+    [store.workspaces],
+  );
+  const hasRecovery =
+    store.executionJobs.some(
+      (job) => job.status === "FAILED" || job.status === "INTERRUPTED",
+    ) ||
+    Boolean(
+      store.details?.runs.some(
+        (run) =>
+          run.state === "FAILED" || run.state === "CANCELLED" || run.can_undo,
+      ),
+    );
+  const filteredWorkspaces = useMemo(
+    () =>
+      store.workspaces
+        .map((item) => ({
+          ...item,
+          threads: item.threads.filter(
+            (task) =>
+              !query ||
+              `${item.name} ${task.title}`
+                .toLowerCase()
+                .includes(query.toLowerCase()),
+          ),
+        }))
+        .filter(
+          (item) =>
+            item.threads.length ||
+            item.name.toLowerCase().includes(query.toLowerCase()),
+        ),
+    [store.workspaces, query],
+  );
   useEffect(() => {
-    if (store.backend === "online" && !showSettings) void import("./api").then((api) => api.fetchAgentSettings()).then(setAgentSettings).catch(() => undefined);
+    if (store.backend === "online" && !showSettings)
+      void import("./api")
+        .then((api) => api.fetchAgentSettings())
+        .then(setAgentSettings)
+        .catch(() => undefined);
   }, [store.backend, showSettings]);
   useEffect(() => {
     if (rightTab === "recovery" && !hasRecovery) setRightTab("status");
@@ -57,18 +160,31 @@ export default function App() {
   const latestMessageLength = thread?.messages.at(-1)?.text.length ?? 0;
   useEffect(() => {
     if (!thread) return;
-    const frame = window.requestAnimationFrame(() => messageEnd.current?.scrollIntoView({ block: "end", behavior: "smooth" }));
+    const frame = window.requestAnimationFrame(() =>
+      messageEnd.current?.scrollIntoView({ block: "end", behavior: "smooth" }),
+    );
     return () => window.cancelAnimationFrame(frame);
   }, [thread?.id, thread?.messages.length, latestMessageLength, thread?.state]);
 
   const openWorkspace = async () => {
     const selected = isTauri()
-      ? await open({ directory: true, multiple: false, title: "选择本地 Git 仓库" })
+      ? await open({
+          directory: true,
+          multiple: false,
+          title: "选择本地 Git 仓库",
+        })
       : window.prompt("输入本地 Git 仓库的绝对路径");
-    if (typeof selected === "string" && selected.trim()) await store.openWorkspace(selected.trim());
+    if (typeof selected === "string" && selected.trim())
+      await store.openWorkspace(selected.trim());
   };
   const chooseDirectory = async () => {
-    const selected = isTauri() ? await open({ directory: true, multiple: false, title: "选择本地空目录" }) : window.prompt("输入本地空目录的绝对路径");
+    const selected = isTauri()
+      ? await open({
+          directory: true,
+          multiple: false,
+          title: "选择本地空目录",
+        })
+      : window.prompt("输入本地空目录的绝对路径");
     return typeof selected === "string" ? selected : undefined;
   };
   const run = () => {
@@ -77,200 +193,1681 @@ export default function App() {
     void store.sendPrompt(text.trim());
     setText("");
   };
-  const resize = (side: "left" | "right", start: React.PointerEvent<HTMLDivElement>) => {
+  const resize = (
+    side: "left" | "right",
+    start: React.PointerEvent<HTMLDivElement>,
+  ) => {
     start.currentTarget.setPointerCapture(start.pointerId);
     const originX = start.clientX;
     const originWidth = side === "left" ? leftWidth : rightWidth;
     const move = (event: PointerEvent) => {
       const delta = event.clientX - originX;
-      if (side === "left") setLeftWidth(Math.min(420, Math.max(190, originWidth + delta)));
+      if (side === "left")
+        setLeftWidth(Math.min(420, Math.max(190, originWidth + delta)));
       else setRightWidth(Math.min(560, Math.max(280, originWidth - delta)));
     };
-    const stop = () => { window.removeEventListener("pointermove", move); window.removeEventListener("pointerup", stop); };
+    const stop = () => {
+      window.removeEventListener("pointermove", move);
+      window.removeEventListener("pointerup", stop);
+    };
     window.addEventListener("pointermove", move);
     window.addEventListener("pointerup", stop);
   };
   const dragWindow = (event: React.MouseEvent<HTMLElement>) => {
-    if (!isTauri() || (event.target as HTMLElement).closest("button, input, select")) return;
+    if (
+      !isTauri() ||
+      (event.target as HTMLElement).closest("button, input, select")
+    )
+      return;
     if (event.detail === 2) void getCurrentWindow().toggleMaximize();
     else void getCurrentWindow().startDragging();
   };
 
-  return <div className="workbench-shell">
-    <header className="titlebar" data-tauri-drag-region onMouseDown={dragWindow}>
-      <div className="brand-mark"><Code2 size={15}/></div>
-      <div><div className="brand-title">DualCode Workbench</div><div className="brand-subtitle">LOCAL AI DEVELOPMENT</div></div>
-      <div className="title-context"><span>{workspace?.name ?? "未打开项目"}</span>{thread && <><span className="crumb">/</span><span>{thread.title}</span></>}</div>
-      <div className="layout-controls"><button className="icon-button" onClick={() => setLeftHidden((value) => !value)} title={leftHidden ? "显示项目栏" : "隐藏项目栏"}>{leftHidden ? <PanelLeftOpen size={16}/> : <PanelLeftClose size={16}/>}</button><button className="icon-button" onClick={() => setRightHidden((value) => !value)} title={rightHidden ? "显示检查器" : "隐藏检查器"}>{rightHidden ? <PanelRightOpen size={16}/> : <PanelRightClose size={16}/>}</button><button className="icon-button" onClick={() => setShowSettings(true)} title="Agent 与连接设置"><Settings2 size={16}/></button></div>
-      <BackendBadge status={store.backend} retry={store.initialize}/>
-      {isTauri() && <div className="window-controls"><button onClick={() => void getCurrentWindow().minimize()} title="最小化"><Minus size={15}/></button><button onClick={() => void getCurrentWindow().toggleMaximize()} title="最大化"><Maximize2 size={13}/></button><button className="close" onClick={() => void getCurrentWindow().close()} title="关闭"><X size={15}/></button></div>}
-    </header>
-
-    <main className="workspace-grid" style={{ gridTemplateColumns: `${leftHidden ? 0 : leftWidth}px ${leftHidden ? 0 : 4}px minmax(420px,1fr) ${rightHidden ? 0 : 4}px ${rightHidden ? 0 : rightWidth}px` }}>
-      <aside className={`project-rail ${leftHidden ? "panel-hidden" : ""}`}>
-        <div className="project-entry-actions"><button className="open-project" onClick={() => void openWorkspace()}><FolderGit2 size={15}/><span>打开本地项目</span><kbd>Ctrl+O</kbd></button><button className="create-project" onClick={() => setShowProjectDialog(true)}><Plus size={14}/>创建 / 克隆</button></div>
-        <label className="search-box"><Search size={13}/><input value={query} onChange={(event) => setQuery(event.target.value)} placeholder="搜索项目和任务"/>{query && <button onClick={() => setQuery("")}><X size={12}/></button>}</label>
-        <div className="project-list">
-          {filteredWorkspaces.map((item) => <section key={item.id} className="project-group">
-            <div className="project-heading"><ChevronDown size={13}/><div className="min-w-0"><strong>{item.name}</strong><small title={item.path}>{item.path}</small></div><button onClick={() => setProjectMenu((current) => current === item.id ? undefined : item.id)}><MoreHorizontal size={14}/></button>{projectMenu === item.id && <div className="project-menu"><button onClick={() => { setProjectMenu(undefined); if (window.confirm(`从工作台移除“${item.name}”？\n\n本地文件不会被删除。`)) void store.removeWorkspace(item.id); }}>从工作台移除<small>保留本地文件</small></button></div>}</div>
-            <div className="thread-list">{item.threads.map((task) => <ThreadButton key={task.id} task={task} active={task.id === store.threadId} onClick={() => store.setSelection(item.id, task.id)}/>)}</div>
-            {item.id === store.workspaceId && <button className="new-thread" disabled={store.creatingThread} onClick={() => void store.newThread()}><MessageSquarePlus size={13}/>{store.creatingThread ? "创建中…" : "新建任务"}</button>}
-          </section>)}
+  return (
+    <div className="workbench-shell">
+      <header
+        className="titlebar"
+        data-tauri-drag-region
+        onMouseDown={dragWindow}
+      >
+        <div className="brand-mark">
+          <Code2 size={15} />
         </div>
-        <div className="rail-footer"><GitBranch size={13}/><div><span>本地优先</span><small>不会同步完整项目到 VPS</small></div></div>
-      </aside>
-      <div className={`resize-handle left ${leftHidden ? "panel-hidden" : ""}`} onPointerDown={(event) => resize("left", event)} onDoubleClick={() => setLeftWidth(258)}/>
-
-      <section className="conversation-pane">
-        {!thread ? <EmptyState onOpen={() => void openWorkspace()}/> : <>
-          <TaskHeader thread={thread}/>
-          {store.backend === "offline" && <div className="backend-offline-banner"><AlertTriangle size={16}/><div><strong>后端离线</strong><span>当前无法发送消息或上传附件，请重试连接。</span></div><button onClick={() => void store.initialize()}>重试连接</button></div>}
-          <div className="message-stream">
-            {thread.messages.length ? thread.messages.map((message) => <MessageCard key={message.id} message={message} edit={setText} retry={store.retryMessage}/>) : <div className="new-task-empty"><Bot size={28}/><strong>从产品目标开始</strong><span>描述目标用户、核心场景、业务需求和约束。先澄清需求与验收标准，再讨论技术方案和实现框架。</span></div>}
-            {activeStates.has(thread.state) && <ProcessingCard state={thread.state} agent={store.mode} waitingApproval={Boolean(store.pendingApproval)}/>}
-            <div className="message-end" ref={messageEnd}/>
+        <div>
+          <div className="brand-title">DualCode Workbench</div>
+          <div className="brand-subtitle">LOCAL AI DEVELOPMENT</div>
+        </div>
+        <div className="title-context">
+          <span>{workspace?.name ?? "未打开项目"}</span>
+          {thread && (
+            <>
+              <span className="crumb">/</span>
+              <span>{thread.title}</span>
+            </>
+          )}
+        </div>
+        <div className="layout-controls">
+          <button
+            className="icon-button"
+            onClick={() => setLeftHidden((value) => !value)}
+            title={leftHidden ? "显示项目栏" : "隐藏项目栏"}
+          >
+            {leftHidden ? (
+              <PanelLeftOpen size={16} />
+            ) : (
+              <PanelLeftClose size={16} />
+            )}
+          </button>
+          <button
+            className="icon-button"
+            onClick={() => setRightHidden((value) => !value)}
+            title={rightHidden ? "显示检查器" : "隐藏检查器"}
+          >
+            {rightHidden ? (
+              <PanelRightOpen size={16} />
+            ) : (
+              <PanelRightClose size={16} />
+            )}
+          </button>
+          <button
+            className="icon-button"
+            onClick={() => setShowSettings(true)}
+            title="Agent 与连接设置"
+          >
+            <Settings2 size={16} />
+          </button>
+        </div>
+        <BackendBadge status={store.backend} retry={store.initialize} />
+        {isTauri() && (
+          <div className="window-controls">
+            <button
+              onClick={() => void getCurrentWindow().minimize()}
+              title="最小化"
+            >
+              <Minus size={15} />
+            </button>
+            <button
+              onClick={() => void getCurrentWindow().toggleMaximize()}
+              title="最大化"
+            >
+              <Maximize2 size={13} />
+            </button>
+            <button
+              className="close"
+              onClick={() => void getCurrentWindow().close()}
+              title="关闭"
+            >
+              <X size={15} />
+            </button>
           </div>
-          <Composer text={text} setText={setText} mode={store.mode} setMode={store.setMode} run={run} cancel={store.cancelRun} running={activeStates.has(thread.state)} offline={store.backend === "offline"} fileInput={fileInput} upload={store.upload} attachments={store.draftAttachments} removeAttachment={store.removeAttachment}/>
-        </>}
-      </section>
-      <div className={`resize-handle right ${rightHidden ? "panel-hidden" : ""}`} onPointerDown={(event) => resize("right", event)} onDoubleClick={() => setRightWidth(360)}/>
+        )}
+      </header>
 
-      <aside className={`inspector-pane ${rightHidden ? "panel-hidden" : ""}`}>
-        <div className="inspector-tabs"><button className={rightTab === "status" ? "active" : ""} onClick={() => setRightTab("status")}>状态</button><button className={rightTab === "contract" ? "active" : ""} onClick={() => setRightTab("contract")}>规则</button><button className={rightTab === "handoff" ? "active" : ""} onClick={() => setRightTab("handoff")}>交接</button>{hasRecovery && <button className={`event-tab ${rightTab === "recovery" ? "active" : ""}`} onClick={() => setRightTab("recovery")}>恢复<i className="tab-alert"/></button>}</div>
-        {store.pendingApproval && <ApprovalCard action={store.pendingApproval.action} reason={store.pendingApproval.reason} decide={store.decideApproval}/>}
-        {rightTab === "status" && <><div className="inspector-subtabs"><button className={statusTab === "repository" ? "active" : ""} onClick={() => setStatusTab("repository")}>仓库</button><button className={statusTab === "diff" ? "active" : ""} onClick={() => setStatusTab("diff")}>变更</button><button className={statusTab === "logs" ? "active" : ""} onClick={() => setStatusTab("logs")}>运行日志</button></div>{statusTab === "repository" && <ContextPanel details={store.details} git={store.gitStatus} remote={store.remoteStatus} remoteJobs={store.executionJobs} agentSettings={agentSettings} openSettings={() => { setSettingsTarget("tests"); setShowSettings(true); }} saveRemote={store.saveRemote} remoteAction={store.remoteGitAction} runTests={store.runTests}/>} {statusTab === "diff" && <DiffPanel diff={store.details?.diff ?? ""}/>} {statusTab === "logs" && <TerminalPanel lines={store.terminal}/>}</>}
-        {rightTab === "contract" && <ContractPanel workspaceId={store.workspaceId} threadId={store.threadId}/>}
-        {rightTab === "handoff" && <HandoffPanel workspaceId={store.workspaceId} threadId={store.threadId}/>}
-        {rightTab === "recovery" && <RecoveryPanel jobs={store.executionJobs} runs={store.details?.runs ?? []} retryingJobId={store.retryingJobId} refresh={store.refreshExecutionJobs} retry={store.retryExecutionJob} undo={store.undoRun}/>}
-      </aside>
-    </main>
+      <main
+        className="workspace-grid"
+        style={{
+          gridTemplateColumns: `${leftHidden ? 0 : leftWidth}px ${leftHidden ? 0 : 4}px minmax(420px,1fr) ${rightHidden ? 0 : 4}px ${rightHidden ? 0 : rightWidth}px`,
+        }}
+      >
+        <aside className={`project-rail ${leftHidden ? "panel-hidden" : ""}`}>
+          <div className="project-entry-actions">
+            <button
+              className="open-project"
+              onClick={() => void openWorkspace()}
+            >
+              <FolderGit2 size={15} />
+              <span>打开本地项目</span>
+              <kbd>Ctrl+O</kbd>
+            </button>
+            <button
+              className="create-project"
+              onClick={() => setShowProjectDialog(true)}
+            >
+              <Plus size={14} />
+              创建 / 克隆
+            </button>
+          </div>
+          <label className="search-box">
+            <Search size={13} />
+            <input
+              value={query}
+              onChange={(event) => setQuery(event.target.value)}
+              placeholder="搜索项目和任务"
+            />
+            {query && (
+              <button onClick={() => setQuery("")}>
+                <X size={12} />
+              </button>
+            )}
+          </label>
+          <div className="project-list">
+            {filteredWorkspaces.map((item) => (
+              <section key={item.id} className="project-group">
+                <div className="project-heading">
+                  <ChevronDown size={13} />
+                  <div className="min-w-0">
+                    <strong>{item.name}</strong>
+                    <small title={item.path}>{item.path}</small>
+                  </div>
+                  <button
+                    onClick={() =>
+                      setProjectMenu((current) =>
+                        current === item.id ? undefined : item.id,
+                      )
+                    }
+                  >
+                    <MoreHorizontal size={14} />
+                  </button>
+                  {projectMenu === item.id && (
+                    <div className="project-menu">
+                      <button
+                        onClick={() => {
+                          setProjectMenu(undefined);
+                          if (
+                            window.confirm(
+                              `从工作台移除“${item.name}”？\n\n本地文件不会被删除。`,
+                            )
+                          )
+                            void store.removeWorkspace(item.id);
+                        }}
+                      >
+                        从工作台移除<small>保留本地文件</small>
+                      </button>
+                    </div>
+                  )}
+                </div>
+                <div className="thread-list">
+                  {item.threads.map((task) => (
+                    <ThreadButton
+                      key={task.id}
+                      task={task}
+                      active={task.id === store.threadId}
+                      onClick={() => store.setSelection(item.id, task.id)}
+                    />
+                  ))}
+                </div>
+                {item.id === store.workspaceId && (
+                  <button
+                    className="new-thread"
+                    disabled={store.creatingThread}
+                    onClick={() => void store.newThread()}
+                  >
+                    <MessageSquarePlus size={13} />
+                    {store.creatingThread ? "创建中…" : "新建任务"}
+                  </button>
+                )}
+              </section>
+            ))}
+          </div>
+          <div className="rail-footer">
+            <GitBranch size={13} />
+            <div>
+              <span>本地优先</span>
+              <small>不会同步完整项目到 VPS</small>
+            </div>
+          </div>
+        </aside>
+        <div
+          className={`resize-handle left ${leftHidden ? "panel-hidden" : ""}`}
+          onPointerDown={(event) => resize("left", event)}
+          onDoubleClick={() => setLeftWidth(258)}
+        />
 
-    <footer className="activity-bar"><div className="activity-label"><SquareTerminal size={13}/><strong>后台任务</strong><span>{activeTasks.length ? `${activeTasks.length} 个运行中` : "无运行任务"}</span></div><div className="activity-tasks">{activeTasks.slice(0, 3).map(({ workspace: name, task }) => <button key={task.id}><LoaderCircle size={11} className="spin"/>{name} · {task.title}<small>{stateLabel[task.state]}</small></button>)}</div><div className="security-note"><ShieldCheck size={12}/>审批与变更已审计</div></footer>
-    {store.error && <button className="error-toast" onClick={() => useStore.setState({ error: undefined })}><AlertTriangle size={14}/>{store.error}<X size={13}/></button>}
-    {showSettings && <SettingsDialog target={settingsTarget} onClose={() => setShowSettings(false)}/>}
-    {showProjectDialog && <ProjectDialog chooseDirectory={chooseDirectory} submit={store.provisionWorkspace} close={() => setShowProjectDialog(false)}/>}
-  </div>;
+        <section className="conversation-pane">
+          {!thread ? (
+            <EmptyState onOpen={() => void openWorkspace()} />
+          ) : (
+            <>
+              <TaskHeader thread={thread} />
+              {store.backend === "offline" && (
+                <div className="backend-offline-banner">
+                  <AlertTriangle size={16} />
+                  <div>
+                    <strong>后端离线</strong>
+                    <span>当前无法发送消息或上传附件，请重试连接。</span>
+                  </div>
+                  <button onClick={() => void store.initialize()}>
+                    重试连接
+                  </button>
+                </div>
+              )}
+              <div className="message-stream">
+                {thread.messages.length ? (
+                  thread.messages.map((message) => (
+                    <MessageCard
+                      key={message.id}
+                      message={message}
+                      edit={setText}
+                      retry={store.retryMessage}
+                    />
+                  ))
+                ) : (
+                  <div className="new-task-empty">
+                    <Bot size={28} />
+                    <strong>从产品目标开始</strong>
+                    <span>
+                      描述目标用户、核心场景、业务需求和约束。先澄清需求与验收标准，再讨论技术方案和实现框架。
+                    </span>
+                  </div>
+                )}
+                {activeStates.has(thread.state) && (
+                  <ProcessingCard
+                    state={thread.state}
+                    agent={store.mode}
+                    waitingApproval={Boolean(store.pendingApproval)}
+                  />
+                )}
+                <div className="message-end" ref={messageEnd} />
+              </div>
+              <Composer
+                text={text}
+                setText={setText}
+                mode={store.mode}
+                setMode={store.setMode}
+                run={run}
+                cancel={store.cancelRun}
+                running={activeStates.has(thread.state)}
+                offline={store.backend === "offline"}
+                fileInput={fileInput}
+                upload={store.upload}
+                attachments={store.draftAttachments}
+                removeAttachment={store.removeAttachment}
+              />
+            </>
+          )}
+        </section>
+        <div
+          className={`resize-handle right ${rightHidden ? "panel-hidden" : ""}`}
+          onPointerDown={(event) => resize("right", event)}
+          onDoubleClick={() => setRightWidth(360)}
+        />
+
+        <aside
+          className={`inspector-pane ${rightHidden ? "panel-hidden" : ""}`}
+        >
+          <div className="inspector-tabs">
+            <button
+              className={rightTab === "status" ? "active" : ""}
+              onClick={() => setRightTab("status")}
+            >
+              状态
+            </button>
+            <button
+              className={rightTab === "contract" ? "active" : ""}
+              onClick={() => setRightTab("contract")}
+            >
+              规则
+            </button>
+            <button
+              className={rightTab === "handoff" ? "active" : ""}
+              onClick={() => setRightTab("handoff")}
+            >
+              交接
+            </button>
+            {hasRecovery && (
+              <button
+                className={`event-tab ${rightTab === "recovery" ? "active" : ""}`}
+                onClick={() => setRightTab("recovery")}
+              >
+                恢复
+                <i className="tab-alert" />
+              </button>
+            )}
+          </div>
+          {store.pendingApproval && (
+            <ApprovalCard
+              action={store.pendingApproval.action}
+              reason={store.pendingApproval.reason}
+              decide={store.decideApproval}
+            />
+          )}
+          {rightTab === "status" && (
+            <>
+              <div className="inspector-subtabs">
+                <button
+                  className={statusTab === "repository" ? "active" : ""}
+                  onClick={() => setStatusTab("repository")}
+                >
+                  仓库
+                </button>
+                <button
+                  className={statusTab === "diff" ? "active" : ""}
+                  onClick={() => setStatusTab("diff")}
+                >
+                  变更
+                </button>
+                <button
+                  className={statusTab === "logs" ? "active" : ""}
+                  onClick={() => setStatusTab("logs")}
+                >
+                  运行日志
+                </button>
+              </div>
+              {statusTab === "repository" && (
+                <ContextPanel
+                  details={store.details}
+                  git={store.gitStatus}
+                  remote={store.remoteStatus}
+                  remoteJobs={store.executionJobs}
+                  agentSettings={agentSettings}
+                  openSettings={() => {
+                    setSettingsTarget("tests");
+                    setShowSettings(true);
+                  }}
+                  saveRemote={store.saveRemote}
+                  remoteAction={store.remoteGitAction}
+                  runTests={store.runTests}
+                />
+              )}{" "}
+              {statusTab === "diff" && (
+                <DiffPanel diff={store.details?.diff ?? ""} />
+              )}{" "}
+              {statusTab === "logs" && <TerminalPanel lines={store.terminal} />}
+            </>
+          )}
+          {rightTab === "contract" && (
+            <ContractPanel
+              workspaceId={store.workspaceId}
+              threadId={store.threadId}
+            />
+          )}
+          {rightTab === "handoff" && (
+            <HandoffPanel
+              workspaceId={store.workspaceId}
+              threadId={store.threadId}
+            />
+          )}
+          {rightTab === "recovery" && (
+            <RecoveryPanel
+              jobs={store.executionJobs}
+              runs={store.details?.runs ?? []}
+              retryingJobId={store.retryingJobId}
+              refresh={store.refreshExecutionJobs}
+              retry={store.retryExecutionJob}
+              undo={store.undoRun}
+            />
+          )}
+        </aside>
+      </main>
+
+      <footer className="activity-bar">
+        <div className="activity-label">
+          <SquareTerminal size={13} />
+          <strong>后台任务</strong>
+          <span>
+            {activeTasks.length
+              ? `${activeTasks.length} 个运行中`
+              : "无运行任务"}
+          </span>
+        </div>
+        <div className="activity-tasks">
+          {activeTasks.slice(0, 3).map(({ workspace: name, task }) => (
+            <button key={task.id}>
+              <LoaderCircle size={11} className="spin" />
+              {name} · {task.title}
+              <small>{stateLabel[task.state]}</small>
+            </button>
+          ))}
+        </div>
+        <div className="security-note">
+          <ShieldCheck size={12} />
+          审批与变更已审计
+        </div>
+      </footer>
+      {store.error && (
+        <button
+          className="error-toast"
+          onClick={() => useStore.setState({ error: undefined })}
+        >
+          <AlertTriangle size={14} />
+          {store.error}
+          <X size={13} />
+        </button>
+      )}
+      {showSettings && (
+        <SettingsDialog
+          target={settingsTarget}
+          onClose={() => setShowSettings(false)}
+        />
+      )}
+      {showProjectDialog && (
+        <ProjectDialog
+          chooseDirectory={chooseDirectory}
+          submit={store.provisionWorkspace}
+          close={() => setShowProjectDialog(false)}
+        />
+      )}
+    </div>
+  );
 }
 
-function BackendBadge({ status, retry }: { status: "connecting" | "online" | "offline"; retry: () => Promise<void> }) { return <div className={`backend-badge ${status}`}><span/>{status === "online" ? "后端在线" : status === "connecting" ? "后端启动中" : <button onClick={() => void retry()}>后端离线 · 重试</button>}</div>; }
-function ProcessingCard({ state, agent, waitingApproval }: { state: RunState; agent: Mode; waitingApproval: boolean }) {
+function BackendBadge({
+  status,
+  retry,
+}: {
+  status: "connecting" | "online" | "offline";
+  retry: () => Promise<void>;
+}) {
+  return (
+    <div className={`backend-badge ${status}`}>
+      <span />
+      {status === "online" ? (
+        "后端在线"
+      ) : status === "connecting" ? (
+        "后端启动中"
+      ) : (
+        <button onClick={() => void retry()}>后端离线 · 重试</button>
+      )}
+    </div>
+  );
+}
+function ProcessingCard({
+  state,
+  agent,
+  waitingApproval,
+}: {
+  state: RunState;
+  agent: Mode;
+  waitingApproval: boolean;
+}) {
   const name = agent === "codex" ? "Codex" : "Claude";
-  const title = waitingApproval ? "等待你的授权" : state === "PLANNING" ? `${name} 正在思考` : state === "TESTING" ? "正在运行测试" : `${name} 正在处理`;
-  const detail = waitingApproval ? "本轮需要执行受保护操作，处理审批后将继续。" : state === "PLANNING" ? "正在理解需求、读取上下文并组织回复。" : state === "TESTING" ? "正在执行已批准的测试命令并收集结果。" : "正在读取项目、调用工具并整理结果。";
-  return <div className={`processing-card ${waitingApproval ? "waiting" : ""}`}><div className="processing-orb"><LoaderCircle size={15} className={waitingApproval ? "" : "spin"}/></div><div><strong>{title}<span className="thinking-dots"><i/><i/><i/></span></strong><small>{detail}</small></div></div>;
+  const title = waitingApproval
+    ? "等待你的授权"
+    : state === "PLANNING"
+      ? `${name} 正在思考`
+      : state === "TESTING"
+        ? "正在运行测试"
+        : `${name} 正在处理`;
+  const detail = waitingApproval
+    ? "本轮需要执行受保护操作，处理审批后将继续。"
+    : state === "PLANNING"
+      ? "正在理解需求、读取上下文并组织回复。"
+      : state === "TESTING"
+        ? "正在执行已批准的测试命令并收集结果。"
+        : "正在读取项目、调用工具并整理结果。";
+  return (
+    <div className={`processing-card ${waitingApproval ? "waiting" : ""}`}>
+      <div className="processing-orb">
+        <LoaderCircle size={15} className={waitingApproval ? "" : "spin"} />
+      </div>
+      <div>
+        <strong>
+          {title}
+          <span className="thinking-dots">
+            <i />
+            <i />
+            <i />
+          </span>
+        </strong>
+        <small>{detail}</small>
+      </div>
+    </div>
+  );
 }
-function ThreadButton({ task, active, onClick }: { task: Thread; active: boolean; onClick: () => void }) { return <button className={`thread-button ${active ? "active" : ""}`} onClick={onClick}><span className={`state-dot ${task.state.toLowerCase()}`}/><div><strong>{task.title}</strong><small>{stateLabel[task.state]}</small></div>{activeStates.has(task.state) && <LoaderCircle size={12} className="spin"/>}</button>; }
+function ThreadButton({
+  task,
+  active,
+  onClick,
+}: {
+  task: Thread;
+  active: boolean;
+  onClick: () => void;
+}) {
+  return (
+    <button
+      className={`thread-button ${active ? "active" : ""}`}
+      onClick={onClick}
+    >
+      <span className={`state-dot ${task.state.toLowerCase()}`} />
+      <div>
+        <strong>{task.title}</strong>
+        <small>{stateLabel[task.state]}</small>
+      </div>
+      {activeStates.has(task.state) && (
+        <LoaderCircle size={12} className="spin" />
+      )}
+    </button>
+  );
+}
 function TaskHeader({ thread }: { thread: Thread }) {
   const running = activeStates.has(thread.state);
-  return <div className="task-header compact"><div className="task-title-row"><div><small>开发会话</small><h1>{thread.title}</h1></div><span className={`task-state ${thread.state.toLowerCase()}`}>{running && <LoaderCircle size={12} className="spin"/>}{stateLabel[thread.state]}</span></div></div>;
+  return (
+    <div className="task-header compact">
+      <div className="task-title-row">
+        <div>
+          <small>开发会话</small>
+          <h1>{thread.title}</h1>
+        </div>
+        <span className={`task-state ${thread.state.toLowerCase()}`}>
+          {running && <LoaderCircle size={12} className="spin" />}
+          {stateLabel[thread.state]}
+        </span>
+      </div>
+    </div>
+  );
 }
-function ActivityCard({ activity }: { activity: NonNullable<Message["activity"]> }) {
+function ActivityCard({
+  activity,
+}: {
+  activity: NonNullable<Message["activity"]>;
+}) {
   const element = useRef<HTMLDetailsElement>(null);
-  useEffect(() => { if (element.current) element.current.open = activity.status === "running"; }, [activity.status]);
-  const elapsed = Math.max(0, (activity.completedAt ?? Date.now()) - (activity.startedAt ?? Date.now()));
-  const duration = elapsed < 1000 ? "不到 1 秒" : elapsed < 60_000 ? `${Math.ceil(elapsed / 1000)} 秒` : `${Math.floor(elapsed / 60_000)} 分 ${Math.ceil((elapsed % 60_000) / 1000)} 秒`;
-  const statusText = activity.status === "running" ? "处理中" : activity.status === "completed" ? `已处理 ${duration}` : activity.status === "cancelled" ? `已停止 · ${duration}` : `处理失败 · ${duration}`;
-  return <details ref={element} className={`agent-activity ${activity.status}`}><summary><span>{activity.status === "running" ? <LoaderCircle size={13} className="spin"/> : activity.status === "completed" ? <Check size={13}/> : <AlertTriangle size={13}/>}</span><strong>{statusText}</strong><small>{activity.steps.length ? `${activity.steps.length} 项操作` : "查看过程"}</small><ChevronDown size={13}/></summary><div className="activity-steps">{activity.steps.map((step) => <div className={`activity-step ${step.status}`} key={step.id}><span>{step.status === "running" ? <LoaderCircle size={12} className="spin"/> : step.status === "completed" ? <Check size={12}/> : <X size={12}/>}</span><strong>{step.label}</strong>{step.detail && step.detail !== "reasoning" && <code title={step.detail}>{step.detail}</code>}</div>)}</div>{activity.error && <div className="activity-error"><strong>未能完成本轮</strong><span>{activity.error}</span></div>}</details>;
+  useEffect(() => {
+    if (element.current) element.current.open = activity.status === "running";
+  }, [activity.status]);
+  const elapsed = Math.max(
+    0,
+    (activity.completedAt ?? Date.now()) - (activity.startedAt ?? Date.now()),
+  );
+  const duration =
+    elapsed < 1000
+      ? "不到 1 秒"
+      : elapsed < 60_000
+        ? `${Math.ceil(elapsed / 1000)} 秒`
+        : `${Math.floor(elapsed / 60_000)} 分 ${Math.ceil((elapsed % 60_000) / 1000)} 秒`;
+  const statusText =
+    activity.status === "running"
+      ? "处理中"
+      : activity.status === "completed"
+        ? `已处理 ${duration}`
+        : activity.status === "cancelled"
+          ? `已停止 · ${duration}`
+          : `处理失败 · ${duration}`;
+  return (
+    <details ref={element} className={`agent-activity ${activity.status}`}>
+      <summary>
+        <span>
+          {activity.status === "running" ? (
+            <LoaderCircle size={13} className="spin" />
+          ) : activity.status === "completed" ? (
+            <Check size={13} />
+          ) : (
+            <AlertTriangle size={13} />
+          )}
+        </span>
+        <strong>{statusText}</strong>
+        <small>
+          {activity.steps.length
+            ? `${activity.steps.length} 项操作`
+            : "查看过程"}
+        </small>
+        <ChevronDown size={13} />
+      </summary>
+      <div className="activity-steps">
+        {activity.steps.map((step) => (
+          <div className={`activity-step ${step.status}`} key={step.id}>
+            <span>
+              {step.status === "running" ? (
+                <LoaderCircle size={12} className="spin" />
+              ) : step.status === "completed" ? (
+                <Check size={12} />
+              ) : (
+                <X size={12} />
+              )}
+            </span>
+            <strong>{step.label}</strong>
+            {step.detail && step.detail !== "reasoning" && (
+              <code title={step.detail}>{step.detail}</code>
+            )}
+          </div>
+        ))}
+      </div>
+      {activity.error && (
+        <div className="activity-error">
+          <strong>未能完成本轮</strong>
+          <span>{activity.error}</span>
+        </div>
+      )}
+    </details>
+  );
 }
-function MessageCard({ message, edit, retry }: { message: Message; edit: (value: string) => void; retry: (id: string) => Promise<void> }) {
+function MessageCard({
+  message,
+  edit,
+  retry,
+}: {
+  message: Message;
+  edit: (value: string) => void;
+  retry: (id: string) => Promise<void>;
+}) {
   const { agent, time, text } = message;
   const workspaceId = useStore((state) => state.workspaceId);
   const threadId = useStore((state) => state.threadId);
-  const names: Record<Agent, string> = { user: "你", codex: "Codex", claude: "Claude", system: "System" };
+  const names: Record<Agent, string> = {
+    user: "你",
+    codex: "Codex",
+    claude: "Claude",
+    system: "System",
+  };
   if (message.activity) {
-    return <ActivityCard activity={message.activity}/>;
+    return <ActivityCard activity={message.activity} />;
   }
-  if (agent === "system") return <article className="system-event"><span><SquareTerminal size={12}/></span><div><strong>System</strong><p>{text}</p></div>{time && <time>{time}</time>}</article>;
-  return <article className={`message-card ${agent}`}>
-    {agent !== "user" && <div className="message-avatar">{agent === "codex" ? <Code2 size={14}/> : "C"}</div>}
-    <div className="message-body">{agent !== "user" && <header><strong>{names[agent]}</strong>{time && <time>{time}</time>}<span>{agent === "codex" ? "本地执行" : "远程规划 / 审查"}</span></header>}<div className="message-content">{message.attachments?.length ? <div className="message-attachments">{message.attachments.map((item) => { const url = api.attachmentContentUrl(workspaceId, threadId, item.id); return item.media_type.startsWith("image/") ? <ImageAttachment key={item.id} url={url} name={item.name}/> : <a key={item.id} href={url} target="_blank" rel="noreferrer">{item.name}</a>; })}</div> : null}<FormattedMessage text={text}/></div>{agent === "user" && <div className="message-actions"><button onClick={() => edit(text)}>编辑后重新发送</button><button onClick={() => void retry(message.id)}>重试本轮</button></div>}</div>
-  </article>;
+  if (agent === "system")
+    return (
+      <article className="system-event">
+        <span>
+          <SquareTerminal size={12} />
+        </span>
+        <div>
+          <strong>System</strong>
+          <p>{text}</p>
+        </div>
+        {time && <time>{time}</time>}
+      </article>
+    );
+  return (
+    <article className={`message-card ${agent}`}>
+      {agent !== "user" && (
+        <div className="message-avatar">
+          {agent === "codex" ? <Code2 size={14} /> : "C"}
+        </div>
+      )}
+      <div className="message-body">
+        {agent !== "user" && (
+          <header>
+            <strong>{names[agent]}</strong>
+            {time && <time>{time}</time>}
+            <span>{agent === "codex" ? "本地执行" : "远程规划 / 审查"}</span>
+          </header>
+        )}
+        <div className="message-content">
+          {message.attachments?.length ? (
+            <div className="message-attachments">
+              {message.attachments.map((item) => {
+                const url = api.attachmentContentUrl(
+                  workspaceId,
+                  threadId,
+                  item.id,
+                );
+                return item.media_type.startsWith("image/") ? (
+                  <ImageAttachment key={item.id} url={url} name={item.name} />
+                ) : (
+                  <a key={item.id} href={url} target="_blank" rel="noreferrer">
+                    {item.name}
+                  </a>
+                );
+              })}
+            </div>
+          ) : null}
+          <FormattedMessage text={text} />
+        </div>
+        {agent === "user" && (
+          <div className="message-actions">
+            <button onClick={() => edit(text)}>编辑后重新发送</button>
+            <button onClick={() => void retry(message.id)}>重试本轮</button>
+          </div>
+        )}
+      </div>
+    </article>
+  );
 }
 function ImageAttachment({ url, name }: { url: string; name: string }) {
   const [openPreview, setOpenPreview] = useState(false);
   const [scale, setScale] = useState(1);
   useEffect(() => {
     if (!openPreview) return;
-    const close = (event: KeyboardEvent) => { if (event.key === "Escape") setOpenPreview(false); };
+    const close = (event: KeyboardEvent) => {
+      if (event.key === "Escape") setOpenPreview(false);
+    };
     window.addEventListener("keydown", close);
     return () => window.removeEventListener("keydown", close);
   }, [openPreview]);
   const zoom = (next: number) => setScale(Math.min(4, Math.max(0.25, next)));
-  return <>
-    <button className="message-image" type="button" onClick={() => { setScale(1); setOpenPreview(true); }} aria-label={`预览图片 ${name}`}><img src={url} alt={name}/><span>{name}</span></button>
-    {openPreview && <div className="image-preview" role="dialog" aria-modal="true" aria-label={`图片预览 ${name}`} onMouseDown={() => setOpenPreview(false)}>
-      <div className="image-preview-toolbar" onMouseDown={(event) => event.stopPropagation()}><strong title={name}>{name}</strong><span>{Math.round(scale * 100)}%</span><button onClick={() => zoom(scale - 0.25)}>缩小</button><button onClick={() => setScale(1)}>实际大小</button><button onClick={() => zoom(scale + 0.25)}>放大</button><a href={url} target="_blank" rel="noreferrer">打开原图</a><button className="preview-close" onClick={() => setOpenPreview(false)} aria-label="关闭图片预览"><X size={16}/></button></div>
-      <div className="image-preview-canvas" onMouseDown={(event) => event.stopPropagation()} onWheel={(event) => { event.preventDefault(); zoom(scale + (event.deltaY < 0 ? 0.15 : -0.15)); }}><img src={url} alt={name} style={{ transform: `scale(${scale})` }}/></div>
-    </div>}
-  </>;
+  return (
+    <>
+      <button
+        className="message-image"
+        type="button"
+        onClick={() => {
+          setScale(1);
+          setOpenPreview(true);
+        }}
+        aria-label={`预览图片 ${name}`}
+      >
+        <img src={url} alt={name} />
+        <span>{name}</span>
+      </button>
+      {openPreview && (
+        <div
+          className="image-preview"
+          role="dialog"
+          aria-modal="true"
+          aria-label={`图片预览 ${name}`}
+          onMouseDown={() => setOpenPreview(false)}
+        >
+          <div
+            className="image-preview-toolbar"
+            onMouseDown={(event) => event.stopPropagation()}
+          >
+            <strong title={name}>{name}</strong>
+            <span>{Math.round(scale * 100)}%</span>
+            <button onClick={() => zoom(scale - 0.25)}>缩小</button>
+            <button onClick={() => setScale(1)}>实际大小</button>
+            <button onClick={() => zoom(scale + 0.25)}>放大</button>
+            <a href={url} target="_blank" rel="noreferrer">
+              打开原图
+            </a>
+            <button
+              className="preview-close"
+              onClick={() => setOpenPreview(false)}
+              aria-label="关闭图片预览"
+            >
+              <X size={16} />
+            </button>
+          </div>
+          <div
+            className="image-preview-canvas"
+            onMouseDown={(event) => event.stopPropagation()}
+            onWheel={(event) => {
+              event.preventDefault();
+              zoom(scale + (event.deltaY < 0 ? 0.15 : -0.15));
+            }}
+          >
+            <img
+              src={url}
+              alt={name}
+              style={{ transform: `scale(${scale})` }}
+            />
+          </div>
+        </div>
+      )}
+    </>
+  );
 }
 function FormattedMessage({ text }: { text: string }) {
-  const inline = (value: string) => value.split(/(`[^`]+`|\*\*[^*]+\*\*)/g).filter(Boolean).map((part, index) => {
-    if (part.startsWith("**") && part.endsWith("**")) return <strong key={index}>{part.slice(2, -2)}</strong>;
-    if (part.startsWith("`") && part.endsWith("`")) return <code className="message-inline-code" key={index}>{part.slice(1, -1)}</code>;
-    return <Fragment key={index}>{part}</Fragment>;
-  });
+  const inline = (value: string) =>
+    value
+      .split(/(`[^`]+`|\*\*[^*]+\*\*)/g)
+      .filter(Boolean)
+      .map((part, index) => {
+        if (part.startsWith("**") && part.endsWith("**"))
+          return <strong key={index}>{part.slice(2, -2)}</strong>;
+        if (part.startsWith("`") && part.endsWith("`"))
+          return (
+            <code className="message-inline-code" key={index}>
+              {part.slice(1, -1)}
+            </code>
+          );
+        return <Fragment key={index}>{part}</Fragment>;
+      });
   const blocks = text.split(/```/);
-  return <>{blocks.map((block, index) => {
-    if (index % 2 === 1) { const lines = block.replace(/^\s+/, "").split("\n"); const language = lines[0]?.match(/^[\w+-]+$/) ? lines.shift() : ""; return <pre className="message-code" key={index}><small>{language}</small><code>{lines.join("\n").trim()}</code></pre>; }
-    return block.split(/\n{2,}/).filter(Boolean).map((paragraph, part) => <p key={`${index}-${part}`}>{paragraph.split("\n").map((line, lineIndex) => { const list = /^\s*[-*]\s/.test(line); return <span className={list ? "message-list-line" : ""} key={lineIndex}>{inline(line.replace(/^\s*[-*]\s/, "• "))}{lineIndex < paragraph.split("\n").length - 1 && <br/>}</span>; })}</p>);
-  })}</>;
+  return (
+    <>
+      {blocks.map((block, index) => {
+        if (index % 2 === 1) {
+          const lines = block.replace(/^\s+/, "").split("\n");
+          const language = lines[0]?.match(/^[\w+-]+$/) ? lines.shift() : "";
+          return (
+            <pre className="message-code" key={index}>
+              <small>{language}</small>
+              <code>{lines.join("\n").trim()}</code>
+            </pre>
+          );
+        }
+        return block
+          .split(/\n{2,}/)
+          .filter(Boolean)
+          .map((paragraph, part) => (
+            <p key={`${index}-${part}`}>
+              {paragraph.split("\n").map((line, lineIndex) => {
+                const list = /^\s*[-*]\s/.test(line);
+                return (
+                  <span
+                    className={list ? "message-list-line" : ""}
+                    key={lineIndex}
+                  >
+                    {inline(line.replace(/^\s*[-*]\s/, "• "))}
+                    {lineIndex < paragraph.split("\n").length - 1 && <br />}
+                  </span>
+                );
+              })}
+            </p>
+          ));
+      })}
+    </>
+  );
 }
-function Composer({ text, setText, mode, setMode, run, cancel, running, offline, fileInput, upload, attachments, removeAttachment }: { text: string; setText: (value: string) => void; mode: Mode; setMode: (mode: Mode) => void; run: () => void; cancel: () => Promise<void>; running: boolean; offline: boolean; fileInput: React.RefObject<HTMLInputElement | null>; upload: (file: File) => Promise<void>; attachments: { id: string; name: string; media_type: string }[]; removeAttachment: (id: string) => void }) {
+function Composer({
+  text,
+  setText,
+  mode,
+  setMode,
+  run,
+  cancel,
+  running,
+  offline,
+  fileInput,
+  upload,
+  attachments,
+  removeAttachment,
+}: {
+  text: string;
+  setText: (value: string) => void;
+  mode: Mode;
+  setMode: (mode: Mode) => void;
+  run: () => void;
+  cancel: () => Promise<void>;
+  running: boolean;
+  offline: boolean;
+  fileInput: React.RefObject<HTMLInputElement | null>;
+  upload: (file: File) => Promise<void>;
+  attachments: { id: string; name: string; media_type: string }[];
+  removeAttachment: (id: string) => void;
+}) {
   const unavailable = running || offline;
-  return <div className="composer-wrap"><div className="composer" onDrop={(event) => { event.preventDefault(); if (offline) return; for (const file of Array.from(event.dataTransfer.files).slice(0, 8 - attachments.length)) void upload(file); }} onDragOver={(event) => event.preventDefault()}>{attachments.length > 0 && <div className="attachment-tray">{attachments.map((item) => <div className="attachment-chip" key={item.id}><ImagePlus size={13}/><span>{item.name}</span><button onClick={() => removeAttachment(item.id)}><X size={12}/></button></div>)}</div>}<textarea value={text} disabled={unavailable} onChange={(event) => setText(event.target.value)} onPaste={(event) => { if (offline) return; const files = Array.from(event.clipboardData.files); for (const file of files.slice(0, 8 - attachments.length)) void upload(file); }} onKeyDown={(event) => { if (event.key === "Enter" && !event.shiftKey) { event.preventDefault(); run(); } }} placeholder={offline ? "后端离线，请重试连接…" : running ? "Agent 正在处理本轮请求…" : "输入消息；可以拖入文件或粘贴截图…"}/><div className="composer-tools"><input ref={fileInput} type="file" accept="image/png,image/jpeg,image/webp,text/plain" multiple hidden onChange={(event) => { for (const file of Array.from(event.target.files ?? []).slice(0, 8 - attachments.length)) void upload(file); event.target.value = ""; }}/><button disabled={offline} title="添加图片" onClick={() => fileInput.current?.click()}><ImagePlus size={15}/></button><button disabled={offline} title="添加附件" onClick={() => fileInput.current?.click()}><Paperclip size={15}/></button><span className="composer-hint">Enter 发送 · Shift+Enter 换行</span><select disabled={unavailable} value={mode} onChange={(event) => setMode(event.target.value as Mode)}>{Object.entries(modeLabel).map(([value, label]) => <option key={value} value={value}>{label}</option>)}</select><button disabled={offline} className={`run-button ${running ? "stop" : ""}`} onClick={() => running ? void cancel() : run()}>{running ? <Square size={13}/> : <Play size={13}/>} {running ? "停止" : "发送"}</button></div></div></div>;
+  return (
+    <div className="composer-wrap">
+      <div
+        className="composer"
+        onDrop={(event) => {
+          event.preventDefault();
+          if (offline) return;
+          for (const file of Array.from(event.dataTransfer.files).slice(
+            0,
+            8 - attachments.length,
+          ))
+            void upload(file);
+        }}
+        onDragOver={(event) => event.preventDefault()}
+      >
+        {attachments.length > 0 && (
+          <div className="attachment-tray">
+            {attachments.map((item) => (
+              <div className="attachment-chip" key={item.id}>
+                <ImagePlus size={13} />
+                <span>{item.name}</span>
+                <button onClick={() => removeAttachment(item.id)}>
+                  <X size={12} />
+                </button>
+              </div>
+            ))}
+          </div>
+        )}
+        <textarea
+          value={text}
+          disabled={unavailable}
+          onChange={(event) => setText(event.target.value)}
+          onPaste={(event) => {
+            if (offline) return;
+            const files = Array.from(event.clipboardData.files);
+            for (const file of files.slice(0, 8 - attachments.length))
+              void upload(file);
+          }}
+          onKeyDown={(event) => {
+            if (event.key === "Enter" && !event.shiftKey) {
+              event.preventDefault();
+              run();
+            }
+          }}
+          placeholder={
+            offline
+              ? "后端离线，请重试连接…"
+              : running
+                ? "Agent 正在处理本轮请求…"
+                : "输入消息；可以拖入文件或粘贴截图…"
+          }
+        />
+        <div className="composer-tools">
+          <input
+            ref={fileInput}
+            type="file"
+            accept="image/png,image/jpeg,image/webp,text/plain"
+            multiple
+            hidden
+            onChange={(event) => {
+              for (const file of Array.from(event.target.files ?? []).slice(
+                0,
+                8 - attachments.length,
+              ))
+                void upload(file);
+              event.target.value = "";
+            }}
+          />
+          <button
+            disabled={offline}
+            title="添加图片"
+            onClick={() => fileInput.current?.click()}
+          >
+            <ImagePlus size={15} />
+          </button>
+          <button
+            disabled={offline}
+            title="添加附件"
+            onClick={() => fileInput.current?.click()}
+          >
+            <Paperclip size={15} />
+          </button>
+          <span className="composer-hint">Enter 发送 · Shift+Enter 换行</span>
+          <select
+            disabled={unavailable}
+            value={mode}
+            onChange={(event) => setMode(event.target.value as Mode)}
+          >
+            {Object.entries(modeLabel).map(([value, label]) => (
+              <option key={value} value={value}>
+                {label}
+              </option>
+            ))}
+          </select>
+          <button
+            disabled={offline}
+            className={`run-button ${running ? "stop" : ""}`}
+            onClick={() => (running ? void cancel() : run())}
+          >
+            {running ? <Square size={13} /> : <Play size={13} />}{" "}
+            {running ? "停止" : "发送"}
+          </button>
+        </div>
+      </div>
+    </div>
+  );
 }
-function ApprovalCard({ action, reason, decide }: { action: string; reason: string; decide: (approved: boolean, scope?: "once" | "thread") => Promise<void> }) { const labels: Record<string, string> = { network_access: "发送给 Claude", edit_files: "允许 Codex 本轮操作", codex_command: "允许 Codex 执行命令", codex_file_change: "允许 Codex 修改文件", codex_permissions: "允许 Codex 扩大权限", undo_codex_run: "撤销 Codex 本轮修改", remote_edit_files: "允许 Claude 远端操作", run_test: "运行本地测试", git_commit: "Git 提交", git_push: "推送远程", git_pull: "拉取远程代码", remote_git_fetch: "VPS 获取远程状态", remote_git_pull: "VPS 拉取远程代码" }; const scoped = action === "edit_files" || action === "remote_edit_files"; return <section className="approval-card"><header><ShieldCheck size={16}/><div><small>本轮操作需要授权</small><strong>{labels[action] ?? action}</strong></div></header><p>{reason}</p><div><button onClick={() => void decide(false)}>取消本轮</button><button onClick={() => void decide(true, "once")}>允许一次</button>{scoped && <button className="approve" onClick={() => void decide(true, "thread")}>允许本任务</button>}</div></section>; }
-function ContextPanel({ details, git, remote, remoteJobs, agentSettings, openSettings, saveRemote, remoteAction, runTests }: { details?: ReturnType<typeof useStore.getState>["details"]; git?: GitStatus; remote?: WorkspaceRemoteStatus; remoteJobs: ExecutionJob[]; agentSettings?: AgentSettings; openSettings: () => void; saveRemote: (url: string, path: string) => Promise<void>; remoteAction: (action: "provision" | "repair_provision" | "fetch" | "pull") => Promise<void>; runTests: () => Promise<void> }) { const test = details?.tests.at(-1); const testConfigured = Boolean(agentSettings?.test_executable); const testCommand = testConfigured ? [agentSettings?.test_executable, ...(agentSettings?.test_arguments ?? [])].join(" ") : ""; return <div className="inspector-scroll">
-  <InspectorSection title="仓库状态" icon={<GitBranch size={13}/>}>{git && !git.head ? <div className="empty-repository"><strong>远程仓库为空</strong><span>origin 已关联，但还没有首次提交。现在可以直接描述项目需求，让 Codex 创建初始文件。</span><small>文件生成完成后，Codex 会提出提交或推送操作，由你审批确认。</small></div> : null}<dl className="git-meta"><dt>分支</dt><dd>{git?.branch || "未检测"}</dd><dt>HEAD</dt><dd>{git?.head || "尚无提交"}</dd><dt>上游</dt><dd title={git?.upstream}>{git?.upstream || (git?.remote ? "等待首次推送" : "未设置")}</dd><dt>同步</dt><dd>{git?.upstream ? `领先 ${git.ahead} · 落后 ${git.behind}` : git?.remote ? "远程已关联" : "无远程跟踪"}</dd></dl></InspectorSection>
-  <RemoteRepository remote={remote} jobs={remoteJobs} save={saveRemote} action={remoteAction}/>
-  <InspectorSection title="测试" icon={<TestTube2 size={13}/>}><div className="test-command">{testConfigured ? <><small>将执行</small><code title={testCommand}>{testCommand}</code><span>运行前会请求一次审批</span></> : <><strong>尚未配置测试命令</strong><span>配置当前项目使用的 pytest、pnpm test 等命令。</span></>}</div><div className="test-actions">{testConfigured ? <button onClick={() => void runTests()}><Play size={11}/>运行测试</button> : <button onClick={openSettings}><Settings2 size={11}/>配置测试命令</button>}</div><div className={`test-result ${test ? test.exit_code === 0 ? "pass" : "fail" : ""}`}>{test ? <><div>{test.exit_code === 0 ? <Check size={13}/> : <X size={13}/>}<strong>{test.exit_code === 0 ? "测试通过" : "测试失败"}</strong></div><pre>{test.output.trim()}</pre></> : <EmptyInline text="尚未运行测试"/>}</div></InspectorSection>
-</div>; }
-function RemoteRepository({ remote, jobs, save, action }: { remote?: WorkspaceRemoteStatus; jobs: ExecutionJob[]; save: (url: string, path: string) => Promise<void>; action: (kind: "provision" | "repair_provision" | "fetch" | "pull") => Promise<void> }) {
+function ApprovalCard({
+  action,
+  reason,
+  decide,
+}: {
+  action: string;
+  reason: string;
+  decide: (approved: boolean, scope?: "once" | "thread") => Promise<void>;
+}) {
+  const labels: Record<string, string> = {
+    network_access: "发送给 Claude",
+    edit_files: "允许 Codex 本轮操作",
+    codex_command: "允许 Codex 执行命令",
+    codex_file_change: "允许 Codex 修改文件",
+    codex_permissions: "允许 Codex 扩大权限",
+    undo_codex_run: "撤销 Codex 本轮修改",
+    remote_edit_files: "允许 Claude 远端操作",
+    run_test: "运行本地测试",
+    git_commit: "Git 提交",
+    git_push: "推送远程",
+    git_pull: "拉取远程代码",
+    remote_git_fetch: "VPS 获取远程状态",
+    remote_git_pull: "VPS 拉取远程代码",
+  };
+  const scoped = action === "edit_files" || action === "remote_edit_files";
+  return (
+    <section className="approval-card">
+      <header>
+        <ShieldCheck size={16} />
+        <div>
+          <small>本轮操作需要授权</small>
+          <strong>{labels[action] ?? action}</strong>
+        </div>
+      </header>
+      <p>{reason}</p>
+      <div>
+        <button onClick={() => void decide(false)}>取消本轮</button>
+        <button onClick={() => void decide(true, "once")}>允许一次</button>
+        {scoped && (
+          <button
+            className="approve"
+            onClick={() => void decide(true, "thread")}
+          >
+            允许本任务
+          </button>
+        )}
+      </div>
+    </section>
+  );
+}
+function ContextPanel({
+  details,
+  git,
+  remote,
+  remoteJobs,
+  agentSettings,
+  openSettings,
+  saveRemote,
+  remoteAction,
+  runTests,
+}: {
+  details?: ReturnType<typeof useStore.getState>["details"];
+  git?: GitStatus;
+  remote?: WorkspaceRemoteStatus;
+  remoteJobs: ExecutionJob[];
+  agentSettings?: AgentSettings;
+  openSettings: () => void;
+  saveRemote: (url: string, path: string) => Promise<void>;
+  remoteAction: (
+    action: "provision" | "repair_provision" | "fetch" | "pull",
+  ) => Promise<void>;
+  runTests: () => Promise<void>;
+}) {
+  const test = details?.tests.at(-1);
+  const testConfigured = Boolean(agentSettings?.test_executable);
+  const testCommand = testConfigured
+    ? [
+        agentSettings?.test_executable,
+        ...(agentSettings?.test_arguments ?? []),
+      ].join(" ")
+    : "";
+  return (
+    <div className="inspector-scroll">
+      <InspectorSection title="仓库状态" icon={<GitBranch size={13} />}>
+        {git && !git.head ? (
+          <div className="empty-repository">
+            <strong>远程仓库为空</strong>
+            <span>
+              origin 已关联，但还没有首次提交。现在可以直接描述项目需求，让
+              Codex 创建初始文件。
+            </span>
+            <small>
+              文件生成完成后，Codex 会提出提交或推送操作，由你审批确认。
+            </small>
+          </div>
+        ) : null}
+        <dl className="git-meta">
+          <dt>分支</dt>
+          <dd>{git?.branch || "未检测"}</dd>
+          <dt>HEAD</dt>
+          <dd>{git?.head || "尚无提交"}</dd>
+          <dt>上游</dt>
+          <dd title={git?.upstream}>
+            {git?.upstream || (git?.remote ? "等待首次推送" : "未设置")}
+          </dd>
+          <dt>同步</dt>
+          <dd>
+            {git?.upstream
+              ? `领先 ${git.ahead} · 落后 ${git.behind}`
+              : git?.remote
+                ? "远程已关联"
+                : "无远程跟踪"}
+          </dd>
+        </dl>
+      </InspectorSection>
+      <RemoteRepository
+        remote={remote}
+        jobs={remoteJobs}
+        save={saveRemote}
+        action={remoteAction}
+      />
+      <InspectorSection title="测试" icon={<TestTube2 size={13} />}>
+        <div className="test-command">
+          {testConfigured ? (
+            <>
+              <small>将执行</small>
+              <code title={testCommand}>{testCommand}</code>
+              <span>运行前会请求一次审批</span>
+            </>
+          ) : (
+            <>
+              <strong>尚未配置测试命令</strong>
+              <span>配置当前项目使用的 pytest、pnpm test 等命令。</span>
+            </>
+          )}
+        </div>
+        <div className="test-actions">
+          {testConfigured ? (
+            <button onClick={() => void runTests()}>
+              <Play size={11} />
+              运行测试
+            </button>
+          ) : (
+            <button onClick={openSettings}>
+              <Settings2 size={11} />
+              配置测试命令
+            </button>
+          )}
+        </div>
+        <div
+          className={`test-result ${test ? (test.exit_code === 0 ? "pass" : "fail") : ""}`}
+        >
+          {test ? (
+            <>
+              <div>
+                {test.exit_code === 0 ? <Check size={13} /> : <X size={13} />}
+                <strong>
+                  {test.exit_code === 0 ? "测试通过" : "测试失败"}
+                </strong>
+              </div>
+              <pre>{test.output.trim()}</pre>
+            </>
+          ) : (
+            <EmptyInline text="尚未运行测试" />
+          )}
+        </div>
+      </InspectorSection>
+    </div>
+  );
+}
+function RemoteRepository({
+  remote,
+  jobs,
+  save,
+  action,
+}: {
+  remote?: WorkspaceRemoteStatus;
+  jobs: ExecutionJob[];
+  save: (url: string, path: string) => Promise<void>;
+  action: (
+    kind: "provision" | "repair_provision" | "fetch" | "pull",
+  ) => Promise<void>;
+}) {
   const refreshRemote = useStore((state) => state.refreshRemote);
   const [url, setUrl] = useState("");
   const [busy, setBusy] = useState<"save" | "provision" | "fetch" | "pull">();
   const [feedback, setFeedback] = useState("");
   const [editing, setEditing] = useState(false);
-  const cloneJob = jobs.find((job) => job.kind === "remote_git" && (job.payload.action === "provision" || job.payload.action === "repair_provision"));
+  const cloneJob = jobs.find(
+    (job) =>
+      job.kind === "remote_git" &&
+      (job.payload.action === "provision" ||
+        job.payload.action === "repair_provision"),
+  );
   const cloneWaitingApproval = cloneJob?.status === "WAITING_APPROVAL";
-  const cloneRunning = cloneWaitingApproval || cloneJob?.status === "READY" || cloneJob?.status === "RUNNING";
-  useEffect(() => { setUrl(remote?.settings.remote_url ?? remote?.local.remote ?? ""); }, [remote?.settings.remote_url, remote?.local.remote]);
+  const cloneRunning =
+    cloneWaitingApproval ||
+    cloneJob?.status === "READY" ||
+    cloneJob?.status === "RUNNING";
   useEffect(() => {
-    if (cloneWaitingApproval) setFeedback("等待你确认清理无效残留目录；批准后将自动重新克隆。");
+    setUrl(remote?.settings.remote_url ?? remote?.local.remote ?? "");
+  }, [remote?.settings.remote_url, remote?.local.remote]);
+  useEffect(() => {
+    if (cloneWaitingApproval)
+      setFeedback("等待你确认清理无效残留目录；批准后将自动重新克隆。");
     else if (cloneRunning) setFeedback("正在克隆到 VPS，请稍候…");
-    else if (remote?.vps) setFeedback(remote.vps.head ? "VPS 仓库已就绪，状态已刷新。" : "VPS 空仓库已就绪，等待首次提交。");
-    else if (cloneJob?.status === "FAILED" || cloneJob?.status === "INTERRUPTED") setFeedback(`克隆失败：${cloneJob.last_error || "请查看运行日志后重试"}`);
-    else if (cloneJob?.status === "SUCCEEDED") setFeedback("VPS 仓库已就绪，状态已刷新。");
-    else if (remote?.error && !busy) setFeedback(`当前检测失败：${remote.error}`);
-  }, [remote?.vps?.head, remote?.error, busy, cloneJob?.id, cloneJob?.status, cloneJob?.last_error, cloneRunning, cloneWaitingApproval]);
-  const run = async (kind: "provision" | "repair_provision" | "fetch" | "pull") => { setBusy(kind === "repair_provision" ? "provision" : kind); setFeedback(""); try { await action(kind); setFeedback(kind === "provision" ? "已开始克隆，完成后会自动刷新 VPS 仓库状态。" : kind === "repair_provision" ? "已提交残留目录清理请求，请在上方确认审批。" : "操作请求已提交；审批通过后会自动执行并刷新状态。"); } catch (error) { setFeedback(`请求失败：${String(error)}`); } finally { setBusy(undefined); } };
-  const refresh = async () => { setBusy("fetch"); setFeedback("正在刷新 VPS 仓库状态…"); try { await refreshRemote(); setFeedback("VPS 仓库状态已刷新。"); } catch (error) { setFeedback(`刷新失败：${String(error)}`); } finally { setBusy(undefined); } };
-  const persist = async () => { setBusy("save"); setFeedback(""); try { await save(url.trim(), ""); setEditing(false); setFeedback("配置已保存，VPS 仓库状态已刷新。"); } catch (error) { setFeedback(`保存失败：${String(error)}`); } finally { setBusy(undefined); } };
-  const cloneFailed = cloneJob?.status === "FAILED" || cloneJob?.status === "INTERRUPTED";
+    else if (remote?.vps)
+      setFeedback(
+        remote.vps.head
+          ? "VPS 仓库已就绪，状态已刷新。"
+          : "VPS 空仓库已就绪，等待首次提交。",
+      );
+    else if (
+      cloneJob?.status === "FAILED" ||
+      cloneJob?.status === "INTERRUPTED"
+    )
+      setFeedback(`克隆失败：${cloneJob.last_error || "请查看运行日志后重试"}`);
+    else if (cloneJob?.status === "SUCCEEDED")
+      setFeedback("VPS 仓库已就绪，状态已刷新。");
+    else if (remote?.error && !busy)
+      setFeedback(`当前检测失败：${remote.error}`);
+  }, [
+    remote?.vps?.head,
+    remote?.error,
+    busy,
+    cloneJob?.id,
+    cloneJob?.status,
+    cloneJob?.last_error,
+    cloneRunning,
+    cloneWaitingApproval,
+  ]);
+  const run = async (
+    kind: "provision" | "repair_provision" | "fetch" | "pull",
+  ) => {
+    setBusy(kind === "repair_provision" ? "provision" : kind);
+    setFeedback("");
+    try {
+      await action(kind);
+      setFeedback(
+        kind === "provision"
+          ? "已开始克隆，完成后会自动刷新 VPS 仓库状态。"
+          : kind === "repair_provision"
+            ? "已提交残留目录清理请求，请在上方确认审批。"
+            : "操作请求已提交；审批通过后会自动执行并刷新状态。",
+      );
+    } catch (error) {
+      setFeedback(`请求失败：${String(error)}`);
+    } finally {
+      setBusy(undefined);
+    }
+  };
+  const refresh = async () => {
+    setBusy("fetch");
+    setFeedback("正在刷新 VPS 仓库状态…");
+    try {
+      await refreshRemote();
+      setFeedback("VPS 仓库状态已刷新。");
+    } catch (error) {
+      setFeedback(`刷新失败：${String(error)}`);
+    } finally {
+      setBusy(undefined);
+    }
+  };
+  const persist = async () => {
+    setBusy("save");
+    setFeedback("");
+    try {
+      await save(url.trim(), "");
+      setEditing(false);
+      setFeedback("配置已保存，VPS 仓库状态已刷新。");
+    } catch (error) {
+      setFeedback(`保存失败：${String(error)}`);
+    } finally {
+      setBusy(undefined);
+    }
+  };
+  const cloneFailed =
+    cloneJob?.status === "FAILED" || cloneJob?.status === "INTERRUPTED";
   const visibleCloneFailure = cloneFailed && !remote?.vps;
-  const needsRepair = visibleCloneFailure && cloneJob?.last_error?.includes("already exists and is not an empty directory");
-  const configured = Boolean(remote?.settings.remote_url && remote?.settings.vps_repo_path);
+  const needsRepair =
+    visibleCloneFailure &&
+    cloneJob?.last_error?.includes(
+      "already exists and is not an empty directory",
+    );
+  const configured = Boolean(
+    remote?.settings.remote_url && remote?.settings.vps_repo_path,
+  );
   if (configured && !editing) {
-    return <InspectorSection title="VPS 仓库" icon={<Cloud size={13}/>}>
-      <div className="remote-config-summary">
-        <div className="remote-config-heading"><div><Check size={13}/><strong>仓库配置已保存</strong></div><button onClick={() => setEditing(true)}>修改配置</button></div>
-        <dl><dt>远程仓库</dt><dd title={remote?.settings.remote_url}>{remote?.settings.remote_url}</dd><dt>VPS 目录</dt><dd title={remote?.settings.vps_repo_path}>{remote?.settings.vps_repo_path}</dd></dl>
-      </div>
-      {feedback && <div className={`remote-feedback ${visibleCloneFailure ? "failed" : cloneRunning ? "running" : ""}`} role="status">{cloneRunning && <LoaderCircle size={12} className="spin"/>}{feedback}</div>}
-      {remote?.vps ? <><dl className="git-meta remote-meta"><dt>VPS 分支</dt><dd>{remote.vps.branch || "等待首次提交"}</dd><dt>VPS HEAD</dt><dd>{remote.vps.head ? remote.vps.head.slice(0,10) : "尚无提交"}</dd><dt>同一仓库</dt><dd className={remote.same_remote ? "sync-ok" : "sync-bad"}>{remote.same_remote ? "是" : "否"}</dd><dt>同一提交</dt><dd className={remote.same_commit ? "sync-ok" : "sync-warn"}>{remote.same_commit ? "是" : "等待首次提交"}</dd></dl><div className="remote-actions"><button disabled={Boolean(busy)} onClick={() => void refresh()}>{busy === "fetch" ? <><LoaderCircle size={12} className="spin"/>刷新中…</> : "刷新状态"}</button><button disabled={Boolean(busy) || !remote.vps.head} onClick={() => void run("pull")}>拉取更新</button></div><small className="git-action-note">刷新状态为只读操作，无需审批；拉取更新会修改 VPS 工作区，需要审批。</small></> : <><div className="empty-inline">VPS 目录尚未检测为有效 Git 仓库</div><div className="remote-actions"><button disabled={Boolean(busy) || cloneRunning} onClick={() => void run(needsRepair ? "repair_provision" : "provision")}>{cloneRunning || busy === "provision" ? <><LoaderCircle size={12} className="spin"/>正在克隆…</> : needsRepair ? "清理残留并重新克隆" : cloneFailed ? "重新克隆" : "克隆到 VPS"}</button></div></>}
-    </InspectorSection>;
+    return (
+      <InspectorSection title="VPS 仓库" icon={<Cloud size={13} />}>
+        <div className="remote-config-summary">
+          <div className="remote-config-heading">
+            <div>
+              <Check size={13} />
+              <strong>仓库配置已保存</strong>
+            </div>
+            <button onClick={() => setEditing(true)}>修改配置</button>
+          </div>
+          <dl>
+            <dt>远程仓库</dt>
+            <dd title={remote?.settings.remote_url}>
+              {remote?.settings.remote_url}
+            </dd>
+            <dt>VPS 目录</dt>
+            <dd title={remote?.settings.vps_repo_path}>
+              {remote?.settings.vps_repo_path}
+            </dd>
+          </dl>
+        </div>
+        {feedback && (
+          <div
+            className={`remote-feedback ${visibleCloneFailure ? "failed" : cloneRunning ? "running" : ""}`}
+            role="status"
+          >
+            {cloneRunning && <LoaderCircle size={12} className="spin" />}
+            {feedback}
+          </div>
+        )}
+        {remote?.vps ? (
+          <>
+            <dl className="git-meta remote-meta">
+              <dt>VPS 分支</dt>
+              <dd>{remote.vps.branch || "等待首次提交"}</dd>
+              <dt>VPS HEAD</dt>
+              <dd>
+                {remote.vps.head ? remote.vps.head.slice(0, 10) : "尚无提交"}
+              </dd>
+              <dt>同一仓库</dt>
+              <dd className={remote.same_remote ? "sync-ok" : "sync-bad"}>
+                {remote.same_remote ? "是" : "否"}
+              </dd>
+              <dt>同一提交</dt>
+              <dd className={remote.same_commit ? "sync-ok" : "sync-warn"}>
+                {remote.same_commit ? "是" : "等待首次提交"}
+              </dd>
+            </dl>
+            <div className="remote-actions">
+              <button disabled={Boolean(busy)} onClick={() => void refresh()}>
+                {busy === "fetch" ? (
+                  <>
+                    <LoaderCircle size={12} className="spin" />
+                    刷新中…
+                  </>
+                ) : (
+                  "刷新状态"
+                )}
+              </button>
+              <button
+                disabled={Boolean(busy) || !remote.vps.head}
+                onClick={() => void run("pull")}
+              >
+                拉取更新
+              </button>
+            </div>
+            <small className="git-action-note">
+              刷新状态为只读操作，无需审批；拉取更新会修改 VPS
+              工作区，需要审批。
+            </small>
+          </>
+        ) : (
+          <>
+            <div className="empty-inline">VPS 目录尚未检测为有效 Git 仓库</div>
+            <div className="remote-actions">
+              <button
+                disabled={Boolean(busy) || cloneRunning}
+                onClick={() =>
+                  void run(needsRepair ? "repair_provision" : "provision")
+                }
+              >
+                {cloneRunning || busy === "provision" ? (
+                  <>
+                    <LoaderCircle size={12} className="spin" />
+                    正在克隆…
+                  </>
+                ) : needsRepair ? (
+                  "清理残留并重新克隆"
+                ) : cloneFailed ? (
+                  "重新克隆"
+                ) : (
+                  "克隆到 VPS"
+                )}
+              </button>
+            </div>
+          </>
+        )}
+      </InspectorSection>
+    );
   }
-  return <InspectorSection title="VPS 仓库" icon={<Cloud size={13}/>}><div className="remote-repo-form"><label>远程 URL<input value={url} onChange={(event) => { setUrl(event.target.value); setFeedback(""); }} placeholder="git@github.com:owner/repo.git"/></label>{remote?.settings.vps_repo_path && <div className="derived-vps-path"><span>自动项目目录</span><code>{remote.settings.vps_repo_path}</code></div>}<button disabled={!url.trim() || Boolean(busy) || cloneRunning} onClick={() => void persist()}>{busy === "save" ? <><LoaderCircle size={12} className="spin"/>保存并检测中…</> : "保存并检测"}</button></div>{feedback && <div className={`remote-feedback ${cloneFailed ? "failed" : cloneRunning ? "running" : ""}`} role="status">{cloneRunning && <LoaderCircle size={12} className="spin"/>}{feedback}</div>}{remote?.vps ? <><dl className="git-meta remote-meta"><dt>VPS 分支</dt><dd>{remote.vps.branch}</dd><dt>VPS HEAD</dt><dd>{remote.vps.head.slice(0,10)}</dd><dt>同一仓库</dt><dd className={remote.same_remote ? "sync-ok" : "sync-bad"}>{remote.same_remote ? "是" : "否"}</dd><dt>同一提交</dt><dd className={remote.same_commit ? "sync-ok" : "sync-warn"}>{remote.same_commit ? "是" : "否"}</dd></dl><div className="remote-actions"><button disabled={Boolean(busy)} onClick={() => void run("fetch")}>VPS 获取</button><button disabled={Boolean(busy)} onClick={() => void run("pull")}>VPS 拉取</button></div></> : <><div className="empty-inline">VPS 目录尚未检测为有效 Git 仓库</div>{remote?.settings.vps_repo_path && url.trim() && <div className="remote-actions"><button disabled={Boolean(busy) || cloneRunning} onClick={() => void run(needsRepair ? "repair_provision" : "provision")}>{cloneRunning || busy === "provision" ? <><LoaderCircle size={12} className="spin"/>正在克隆…</> : needsRepair ? "清理残留并重新克隆" : cloneFailed ? "重新克隆" : "克隆到 VPS"}</button></div>}</>}</InspectorSection>;
+  return (
+    <InspectorSection title="VPS 仓库" icon={<Cloud size={13} />}>
+      <div className="remote-repo-form">
+        <label>
+          远程 URL
+          <input
+            value={url}
+            onChange={(event) => {
+              setUrl(event.target.value);
+              setFeedback("");
+            }}
+            placeholder="git@github.com:owner/repo.git"
+          />
+        </label>
+        {remote?.settings.vps_repo_path && (
+          <div className="derived-vps-path">
+            <span>自动项目目录</span>
+            <code>{remote.settings.vps_repo_path}</code>
+          </div>
+        )}
+        <button
+          disabled={!url.trim() || Boolean(busy) || cloneRunning}
+          onClick={() => void persist()}
+        >
+          {busy === "save" ? (
+            <>
+              <LoaderCircle size={12} className="spin" />
+              保存并检测中…
+            </>
+          ) : (
+            "保存并检测"
+          )}
+        </button>
+      </div>
+      {feedback && (
+        <div
+          className={`remote-feedback ${cloneFailed ? "failed" : cloneRunning ? "running" : ""}`}
+          role="status"
+        >
+          {cloneRunning && <LoaderCircle size={12} className="spin" />}
+          {feedback}
+        </div>
+      )}
+      {remote?.vps ? (
+        <>
+          <dl className="git-meta remote-meta">
+            <dt>VPS 分支</dt>
+            <dd>{remote.vps.branch}</dd>
+            <dt>VPS HEAD</dt>
+            <dd>{remote.vps.head.slice(0, 10)}</dd>
+            <dt>同一仓库</dt>
+            <dd className={remote.same_remote ? "sync-ok" : "sync-bad"}>
+              {remote.same_remote ? "是" : "否"}
+            </dd>
+            <dt>同一提交</dt>
+            <dd className={remote.same_commit ? "sync-ok" : "sync-warn"}>
+              {remote.same_commit ? "是" : "否"}
+            </dd>
+          </dl>
+          <div className="remote-actions">
+            <button disabled={Boolean(busy)} onClick={() => void run("fetch")}>
+              VPS 获取
+            </button>
+            <button disabled={Boolean(busy)} onClick={() => void run("pull")}>
+              VPS 拉取
+            </button>
+          </div>
+        </>
+      ) : (
+        <>
+          <div className="empty-inline">VPS 目录尚未检测为有效 Git 仓库</div>
+          {remote?.settings.vps_repo_path && url.trim() && (
+            <div className="remote-actions">
+              <button
+                disabled={Boolean(busy) || cloneRunning}
+                onClick={() =>
+                  void run(needsRepair ? "repair_provision" : "provision")
+                }
+              >
+                {cloneRunning || busy === "provision" ? (
+                  <>
+                    <LoaderCircle size={12} className="spin" />
+                    正在克隆…
+                  </>
+                ) : needsRepair ? (
+                  "清理残留并重新克隆"
+                ) : cloneFailed ? (
+                  "重新克隆"
+                ) : (
+                  "克隆到 VPS"
+                )}
+              </button>
+            </div>
+          )}
+        </>
+      )}
+    </InspectorSection>
+  );
 }
-function DiffPanel({ diff }: { diff: string }) { return <div className="diff-panel">{diff ? <Editor height="100%" language="diff" theme="vs-dark" options={{ readOnly: true, minimap: { enabled: false }, fontSize: 12, scrollBeyondLastLine: false, wordWrap: "on", padding: { top: 12 } }} value={diff}/> : <div className="panel-empty"><Code2 size={22}/><strong>暂无 Diff</strong><span>Codex 修改文件后，这里会显示真实 Git Diff。</span></div>}</div>; }
-function TerminalPanel({ lines }: { lines: string[] }) { return <div className="terminal-panel">{lines.length ? <pre>{lines.join("\n")}</pre> : <div className="panel-empty"><SquareTerminal size={22}/><strong>终端等待中</strong><span>测试和本地进程输出会实时显示在这里。</span></div>}</div>; }
-export function RecoveryPanel({ jobs, runs = [], retryingJobId, refresh, retry, undo = async () => undefined }: { jobs: ExecutionJob[]; runs?: NonNullable<ReturnType<typeof useStore.getState>["details"]>["runs"]; retryingJobId?: string; refresh: () => Promise<void>; retry: (id: string) => Promise<void>; undo?: (id: string) => Promise<void> }) {
-  const visible = jobs.filter((job) => job.status === "FAILED" || job.status === "INTERRUPTED");
-  const failedRuns = runs.filter((run) => run.state === "FAILED" || run.state === "CANCELLED" || run.can_undo);
-  const label = (job: ExecutionJob) => job.kind === "git_action" ? `Git ${String(job.payload.action ?? "操作")}` : job.kind === "remote_git" ? `VPS ${String(job.payload.action ?? "操作")}` : job.kind === "test_run" ? "运行测试" : job.kind;
-  return <div className="recovery-panel"><header className="recovery-heading"><div><strong>任务恢复中心</strong><span>中断和失败的操作不会自动重放；仓库现有修改会保留。</span></div><button title="刷新任务" onClick={() => void refresh()}><RefreshCw size={13}/></button></header>{visible.length || failedRuns.length ? <div className="recovery-list">{failedRuns.map((run) => <article className="recovery-job interrupted" key={run.id}><header><span><AlertTriangle size={14}/></span><div><strong>{run.state === "COMPLETED" ? "Codex 本轮修改" : run.agent === "codex" ? "Codex 轮次中断" : "Agent 轮次中断"}</strong><small>{run.state === "FAILED" ? "运行失败" : run.state === "COMPLETED" ? "可恢复到本轮开始前" : "已停止或在重启时中断"}</small></div></header><p>{run.output || "本轮没有完整结束。请检查 Diff 和终端，再决定重新发送或继续。"}</p>{run.can_undo && <div className="recovery-meta"><time>执行前会校验当前 Diff</time><button onClick={() => void undo(run.id)}><RotateCcw size={12}/>撤销本轮修改</button></div>}</article>)}{visible.map((job) => <article className={`recovery-job ${job.status.toLowerCase()}`} key={job.id}><header><span><AlertTriangle size={14}/></span><div><strong>{label(job)}</strong><small>{job.status === "INTERRUPTED" ? "后端重启时中断" : "执行失败"} · 已尝试 {job.attempts} 次</small></div></header><p>执行未完成。请先检查当前状态和终端输出，再决定是否重试。</p>{(job.kind === "git_action" || job.kind === "remote_git") && <ExecutionEvidence job={job}/>}<div className="recovery-meta"><time>{new Date(job.updated_at).toLocaleString("zh-CN")}</time><button disabled={Boolean(retryingJobId)} onClick={() => void retry(job.id)}>{retryingJobId === job.id ? <LoaderCircle size={12} className="spin"/> : <RotateCcw size={12}/>}显式重试</button></div></article>)}</div> : <div className="panel-empty"><Check size={22}/><strong>没有待恢复任务</strong><span>所有持久化操作均已完成，或正在等待审批与执行。</span></div>}</div>;
+function DiffPanel({ diff }: { diff: string }) {
+  return (
+    <div className="diff-panel">
+      {diff ? (
+        <Editor
+          height="100%"
+          language="diff"
+          theme="vs-dark"
+          options={{
+            readOnly: true,
+            minimap: { enabled: false },
+            fontSize: 12,
+            scrollBeyondLastLine: false,
+            wordWrap: "on",
+            padding: { top: 12 },
+          }}
+          value={diff}
+        />
+      ) : (
+        <div className="panel-empty">
+          <Code2 size={22} />
+          <strong>暂无 Diff</strong>
+          <span>Codex 修改文件后，这里会显示真实 Git Diff。</span>
+        </div>
+      )}
+    </div>
+  );
 }
-function InspectorSection({ title, icon, badge, children }: { title: string; icon: React.ReactNode; badge?: string; children: React.ReactNode }) { return <section className="inspector-section"><header>{icon}<strong>{title}</strong>{badge && <span>{badge}</span>}</header>{children}</section>; }
-function EmptyInline({ text }: { text: string }) { return <div className="empty-inline"><Circle size={8}/>{text}</div>; }
-function EmptyState({ onOpen }: { onOpen: () => void }) { return <div className="full-empty"><div><FolderGit2 size={30}/></div><h2>打开本地代码项目</h2><p>DualCode 会在隔离 worktree 中让 Codex 执行，并由远程 Claude 规划和审查。</p><button onClick={onOpen}><FolderGit2 size={14}/>选择 Git 仓库</button><small>项目内容默认不会同步到 VPS</small></div>; }
+function TerminalPanel({ lines }: { lines: string[] }) {
+  return (
+    <div className="terminal-panel">
+      {lines.length ? (
+        <pre>{lines.join("\n")}</pre>
+      ) : (
+        <div className="panel-empty">
+          <SquareTerminal size={22} />
+          <strong>终端等待中</strong>
+          <span>测试和本地进程输出会实时显示在这里。</span>
+        </div>
+      )}
+    </div>
+  );
+}
+export function RecoveryPanel({
+  jobs,
+  runs = [],
+  retryingJobId,
+  refresh,
+  retry,
+  undo = async () => undefined,
+}: {
+  jobs: ExecutionJob[];
+  runs?: NonNullable<ReturnType<typeof useStore.getState>["details"]>["runs"];
+  retryingJobId?: string;
+  refresh: () => Promise<void>;
+  retry: (id: string) => Promise<void>;
+  undo?: (id: string) => Promise<void>;
+}) {
+  const visible = jobs.filter(
+    (job) => job.status === "FAILED" || job.status === "INTERRUPTED",
+  );
+  const failedRuns = runs.filter(
+    (run) =>
+      run.state === "FAILED" || run.state === "CANCELLED" || run.can_undo,
+  );
+  const label = (job: ExecutionJob) =>
+    job.kind === "git_action"
+      ? `Git ${String(job.payload.action ?? "操作")}`
+      : job.kind === "remote_git"
+        ? `VPS ${String(job.payload.action ?? "操作")}`
+        : job.kind === "test_run"
+          ? "运行测试"
+          : job.kind;
+  return (
+    <div className="recovery-panel">
+      <header className="recovery-heading">
+        <div>
+          <strong>任务恢复中心</strong>
+          <span>中断和失败的操作不会自动重放；仓库现有修改会保留。</span>
+        </div>
+        <button title="刷新任务" onClick={() => void refresh()}>
+          <RefreshCw size={13} />
+        </button>
+      </header>
+      {visible.length || failedRuns.length ? (
+        <div className="recovery-list">
+          {failedRuns.map((run) => (
+            <article className="recovery-job interrupted" key={run.id}>
+              <header>
+                <span>
+                  <AlertTriangle size={14} />
+                </span>
+                <div>
+                  <strong>
+                    {run.state === "COMPLETED"
+                      ? "Codex 本轮修改"
+                      : run.agent === "codex"
+                        ? "Codex 轮次中断"
+                        : "Agent 轮次中断"}
+                  </strong>
+                  <small>
+                    {run.state === "FAILED"
+                      ? "运行失败"
+                      : run.state === "COMPLETED"
+                        ? "可恢复到本轮开始前"
+                        : "已停止或在重启时中断"}
+                  </small>
+                </div>
+              </header>
+              <p>
+                {run.output ||
+                  "本轮没有完整结束。请检查 Diff 和终端，再决定重新发送或继续。"}
+              </p>
+              {run.can_undo && (
+                <div className="recovery-meta">
+                  <time>执行前会校验当前 Diff</time>
+                  <button onClick={() => void undo(run.id)}>
+                    <RotateCcw size={12} />
+                    撤销本轮修改
+                  </button>
+                </div>
+              )}
+            </article>
+          ))}
+          {visible.map((job) => (
+            <article
+              className={`recovery-job ${job.status.toLowerCase()}`}
+              key={job.id}
+            >
+              <header>
+                <span>
+                  <AlertTriangle size={14} />
+                </span>
+                <div>
+                  <strong>{label(job)}</strong>
+                  <small>
+                    {job.status === "INTERRUPTED"
+                      ? "后端重启时中断"
+                      : "执行失败"}{" "}
+                    · 已尝试 {job.attempts} 次
+                  </small>
+                </div>
+              </header>
+              <p>执行未完成。请先检查当前状态和终端输出，再决定是否重试。</p>
+              {(job.kind === "git_action" || job.kind === "remote_git") && (
+                <ExecutionEvidence job={job} />
+              )}
+              <div className="recovery-meta">
+                <time>{new Date(job.updated_at).toLocaleString("zh-CN")}</time>
+                <button
+                  disabled={Boolean(retryingJobId)}
+                  onClick={() => void retry(job.id)}
+                >
+                  {retryingJobId === job.id ? (
+                    <LoaderCircle size={12} className="spin" />
+                  ) : (
+                    <RotateCcw size={12} />
+                  )}
+                  显式重试
+                </button>
+              </div>
+            </article>
+          ))}
+        </div>
+      ) : (
+        <div className="panel-empty">
+          <Check size={22} />
+          <strong>没有待恢复任务</strong>
+          <span>所有持久化操作均已完成，或正在等待审批与执行。</span>
+        </div>
+      )}
+    </div>
+  );
+}
+function InspectorSection({
+  title,
+  icon,
+  badge,
+  children,
+}: {
+  title: string;
+  icon: React.ReactNode;
+  badge?: string;
+  children: React.ReactNode;
+}) {
+  return (
+    <section className="inspector-section">
+      <header>
+        {icon}
+        <strong>{title}</strong>
+        {badge && <span>{badge}</span>}
+      </header>
+      {children}
+    </section>
+  );
+}
+function EmptyInline({ text }: { text: string }) {
+  return (
+    <div className="empty-inline">
+      <Circle size={8} />
+      {text}
+    </div>
+  );
+}
+function EmptyState({ onOpen }: { onOpen: () => void }) {
+  return (
+    <div className="full-empty">
+      <div>
+        <FolderGit2 size={30} />
+      </div>
+      <h2>打开本地代码项目</h2>
+      <p>
+        DualCode 会在隔离 worktree 中让 Codex 执行，并由远程 Claude 规划和审查。
+      </p>
+      <button onClick={onOpen}>
+        <FolderGit2 size={14} />
+        选择 Git 仓库
+      </button>
+      <small>项目内容默认不会同步到 VPS</small>
+    </div>
+  );
+}

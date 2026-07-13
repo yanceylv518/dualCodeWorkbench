@@ -15,10 +15,29 @@ export interface Message {
   agent: Agent;
   text: string;
   time: string;
-  attachments?: { id: string; name: string; media_type: string; size: number }[];
-  activity?: { runId: string; agent: string; status: "running" | "completed" | "failed" | "cancelled"; steps: ActivityStep[]; error?: string; startedAt?: number; completedAt?: number };
+  attachments?: {
+    id: string;
+    name: string;
+    media_type: string;
+    size: number;
+  }[];
+  activity?: {
+    runId: string;
+    agent: string;
+    status: "running" | "completed" | "failed" | "cancelled";
+    steps: ActivityStep[];
+    error?: string;
+    startedAt?: number;
+    completedAt?: number;
+  };
 }
-export interface ActivityStep { id: string; kind: "command" | "file" | "tool"; label: string; detail?: string; status: "running" | "completed" | "failed" }
+export interface ActivityStep {
+  id: string;
+  kind: "command" | "file" | "tool";
+  label: string;
+  detail?: string;
+  status: "running" | "completed" | "failed";
+}
 export interface Thread {
   id: string;
   title: string;
@@ -44,7 +63,14 @@ export interface Approval {
   reason: string;
   status: string;
 }
-export type ExecutionJobStatus = "WAITING_APPROVAL" | "READY" | "RUNNING" | "SUCCEEDED" | "FAILED" | "INTERRUPTED" | "CANCELLED";
+export type ExecutionJobStatus =
+  | "WAITING_APPROVAL"
+  | "READY"
+  | "RUNNING"
+  | "SUCCEEDED"
+  | "FAILED"
+  | "INTERRUPTED"
+  | "CANCELLED";
 export interface ExecutionJob {
   id: string;
   kind: string;
@@ -52,7 +78,10 @@ export interface ExecutionJob {
   status: ExecutionJobStatus;
   attempts: number;
   last_error?: string | null;
-  evidence?: { before?: Record<string, unknown>; after?: Record<string, unknown> };
+  evidence?: {
+    before?: Record<string, unknown>;
+    after?: Record<string, unknown>;
+  };
   created_at: string;
   updated_at: string;
 }
@@ -62,7 +91,13 @@ export interface ThreadDetails {
   tests: { command: string; output: string; exit_code: number }[];
   worktree: string;
   codex_session_id: string;
-  runs: { id: string; agent: string; state: RunState; output: string; can_undo: boolean }[];
+  runs: {
+    id: string;
+    agent: string;
+    state: RunState;
+    output: string;
+    can_undo: boolean;
+  }[];
 }
 export interface AgentSettings {
   enable_real_agents: boolean;
@@ -85,8 +120,17 @@ export interface AgentSettings {
   test_executable: string;
   test_arguments: string[];
 }
-export interface AgentModel { id: string; label: string; description: string; default_reasoning?: string; reasoning_levels?: string[] }
-export interface AgentModelCatalog { codex: AgentModel[]; claude: AgentModel[] }
+export interface AgentModel {
+  id: string;
+  label: string;
+  description: string;
+  default_reasoning?: string;
+  reasoning_levels?: string[];
+}
+export interface AgentModelCatalog {
+  codex: AgentModel[];
+  claude: AgentModel[];
+}
 export interface GitStatus {
   branch: string;
   head: string;
@@ -107,8 +151,28 @@ export interface WorkspaceRemoteStatus {
   error?: string;
 }
 export interface ProjectContract {
-  governance: { product_goal: string; product_boundary: string; rules: string[]; deliverables: string[] };
-  task: { goal: string; non_goals: string[]; acceptance: string[]; constraints: string[]; risks: string[]; status: "DRAFT" | "CLARIFYING" | "READY" | "IMPLEMENTING" | "REVIEWING" | "CONDITIONAL_PASS" | "PASSED" | "BLOCKED" };
+  governance: {
+    product_goal: string;
+    product_boundary: string;
+    rules: string[];
+    deliverables: string[];
+  };
+  task: {
+    goal: string;
+    non_goals: string[];
+    acceptance: string[];
+    constraints: string[];
+    risks: string[];
+    status:
+      | "DRAFT"
+      | "CLARIFYING"
+      | "READY"
+      | "IMPLEMENTING"
+      | "REVIEWING"
+      | "CONDITIONAL_PASS"
+      | "PASSED"
+      | "BLOCKED";
+  };
   gate: { ready_for_implementation: boolean; missing: string[] };
 }
 export interface HandoffPackage {
@@ -118,7 +182,12 @@ export interface HandoffPackage {
   status: "PREPARED" | "SENT";
   payload: {
     contract: Record<string, unknown>;
-    repository: { branch: string; head: string; upstream: string; changed_files: string[] };
+    repository: {
+      branch: string;
+      head: string;
+      upstream: string;
+      changed_files: string[];
+    };
     diff: string;
     tests: { command: string; exit_code: number; output: string }[];
   };

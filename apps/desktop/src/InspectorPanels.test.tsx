@@ -15,8 +15,20 @@ vi.mock("./api", () => ({
 }));
 
 const contract = {
-  governance: { product_goal: "交付产品", product_boundary: "本地工作台", rules: ["禁止临时方案"], deliverables: ["测试报告"] },
-  task: { goal: "完成验收", non_goals: [], acceptance: ["测试通过"], constraints: [], risks: [], status: "READY" as const },
+  governance: {
+    product_goal: "交付产品",
+    product_boundary: "本地工作台",
+    rules: ["禁止临时方案"],
+    deliverables: ["测试报告"],
+  },
+  task: {
+    goal: "完成验收",
+    non_goals: [],
+    acceptance: ["测试通过"],
+    constraints: [],
+    risks: [],
+    status: "READY" as const,
+  },
   gate: { ready_for_implementation: true, missing: [] },
 };
 
@@ -27,7 +39,12 @@ const handoff = {
   status: "PREPARED" as const,
   payload: {
     contract: { task_goal: "完成验收" },
-    repository: { branch: "main", head: "abc123", upstream: "origin/main", changed_files: ["src/App.tsx"] },
+    repository: {
+      branch: "main",
+      head: "abc123",
+      upstream: "origin/main",
+      changed_files: ["src/App.tsx"],
+    },
     diff: "diff --git a/src/App.tsx b/src/App.tsx",
     tests: [{ command: "pnpm test", exit_code: 0, output: "passed" }],
   },
@@ -45,8 +62,17 @@ describe("inspector panels", () => {
     expect(await screen.findByText("已具备正式实施条件")).toBeTruthy();
     fireEvent.click(screen.getByRole("button", { name: "保存契约" }));
 
-    await waitFor(() => expect(api.saveGovernance).toHaveBeenCalledWith("workspace", contract.governance));
-    expect(api.saveTaskContract).toHaveBeenCalledWith("workspace", "thread", contract.task);
+    await waitFor(() =>
+      expect(api.saveGovernance).toHaveBeenCalledWith(
+        "workspace",
+        contract.governance,
+      ),
+    );
+    expect(api.saveTaskContract).toHaveBeenCalledWith(
+      "workspace",
+      "thread",
+      contract.task,
+    );
   });
 
   it("prepares and explicitly sends a Claude review handoff", async () => {
@@ -55,11 +81,19 @@ describe("inspector panels", () => {
     vi.mocked(api.sendHandoff).mockResolvedValue(undefined);
 
     render(<HandoffPanel workspaceId="workspace" threadId="thread" />);
-    fireEvent.click(await screen.findByRole("button", { name: "准备 Claude 审查包" }));
+    fireEvent.click(
+      await screen.findByRole("button", { name: "准备 Claude 审查包" }),
+    );
     expect(await screen.findByText("交给 Claude 独立审查")).toBeTruthy();
     fireEvent.click(screen.getByRole("button", { name: "确认发送" }));
 
-    await waitFor(() => expect(api.sendHandoff).toHaveBeenCalledWith("workspace", "thread", "handoff-1"));
+    await waitFor(() =>
+      expect(api.sendHandoff).toHaveBeenCalledWith(
+        "workspace",
+        "thread",
+        "handoff-1",
+      ),
+    );
     expect(await screen.findByText("已发送")).toBeTruthy();
   });
 });
