@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import {
   Bot,
   ChevronDown,
@@ -36,10 +36,19 @@ export function SettingsDialog({
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [saved, setSaved] = useState(false);
+  const [dirty, setDirty] = useState(false);
   const [confirmFullAccess, setConfirmFullAccess] = useState(false);
+  const [confirmDiscard, setConfirmDiscard] = useState(false);
   const [testArgumentsText, setTestArgumentsText] = useState("");
   const testSection = useRef<HTMLElement>(null);
-  const dialog = useDialogFocus<HTMLDivElement>(onClose);
+  // 通过 ref 保持关闭回调引用稳定，避免 dirty 变化触发对话框焦点重置。
+  const requestCloseRef = useRef(onClose);
+  requestCloseRef.current = () => {
+    if (dirty && !saving) setConfirmDiscard(true);
+    else onClose();
+  };
+  const requestClose = useCallback(() => requestCloseRef.current(), []);
+  const dialog = useDialogFocus<HTMLDivElement>(requestClose);
   const load = async () => {
     setLoading(true);
     setError("");
@@ -77,7 +86,10 @@ export function SettingsDialog({
         50,
       );
   }, [target, value]);
-  const changed = () => setSaved(false);
+  const changed = () => {
+    setSaved(false);
+    setDirty(true);
+  };
   const field = (
     key: keyof AgentSettings,
     label: string,
@@ -217,6 +229,7 @@ export function SettingsDialog({
       });
       setValue(persisted);
       setSaved(true);
+      setDirty(false);
       try {
         setHealth(await api.fetchAgentHealth());
       } catch (reason) {
@@ -245,7 +258,7 @@ export function SettingsDialog({
             <h2 id="settings-title">Agent 与模型</h2>
             <p>选择日常使用的模型，连接细节保持默认即可</p>
           </div>
-          <button onClick={onClose}>
+          <button onClick={requestClose} aria-label="关闭设置">
             <X size={18} />
           </button>
         </header>
@@ -421,7 +434,7 @@ export function SettingsDialog({
                 ? "✓ 配置已保存，连接状态已刷新"
                 : "配置仅保存在本机"}
           </span>
-          <button onClick={onClose}>{saved ? "完成" : "取消"}</button>
+          <button onClick={requestClose}>{saved ? "完成" : "取消"}</button>
           <button
             className="primary"
             disabled={loading || !value || saving || saved}
@@ -437,6 +450,19 @@ export function SettingsDialog({
           </button>
         </footer>
       </div>
+      {confirmDiscard && (
+        <ConfirmDialog
+          title="放弃未保存的修改？"
+          message="设置有尚未保存的改动，关闭后这些改动将丢失。"
+          confirmLabel="放弃修改"
+          danger
+          onClose={() => setConfirmDiscard(false)}
+          onConfirm={() => {
+            setConfirmDiscard(false);
+            onClose();
+          }}
+        />
+      )}
       {confirmFullAccess && (
         <ConfirmDialog
           title="启用完全访问"
