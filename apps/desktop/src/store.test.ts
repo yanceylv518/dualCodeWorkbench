@@ -111,6 +111,27 @@ describe("composer drafts", () => {
   });
 });
 
+describe("terminal output", () => {
+  it("caps the log at 500 lines and reports truncation once cleared", async () => {
+    const socket = await connectThread();
+    for (let index = 0; index < 501; index += 1)
+      emitSocketEvent(socket, {
+        type: "terminal.output",
+        thread_id: "thread",
+        payload: { text: `line-${index}` },
+      });
+
+    const state = useStore.getState();
+    expect(state.terminal).toHaveLength(500);
+    expect(state.terminal[0]).toBe("line-1");
+    expect(state.terminalTruncated).toBe(true);
+
+    state.clearTerminal();
+    expect(useStore.getState().terminal).toHaveLength(0);
+    expect(useStore.getState().terminalTruncated).toBe(false);
+  });
+});
+
 describe("thread management", () => {
   it("derives and persists a title from the first user message", async () => {
     useStore.setState({

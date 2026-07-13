@@ -62,6 +62,8 @@ interface Store {
   executionJobs: ExecutionJob[];
   retryingJobId?: string;
   terminal: string[];
+  terminalTruncated: boolean;
+  clearTerminal: () => void;
   draftAttachments: {
     id: string;
     name: string;
@@ -184,6 +186,8 @@ export const useStore = create<Store>((set, get) => ({
   backend: "connecting",
   realtime: "disconnected",
   terminal: [],
+  terminalTruncated: false,
+  clearTerminal: () => set({ terminal: [], terminalTruncated: false }),
   notifications: [],
   executionJobs: [],
   draftAttachments: [],
@@ -238,6 +242,7 @@ export const useStore = create<Store>((set, get) => ({
       remoteStatus: undefined,
       executionJobs: [],
       terminal: [],
+      terminalTruncated: false,
       runMeta: undefined,
       activeAgent: undefined,
       socket: undefined,
@@ -547,9 +552,14 @@ export const useStore = create<Store>((set, get) => ({
                 `测试结果：\n${String(payload.output)}`,
               );
             if (data.type === "terminal.output" && payload.text)
-              set((state) => ({
-                terminal: [...state.terminal, String(payload.text)].slice(-500),
-              }));
+              set((state) => {
+                const appended = [...state.terminal, String(payload.text)];
+                return {
+                  terminal: appended.slice(-500),
+                  terminalTruncated:
+                    state.terminalTruncated || appended.length > 500,
+                };
+              });
             if (data.type === "run.output" && payload.kind === "git")
               set({
                 runMeta: {

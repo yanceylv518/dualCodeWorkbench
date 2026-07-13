@@ -641,7 +641,14 @@ export default function App() {
               {statusTab === "diff" && (
                 <DiffPanel diff={store.details?.diff ?? ""} />
               )}{" "}
-              {statusTab === "logs" && <TerminalPanel lines={store.terminal} />}
+              {statusTab === "logs" && (
+                <TerminalPanel
+                  lines={store.terminal}
+                  truncated={store.terminalTruncated}
+                  clear={store.clearTerminal}
+                  notify={store.notify}
+                />
+              )}
             </>
           )}
           {rightTab === "contract" && (
@@ -1556,11 +1563,53 @@ function ContextPanel({
     </div>
   );
 }
-function TerminalPanel({ lines }: { lines: string[] }) {
+function TerminalPanel({
+  lines,
+  truncated,
+  clear,
+  notify,
+}: {
+  lines: string[];
+  truncated: boolean;
+  clear: () => void;
+  notify: (level: "info" | "error", message: string) => void;
+}) {
+  const output = useRef<HTMLPreElement>(null);
+  const [following, setFollowing] = useState(true);
+  useEffect(() => {
+    const element = output.current;
+    if (element && following) element.scrollTop = element.scrollHeight;
+  }, [lines, following]);
+  const copy = async () => {
+    try {
+      await navigator.clipboard.writeText(lines.join("\n"));
+      notify("info", "运行日志已复制到剪贴板");
+    } catch {
+      notify("error", "复制失败，请检查剪贴板权限");
+    }
+  };
   return (
     <div className="terminal-panel">
       {lines.length ? (
-        <pre>{lines.join("\n")}</pre>
+        <>
+          <div className="terminal-toolbar">
+            {truncated && <span>仅保留最近 500 行</span>}
+            <button onClick={() => void copy()}>复制</button>
+            <button onClick={clear}>清空</button>
+          </div>
+          <pre
+            ref={output}
+            onScroll={(event) => {
+              const target = event.currentTarget;
+              setFollowing(
+                target.scrollHeight - target.scrollTop - target.clientHeight <=
+                  40,
+              );
+            }}
+          >
+            {lines.join("\n")}
+          </pre>
+        </>
       ) : (
         <div className="panel-empty">
           <SquareTerminal size={22} />
