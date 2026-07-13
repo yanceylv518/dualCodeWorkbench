@@ -27,6 +27,7 @@ foreach ($StalePath in @($Built, $PublishedExe, $Runtime)) {
   --workpath $Work `
   --specpath $Spec `
   --collect-all uvicorn `
+  --add-data "$(Join-Path $Root 'apps\backend\dualcode\alembic');dualcode/alembic" `
   --hidden-import aiosqlite `
   (Join-Path $Root "apps\backend\dualcode\sidecar.py")
 if ($LASTEXITCODE -ne 0) {

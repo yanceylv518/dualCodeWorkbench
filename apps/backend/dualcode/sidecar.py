@@ -4,6 +4,7 @@ import multiprocessing
 import argparse
 import ctypes
 import os
+import sys
 import threading
 
 import uvicorn
@@ -26,6 +27,13 @@ def monitor_parent(parent_pid: int) -> None:
 
 def main() -> None:
     multiprocessing.freeze_support()
+    # PyInstaller windowed executables expose no standard streams. Alembic and
+    # uvicorn both expect writable streams during startup, even when logs are
+    # intentionally hidden by the desktop application.
+    if sys.stdout is None:
+        sys.stdout = open(os.devnull, "w", encoding="utf-8")
+    if sys.stderr is None:
+        sys.stderr = open(os.devnull, "w", encoding="utf-8")
     parser = argparse.ArgumentParser()
     parser.add_argument("--parent-pid", type=int)
     args = parser.parse_args()

@@ -4,6 +4,7 @@
 
 - Phase 3 前置 R5 已完成：`api.py` 全部用户可见 HTTP 错误中文化，动态技术错误增加中文外层，高频项目、任务、审批和附件路径补充中文断言；Ruff 与后端 95 项通过。
 - Phase 3 前置 R6 已完成：InputDialog 增加输入法组合态守卫，避免候选确认时误提交，并补组件回归测试；TypeScript、严格 ESLint、Prettier 与前端 33 项通过。Phase 3 已解锁。
+- P3-1 已完成：Alembic 接管数据库 schema，新增冻结 baseline 与旧手写补丁兼容 revision；全新、补丁前和补丁后数据库均可保留数据升级。后端 98 项、Ruff、sidecar 构建及正式 windowed 产物空库迁移启动通过。
 
 ## 2026-07-13 Phase 2 前端设计与信息架构
 

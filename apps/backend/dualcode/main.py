@@ -1,13 +1,14 @@
 from contextlib import asynccontextmanager
 from fastapi import Depends, FastAPI, Request
-from sqlalchemy import text, update
+from sqlalchemy import update
 from sqlalchemy.ext.asyncio import AsyncSession
 from fastapi.middleware.cors import CORSMiddleware
 from .api import router
 from .database import SessionLocal, engine, get_session
 from .diagnostics import build_diagnostic_snapshot
-from .execution_jobs import migrate_execution_jobs, recover_execution_jobs
-from .models import AgentRun, Base, RunState, Thread
+from .execution_jobs import recover_execution_jobs
+from .models import AgentRun, RunState, Thread
+from .database_migrations import upgrade_database
 from .seed import repair_legacy_labels
 from .auth import SidecarTokenMiddleware
 from .config import sidecar_token
@@ -15,19 +16,7 @@ from .config import sidecar_token
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
-    async with engine.begin() as conn:
-        await conn.run_sync(Base.metadata.create_all)
-        columns = (await conn.execute(text("PRAGMA table_info(attachments)"))).mappings().all()
-        if "message_id" not in {str(column["name"]) for column in columns}:
-            await conn.execute(text("ALTER TABLE attachments ADD COLUMN message_id VARCHAR REFERENCES messages(id) ON DELETE SET NULL"))
-        await conn.execute(text("CREATE INDEX IF NOT EXISTS ix_attachments_message_id ON attachments (message_id)"))
-        run_columns = (await conn.execute(text("PRAGMA table_info(agent_runs)"))).mappings().all()
-        run_column_names = {str(column["name"]) for column in run_columns}
-        if "before_diff" not in run_column_names:
-            await conn.execute(text("ALTER TABLE agent_runs ADD COLUMN before_diff TEXT NOT NULL DEFAULT ''"))
-        if "after_diff" not in run_column_names:
-            await conn.execute(text("ALTER TABLE agent_runs ADD COLUMN after_diff TEXT NOT NULL DEFAULT ''"))
-    await migrate_execution_jobs(engine)
+    upgrade_database(str(engine.url))
     async with SessionLocal() as session:
         app.state.recovered_jobs = await recover_execution_jobs(session)
         active_states = [RunState.PLANNING, RunState.WAITING_APPROVAL, RunState.IMPLEMENTING, RunState.TESTING, RunState.REVIEWING, RunState.FALLBACK_TO_CODEX]

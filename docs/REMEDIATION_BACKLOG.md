@@ -242,8 +242,9 @@ ESLint（0 error）、Prettier 与 Rust `cargo check` 全部通过。Phase 0 到
 
 ### P3-1 引入 Alembic 迁移
 
-- [ ] 用 Alembic 接管 schema：以当前 models 生成 baseline revision；`main.py:16-27` 的手写 `PRAGMA/ALTER TABLE` 补丁转成迁移脚本，启动时执行 `upgrade head`。
-- [ ] 保证旧数据目录（含手写补丁前后的库）可平滑升级，写一条针对旧库文件的升级测试。
+- [x] 用 Alembic 接管 schema：以当前 models 生成 baseline revision；`main.py:16-27` 的手写 `PRAGMA/ALTER TABLE` 补丁转成迁移脚本，启动时执行 `upgrade head`。
+- [x] 保证旧数据目录（含手写补丁前后的库）可平滑升级，写一条针对旧库文件的升级测试。
+- **验证结果（2026-07-13）**：新增冻结的 `0001_baseline` 与兼容补丁 `0002_legacy_columns`，启动改为 Alembic `upgrade head`，移除 `main.py` 和 execution_jobs 中的手写迁移。全新库、补丁前旧库、补丁后旧库升级及数据保留测试通过；后端全量 98 项、Ruff、sidecar 构建与正式 windowed 产物空库启动冒烟通过，产物数据库版本为 `0002_legacy_columns`。
 
 ### P3-2 拆分 api.py
 

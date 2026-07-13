@@ -1,7 +1,7 @@
 import json
 
-from sqlalchemy import select, text, update
-from sqlalchemy.ext.asyncio import AsyncEngine, AsyncSession
+from sqlalchemy import select, update
+from sqlalchemy.ext.asyncio import AsyncSession
 
 from .models import Approval, AuditLog, ExecutionJob
 
@@ -16,17 +16,6 @@ def decode_json_object(value: str | None) -> dict[str, object]:
     except (TypeError, ValueError):
         return {}
     return decoded if isinstance(decoded, dict) else {}
-
-
-async def migrate_execution_jobs(engine: AsyncEngine) -> None:
-    """Apply small, repeatable SQLite migrations for pre-Alembic installs."""
-    async with engine.begin() as connection:
-        # create_all is still authoritative for new installs. This hook exists
-        # so future additive columns can be introduced without replacing DBs.
-        await connection.execute(text("CREATE INDEX IF NOT EXISTS ix_execution_jobs_status ON execution_jobs (status)"))
-        columns = (await connection.execute(text("PRAGMA table_info(execution_jobs)"))).mappings().all()
-        if "evidence" not in {str(column["name"]) for column in columns}:
-            await connection.execute(text("ALTER TABLE execution_jobs ADD COLUMN evidence TEXT NOT NULL DEFAULT '{}'"))
 
 
 async def record_job_evidence(db: AsyncSession, approval_id: str, phase: str,
