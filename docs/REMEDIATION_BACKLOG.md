@@ -298,6 +298,7 @@ Linux 独立复验：后端 90 项、前端 14 项、TypeScript、ESLint（0 err
 
 - **R3｜补 WebSocket 鉴权后端测试（已完成）**（原 N1，曾明确并入 P1-4）：覆盖无 token / 错误 token 的 WS 连接被拒（4401）与正确 token 可建立连接；顺带验证中间件在未 accept 时直接 `websocket.close` 在 uvicorn 下的真实行为。
   - **验证结果（2026-07-13）**：Starlette/uvicorn 同协议测试确认缺失和错误 token 均以 4401 拒绝，正确 token 可建立连接并收到 `connected` 事件；专项 5 项、后端全量 93 项通过。
-- **R4｜ESLint warning 清零并收紧门禁**（原 N4）：修复现存 5 条 warning（exhaustive-deps ×4、no-explicit-any ×1），`lint` script 加 `--max-warnings=0`，CI 随之生效。
+- **R4｜ESLint warning 清零并收紧门禁（已完成）**（原 N4）：修复现存 5 条 warning（exhaustive-deps ×4、no-explicit-any ×1），`lint` script 加 `--max-warnings=0`，CI 随之生效。
+  - **验证结果（2026-07-13）**：通过稳定 Hook 依赖与具体健康状态类型消除全部 warning；lint 门禁已设为 `--max-warnings=0`。TypeScript、前端 14 项、严格 ESLint 与 Prettier 全部通过。
 
 R3、R4 各自独立 commit，完成并推送 CI 绿后无需单独 review，直接继续 Phase 2 条目。

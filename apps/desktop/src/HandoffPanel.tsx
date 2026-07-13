@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import { Check, Code2, LoaderCircle, RefreshCw, Send } from "lucide-react";
 import * as api from "./api";
 import type { HandoffPackage } from "./types";
@@ -15,18 +15,18 @@ export function HandoffPanel({
   const [selected, setSelected] = useState<HandoffPackage>();
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
-  const load = async () => {
+  const load = useCallback(async () => {
     try {
       const values = await api.listHandoffs(workspaceId, threadId);
       setItems(values);
-      if (!selected && values[0]) setSelected(values[0]);
+      if (values[0]) setSelected((current) => current ?? values[0]);
     } catch (reason) {
       setError(String(reason));
     }
-  };
+  }, [threadId, workspaceId]);
   useEffect(() => {
     if (workspaceId && threadId) void load();
-  }, [workspaceId, threadId]);
+  }, [workspaceId, threadId, load]);
   const prepare = async (
     recipient: "codex" | "claude",
     purpose: "verify" | "review",

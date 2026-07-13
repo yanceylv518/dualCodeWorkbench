@@ -25,7 +25,8 @@ export function SettingsDialog({
   target?: "general" | "tests";
 }) {
   const [value, setValue] = useState<AgentSettings>();
-  const [health, setHealth] = useState<Record<string, any>>();
+  const [health, setHealth] =
+    useState<Record<string, Record<string, unknown>>>();
   const [models, setModels] = useState<AgentModelCatalog>({
     codex: [],
     claude: [],

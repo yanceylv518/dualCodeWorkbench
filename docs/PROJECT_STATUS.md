@@ -11,6 +11,7 @@
 - P1-7 已完成：ProcessingCard 使用运行事件固化的 Agent 身份，发送目标变化不会改名；前端类型检查与 14 项测试通过。
 - Phase 1 最终验收完成：P1-1 至 P1-7 全部关闭；后端 90 项、前端 14 项、TypeScript、Prettier 与 ESLint（0 error，保留 5 条既有 warning）通过。按执行约定停止，等待 Claude review，不进入 Phase 2。
 - Phase 2 前置 R3 已完成：WebSocket 鉴权覆盖缺失/错误 token 的 4401 拒绝及正确 token 建连事件；专项 5 项、后端全量 93 项通过。
+- Phase 2 前置 R4 已完成：ESLint 既有 5 条 warning 全部清零，lint 脚本收紧为 `--max-warnings=0`；TypeScript、前端 14 项、严格 ESLint 与 Prettier 全部通过，Phase 2 已解锁。
 
 ## 2026-07-13 Phase 0 产品化整改
 

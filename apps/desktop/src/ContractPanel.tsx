@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import { Check, LoaderCircle, Save, ShieldCheck } from "lucide-react";
 import * as api from "./api";
 import type { ProjectContract } from "./types";
@@ -22,7 +22,7 @@ export function ContractPanel({
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState("");
-  const load = async () => {
+  const load = useCallback(async () => {
     setLoading(true);
     setError("");
     try {
@@ -41,10 +41,10 @@ export function ContractPanel({
     } finally {
       setLoading(false);
     }
-  };
+  }, [threadId, workspaceId]);
   useEffect(() => {
     if (workspaceId && threadId) void load();
-  }, [workspaceId, threadId]);
+  }, [workspaceId, threadId, load]);
   const save = async () => {
     if (!value) return;
     const governance = {

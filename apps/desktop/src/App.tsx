@@ -168,20 +168,21 @@ export default function App() {
     if (rightTab === "recovery" && !hasRecovery) setRightTab("status");
   }, [hasRecovery, rightTab]);
   const latestMessageLength = thread?.messages.at(-1)?.text.length ?? 0;
+  const selectedThreadId = thread?.id;
   useEffect(() => {
-    if (!thread || !followingLatest) return;
+    if (!selectedThreadId || !followingLatest) return;
     const frame = window.requestAnimationFrame(() =>
       messageEnd.current?.scrollIntoView({ block: "end", behavior: "smooth" }),
     );
     return () => window.cancelAnimationFrame(frame);
   }, [
-    thread?.id,
+    selectedThreadId,
     thread?.messages.length,
     latestMessageLength,
     thread?.state,
     followingLatest,
   ]);
-  useEffect(() => setFollowingLatest(true), [thread?.id]);
+  useEffect(() => setFollowingLatest(true), [selectedThreadId]);
   const scrollToLatest = () => {
     setFollowingLatest(true);
     messageEnd.current?.scrollIntoView({ block: "end", behavior: "smooth" });
@@ -1465,7 +1466,7 @@ function RemoteRepository({
     else if (remote?.error && !busy)
       setFeedback(`当前检测失败：${remote.error}`);
   }, [
-    remote?.vps?.head,
+    remote?.vps,
     remote?.error,
     busy,
     cloneJob?.id,
