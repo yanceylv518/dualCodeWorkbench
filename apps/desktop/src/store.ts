@@ -43,6 +43,7 @@ interface Store {
   workspaceId: string;
   threadId: string;
   mode: Mode;
+  activeAgent?: Mode;
   backend: "connecting" | "online" | "offline";
   realtime: "disconnected" | "connecting" | "connected" | "reconnecting";
   error?: string;
@@ -208,6 +209,7 @@ export const useStore = create<Store>((set, get) => ({
       executionJobs: [],
       terminal: [],
       runMeta: undefined,
+      activeAgent: undefined,
       socket: undefined,
       realtime: threadId ? "connecting" : "disconnected",
     });
@@ -462,6 +464,11 @@ export const useStore = create<Store>((set, get) => ({
             });
           }
           if (data.type === "run.state_changed" && payload.state) {
+            if (
+              activeStatesForStore.has(payload.state as RunState) &&
+              (payload.agent === "codex" || payload.agent === "claude")
+            )
+              set({ activeAgent: payload.agent });
             get().setState(payload.state as RunState);
             if (
               data.run_id &&
@@ -614,6 +621,9 @@ export const useStore = create<Store>((set, get) => ({
     })),
   setState: (state) =>
     set((current) => ({
+      activeAgent: activeStatesForStore.has(state)
+        ? current.activeAgent
+        : undefined,
       workspaces: mapThread(current, (thread) => ({ ...thread, state })),
     })),
   sendPrompt: async (text) => {
@@ -628,6 +638,7 @@ export const useStore = create<Store>((set, get) => ({
         draft.map((item) => item.id),
       )) as { message_id: string; attachments?: Message["attachments"] };
       set((current) => ({
+        activeAgent: state.mode,
         draftAttachments: [],
         workspaces: mapThread(current, (thread) => {
           if (thread.messages.some((item) => item.id === result.message_id))

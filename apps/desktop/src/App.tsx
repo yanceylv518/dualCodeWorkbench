@@ -506,7 +506,7 @@ export default function App() {
                 {activeStates.has(thread.state) && (
                   <ProcessingCard
                     state={thread.state}
-                    agent={store.mode}
+                    agent={store.activeAgent ?? store.mode}
                     waitingApproval={Boolean(store.pendingApproval)}
                   />
                 )}

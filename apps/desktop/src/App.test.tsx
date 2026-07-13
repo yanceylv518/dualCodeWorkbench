@@ -8,6 +8,10 @@ afterEach(() => {
   cleanup();
   useStore.setState({
     backend: "connecting",
+    mode: "codex",
+    activeAgent: undefined,
+    pendingApproval: undefined,
+    realtime: "disconnected",
     workspaces: [],
     workspaceId: "",
     threadId: "",
@@ -193,6 +197,43 @@ describe("workbench", () => {
 
     await vi.waitFor(() =>
       expect(openWorkspace).toHaveBeenCalledWith("D:/Project"),
+    );
+  });
+
+  it("keeps the running agent name when the send target changes", () => {
+    useStore.setState({
+      backend: "online",
+      mode: "codex",
+      activeAgent: "codex",
+      workspaceId: "workspace-1",
+      threadId: "thread-1",
+      workspaces: [
+        {
+          id: "workspace-1",
+          name: "Project",
+          path: "D:/Project",
+          threads: [
+            {
+              id: "thread-1",
+              title: "Task",
+              state: "IMPLEMENTING",
+              messages: [],
+            },
+          ],
+        },
+      ],
+    });
+
+    const { container } = render(<App />);
+    act(() => {
+      useStore.getState().setMode("claude");
+    });
+
+    expect(container.querySelector(".processing-card strong")?.textContent).toContain(
+      "Codex 正在处理",
+    );
+    expect(container.querySelector(".processing-card strong")?.textContent).not.toContain(
+      "Claude 正在处理",
     );
   });
 });

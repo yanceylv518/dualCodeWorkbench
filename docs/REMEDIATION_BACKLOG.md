@@ -128,8 +128,9 @@ ESLint（0 error）、Prettier 与 Rust `cargo check` 全部通过。Phase 0 到
 - **验证结果（2026-07-13）**：Ctrl/Cmd+O 在非编辑控件聚焦时打开项目；项目菜单支持外部点击与 Esc 收起。前端类型检查与 13 项测试通过。
 
 ### P1-7 ProcessingCard 显示运行中的 agent
-- [ ] `App.tsx:131` 不再传 `store.mode`，改为从当前 run 事件（`run.state_changed` 的 `payload.agent`，store 已接收）记录"正在运行的 agent"并传入。
-- [ ] 测试：运行中切换发送目标下拉，处理卡名字不变。
+- [x] `App.tsx:131` 不再传 `store.mode`，改为从当前 run 事件（`run.state_changed` 的 `payload.agent`，store 已接收）记录"正在运行的 agent"并传入。
+- [x] 测试：运行中切换发送目标下拉，处理卡名字不变。
+- **验证结果（2026-07-13）**：store 固化当前运行 Agent 并在终态清除，ProcessingCard 不再跟随发送目标变化；前端类型检查与 14 项测试通过。
 
 ---
 
