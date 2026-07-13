@@ -259,3 +259,18 @@ ESLint（0 error）、Prettier 与 Rust `cargo check` 全部通过。Phase 0 到
   所需的 `esbuild` 构建脚本，未启用 `dangerouslyAllowAllBuilds`，继续等待双平台复验。
 - **最终验收**：GitHub Actions CI #4（run `29244288260`）完成，`ubuntu-latest` 与
   `windows-latest` 两个矩阵作业均成功；Claude 提出的 R1、R2 已关闭，Phase 0 返工完成。
+
+### Phase 0 返工复验（2026-07-13，Claude）
+
+**结论：Phase 0 关闭，放行 Phase 1。**
+
+- R1 复验：`pnpm/action-setup@v4`（固定 11.7.0）已置于 `setup-node` 之前，pip cache 指定
+  `cache-dependency-path`；GitHub Actions run `29244556056` 双平台全绿（ubuntu 58s / windows 1m55s），亲自核验。
+- R2 复验：在 Linux 全新 venv 执行 `pip install -e "apps/backend[dev]"`，Pillow 随依赖自动安装，
+  后端 90 项测试通过，无需任何手动补装。
+- 追加的 `pnpm-workspace.yaml` esbuild 构建授权（`4b12fd9`）审查通过：仅放行 Vite/Vitest 必需的
+  esbuild 脚本，未使用 `dangerouslyAllowAllBuilds`，符合最小授权原则。
+- 遗留提醒（不阻塞）：CI 注解提示 actions/checkout@v4、setup-node@v4、setup-python@v5 将受
+  GitHub Node 20 弃用影响，后续升级到最新 major 版本即可；N1–N4 备注继续跟随 Phase 1/2 执行。
+
+**Phase 1 现已放行，Codex 可按 P1-1 → P1-7 顺序执行，完成后停下等待 review。**
