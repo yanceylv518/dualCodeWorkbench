@@ -8,6 +8,7 @@
 - P0-4 已完成：建立 Windows/Linux CI，覆盖 Ruff、pytest、ESLint、类型检查和 Vitest；前端源码已独立完成 Prettier 格式化。本地 Ruff、后端 68 项、前端 7 项、lint、格式及类型检查通过。
 - P0-5 已完成：Tauri 每次启动生成独立 sidecar token，FastAPI 统一保护全部 `/api/*` HTTP 与 WebSocket，前端请求、附件和实时连接统一携带鉴权信息；浏览器开发模式支持用户数据目录 token 文件。后端 70 项、前端 7 项、类型检查、lint 与 Rust `cargo check` 通过。
 - P0-6 已完成：凭据防护集中为带原因说明的 glob 规则列表，覆盖环境文件、证书/私钥、SSH 身份文件、常见凭据配置与密钥库；专项 22 项、后端全量 90 项和 Ruff 检查通过。
+- Phase 0 最终验收完成：后端 90 项、前端 7 项、E2E 1 项、Ruff、TypeScript、ESLint（0 error，保留 5 条既有 warning）、Prettier 与 Rust `cargo check` 全部通过。按执行约定停止，等待 Claude review，不进入 Phase 1。
 
 ## 2026-07-13 VPS 克隆显式授权
 
