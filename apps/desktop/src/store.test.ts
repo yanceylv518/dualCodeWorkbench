@@ -234,6 +234,7 @@ describe("activity terminal states", () => {
 
 describe("thread realtime event merging", () => {
   it("merges agent deltas into one streaming placeholder", async () => {
+    vi.useFakeTimers();
     const socket = await connectThread();
 
     emitSocketEvent(socket, {
@@ -246,19 +247,44 @@ describe("thread realtime event merging", () => {
       run_id: "run-1",
       payload: { agent: "codex", text: "第二段" },
     });
+    vi.advanceTimersByTime(400);
 
     expect(selectedMessages()).toMatchObject([
       { id: "stream-run-1", agent: "codex", text: "第一段第二段" },
     ]);
   });
 
+  it("releases buffered deltas at a steady pace instead of in bursts", async () => {
+    vi.useFakeTimers();
+    const socket = await connectThread();
+
+    emitSocketEvent(socket, {
+      type: "agent.delta",
+      run_id: "run-1",
+      payload: { agent: "codex", text: "字".repeat(400) },
+    });
+    vi.advanceTimersByTime(40);
+    const first = selectedMessages()[0]?.text.length ?? 0;
+    expect(first).toBeGreaterThan(0);
+    expect(first).toBeLessThan(400);
+
+    vi.advanceTimersByTime(40);
+    const second = selectedMessages()[0].text.length;
+    expect(second).toBeGreaterThan(first);
+
+    vi.advanceTimersByTime(2000);
+    expect(selectedMessages()[0].text.length).toBe(400);
+  });
+
   it("replaces the stream placeholder with the persisted message", async () => {
+    vi.useFakeTimers();
     const socket = await connectThread();
     emitSocketEvent(socket, {
       type: "agent.delta",
       run_id: "run-2",
       payload: { agent: "codex", text: "草稿" },
     });
+    vi.advanceTimersByTime(40);
 
     emitSocketEvent(socket, {
       type: "message.created",
@@ -276,6 +302,37 @@ describe("thread realtime event merging", () => {
       id: "message-final",
       text: "最终回答",
     });
+  });
+
+  it("finalizes with the authoritative content even while deltas are buffered", async () => {
+    vi.useFakeTimers();
+    const socket = await connectThread();
+    emitSocketEvent(socket, {
+      type: "agent.delta",
+      run_id: "run-2",
+      payload: { agent: "codex", text: "很长的中间内容".repeat(100) },
+    });
+
+    emitSocketEvent(socket, {
+      type: "message.created",
+      run_id: "run-2",
+      payload: {
+        id: "message-final",
+        role: "codex",
+        content: "最终回答",
+        attachments: [],
+      },
+    });
+    vi.advanceTimersByTime(2000);
+
+    const finals = selectedMessages().filter(
+      (item) => item.id === "message-final",
+    );
+    expect(finals).toHaveLength(1);
+    expect(finals[0].text).toBe("最终回答");
+    expect(
+      selectedMessages().some((item) => item.id === "stream-run-2"),
+    ).toBe(false);
   });
 
   it("merges tool progress into one activity timeline", async () => {

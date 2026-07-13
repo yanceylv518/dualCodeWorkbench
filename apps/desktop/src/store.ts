@@ -275,6 +275,60 @@ export const useStore = create<Store>((set, get) => ({
     void get().refreshExecutionJobs();
     let reconnectAttempt = 0;
     let reconnectTimer: number | undefined;
+    // Agent 输出的 chunk 是突发到达的；缓冲后按固定节拍释放，
+    // 让回复以稳定的打字节奏出现而不是一坨一坨跳动。
+    const streamBuffers = new Map<
+      string,
+      { agent: Agent; target: string; shown: number }
+    >();
+    let streamTimer: number | undefined;
+    const stopStreamTimer = () => {
+      if (streamTimer !== undefined) window.clearInterval(streamTimer);
+      streamTimer = undefined;
+    };
+    const drainStreamBuffers = () => {
+      if (get().workspaceId !== workspaceId || get().threadId !== threadId) {
+        streamBuffers.clear();
+        stopStreamTimer();
+        return;
+      }
+      const updates = new Map<string, { agent: Agent; text: string }>();
+      for (const [id, buffer] of streamBuffers) {
+        if (buffer.shown >= buffer.target.length) continue;
+        const backlog = buffer.target.length - buffer.shown;
+        buffer.shown = Math.min(
+          buffer.target.length,
+          buffer.shown + Math.max(16, Math.ceil(backlog * 0.3)),
+        );
+        updates.set(id, {
+          agent: buffer.agent,
+          text: buffer.target.slice(0, buffer.shown),
+        });
+      }
+      if (updates.size)
+        set((state) => ({
+          workspaces: mapThread(state, (thread) => {
+            let messages = thread.messages;
+            for (const [id, update] of updates) {
+              messages = messages.some((item) => item.id === id)
+                ? messages.map((item) =>
+                    item.id === id ? { ...item, text: update.text } : item,
+                  )
+                : [
+                    ...messages,
+                    { id, agent: update.agent, text: update.text, time: "" },
+                  ];
+            }
+            return { ...thread, messages };
+          }),
+        }));
+      if (
+        [...streamBuffers.values()].every(
+          (buffer) => buffer.shown >= buffer.target.length,
+        )
+      )
+        stopStreamTimer();
+    };
     const connect = () => {
       if (
         get().workspaceId !== workspaceId ||
@@ -317,36 +371,18 @@ export const useStore = create<Store>((set, get) => ({
               payload.agent &&
               payload.text &&
               data.run_id
-            )
-              set((state) => ({
-                workspaces: mapThread(state, (thread) => {
-                  const id = `stream-${data.run_id}`;
-                  const existing = thread.messages.find(
-                    (item) => item.id === id,
-                  );
-                  return {
-                    ...thread,
-                    messages: existing
-                      ? thread.messages.map((item) =>
-                          item.id === id
-                            ? {
-                                ...item,
-                                text: item.text + String(payload.text),
-                              }
-                            : item,
-                        )
-                      : [
-                          ...thread.messages,
-                          {
-                            id,
-                            agent: payload.agent as Agent,
-                            text: String(payload.text),
-                            time: "",
-                          },
-                        ],
-                  };
-                }),
-              }));
+            ) {
+              const id = `stream-${data.run_id}`;
+              const buffer = streamBuffers.get(id) ?? {
+                agent: payload.agent as Agent,
+                target: "",
+                shown: 0,
+              };
+              buffer.target += String(payload.text);
+              streamBuffers.set(id, buffer);
+              if (streamTimer === undefined)
+                streamTimer = window.setInterval(drainStreamBuffers, 40);
+            }
             if (data.type === "message.created" && data.run_id)
               set((state) => ({
                 workspaces: mapThread(state, (thread) => {
@@ -394,7 +430,9 @@ export const useStore = create<Store>((set, get) => ({
               data.type === "message.created" &&
               payload.role &&
               payload.content !== undefined
-            )
+            ) {
+              // 持久化消息是权威全文，丢弃该流的未释放缓冲，立即收尾。
+              if (data.run_id) streamBuffers.delete(`stream-${data.run_id}`);
               set((state) => ({
                 workspaces: mapThread(state, (thread) => {
                   const streamId = data.run_id ? `stream-${data.run_id}` : "";
@@ -437,6 +475,7 @@ export const useStore = create<Store>((set, get) => ({
                   };
                 }),
               }));
+            }
             if (
               data.type === "agent.tool" &&
               payload.item &&
