@@ -220,7 +220,7 @@ async def test_approval_job_failure_and_explicit_retry_are_auditable(
     api_client: httpx.AsyncClient, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ):
     """Exercise the durable API lifecycle without executing a real Git side effect."""
-    from dualcode import api
+    from dualcode import api_jobs as api
 
     workspace, thread = await _workspace(api_client, tmp_path)
     prefix = f"/api/workspaces/{workspace['id']}/threads/{thread['id']}"
@@ -334,7 +334,7 @@ async def test_attachment_diff_test_result_and_audit_chain(
 async def test_agent_diagnostics_report_independent_health(
     api_client: httpx.AsyncClient, monkeypatch: pytest.MonkeyPatch
 ):
-    from dualcode import api
+    from dualcode import api_agents as api
 
     async def healthy() -> bool:
         return True
