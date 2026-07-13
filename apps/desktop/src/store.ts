@@ -174,12 +174,6 @@ export const useStore = create<Store>((set, get) => ({
   setState: (state) => set((current) => ({ workspaces: mapThread(current, (thread) => ({ ...thread, state })) })),
   sendPrompt: async (text) => {
     const state = get();
-    if (state.backend === "offline") {
-      state.addMessage("user", text);
-      state.setState("PLANNING");
-      setTimeout(() => state.addMessage("claude", "后端未启动：这是本地降级演示。"), 300);
-      return;
-    }
     try {
       const draft = state.draftAttachments;
       const result = await api.sendMessage(state.workspaceId, state.threadId, text, state.mode, draft.map((item) => item.id)) as { message_id: string; attachments?: Message["attachments"] };
@@ -210,7 +204,6 @@ export const useStore = create<Store>((set, get) => ({
   },
   upload: async (file) => {
     const state = get();
-    if (state.backend === "offline") { state.addMessage("user", `已选择图片：${file.name}`); return; }
     try { const item = await api.uploadAttachment(state.workspaceId, state.threadId, file); set((current) => ({ draftAttachments: [...current.draftAttachments, item].slice(-8) })); }
     catch (error) { set({ error: String(error) }); }
   },

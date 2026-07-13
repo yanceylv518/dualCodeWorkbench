@@ -43,11 +43,12 @@ corepack pnpm --filter @dualcode/desktop lint
 - **验证结果（2026-07-13）**：后端全量 68 项通过；生产代码中已无 `Mock diff`、`12 passed` 及旧编排入口。
 
 ### P0-2 删除前端演示夹具与 sample 分支
-- [ ] 删除 `apps/desktop/src/data.ts`。
-- [ ] 删除 `App.tsx:47` 的 `sample` 判定（魔法路径 `D:/Projects/dualcode`）及其贯穿 `Composer`、sample-banner（App.tsx:128）的所有传参与分支。
-- [ ] `store.ts:177-181`：移除后端离线时**以 Claude 身份伪造回复**的降级演示逻辑；离线时禁用 composer 并显示明确的离线横幅（复用 `backend === "offline"` 状态），`upload` 的离线分支（store.ts:213）同样移除。
-- [ ] `App.tsx:156` `BackendBadge`：文案改中文，去掉 "Offline Demo"，改为「后端离线」并给出重试入口（调用 `initialize`）。
+- [x] 删除 `apps/desktop/src/data.ts`。
+- [x] 删除 `App.tsx:47` 的 `sample` 判定（魔法路径 `D:/Projects/dualcode`）及其贯穿 `Composer`、sample-banner（App.tsx:128）的所有传参与分支。
+- [x] `store.ts:177-181`：移除后端离线时**以 Claude 身份伪造回复**的降级演示逻辑；离线时禁用 composer 并显示明确的离线横幅（复用 `backend === "offline"` 状态），`upload` 的离线分支（store.ts:213）同样移除。
+- [x] `App.tsx:156` `BackendBadge`：文案改中文，去掉 "Offline Demo"，改为「后端离线」并给出重试入口（调用 `initialize`）。
 - **验收**：前端 typecheck/test 通过；全局搜索 `D:/Projects/dualcode`、`降级演示`、`Offline Demo` 无结果。
+- **验证结果（2026-07-13）**：TypeScript 类型检查通过；前端 7 项组件测试通过；指定演示字符串全局搜索无结果。
 
 ### P0-3 重写 E2E 冒烟测试
 - [ ] `tests/e2e/workbench.spec.ts` 当前断言的是已删除的演示 UI，必然失败。重写为最小真实冒烟：启动前端（后端 mock 或真实 sidecar 任选，写清前置条件），断言空状态「打开本地代码项目」渲染、设置对话框可打开可关闭。
