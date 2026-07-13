@@ -1,5 +1,4 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import Editor from "@monaco-editor/react";
 import { isTauri } from "@tauri-apps/api/core";
 import { getCurrentWindow } from "@tauri-apps/api/window";
 import { open } from "@tauri-apps/plugin-dialog";
@@ -37,6 +36,7 @@ import {
   RotateCcw,
 } from "lucide-react";
 import { MarkdownMessage } from "./components/MarkdownMessage";
+import { DiffPanel } from "./components/DiffPanel";
 import { SettingsDialog } from "./SettingsDialog";
 import { ProjectDialog } from "./ProjectDialog";
 import { ExecutionEvidence } from "./ExecutionEvidence";
@@ -153,8 +153,8 @@ export default function App() {
   );
   useEffect(() => {
     if (store.backend === "online" && !showSettings)
-      void import("./api")
-        .then((api) => api.fetchAgentSettings())
+      void api
+        .fetchAgentSettings()
         .then(setAgentSettings)
         .catch(() => undefined);
   }, [store.backend, showSettings]);
@@ -1670,34 +1670,6 @@ function RemoteRepository({
         </>
       )}
     </InspectorSection>
-  );
-}
-function DiffPanel({ diff }: { diff: string }) {
-  return (
-    <div className="diff-panel">
-      {diff ? (
-        <Editor
-          height="100%"
-          language="diff"
-          theme="vs-dark"
-          options={{
-            readOnly: true,
-            minimap: { enabled: false },
-            fontSize: 12,
-            scrollBeyondLastLine: false,
-            wordWrap: "on",
-            padding: { top: 12 },
-          }}
-          value={diff}
-        />
-      ) : (
-        <div className="panel-empty">
-          <Code2 size={22} />
-          <strong>暂无 Diff</strong>
-          <span>Codex 修改文件后，这里会显示真实 Git Diff。</span>
-        </div>
-      )}
-    </div>
   );
 }
 function TerminalPanel({ lines }: { lines: string[] }) {

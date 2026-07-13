@@ -21,6 +21,9 @@ function developmentToken(): string {
 
 export default defineConfig({
   plugins: [react()],
+  // Monaco is intentionally isolated behind the Diff panel's dynamic import.
+  // Its self-contained editor chunk is large but does not affect initial startup.
+  build: { chunkSizeWarningLimit: 5000 },
   define: { __DUALCODE_DEV_TOKEN__: JSON.stringify(developmentToken()) },
   server: {
     host: "127.0.0.1",

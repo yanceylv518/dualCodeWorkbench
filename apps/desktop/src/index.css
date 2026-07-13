@@ -978,6 +978,53 @@ button:disabled {
   flex: 1;
   min-height: 0;
 }
+.diff-panel.has-files {
+  display: grid;
+  grid-template-columns: minmax(120px, 34%) minmax(0, 1fr);
+}
+.diff-files {
+  overflow: auto;
+  border-right: 1px solid #303943;
+  background: #11161c;
+}
+.diff-files header {
+  padding: 9px 10px;
+  color: var(--text-muted);
+  font-size: var(--text-xs);
+}
+.diff-files button {
+  display: flex;
+  align-items: center;
+  width: 100%;
+  gap: 6px;
+  border: 0;
+  border-radius: 0;
+  background: transparent;
+  padding: 7px 10px;
+  color: #aeb9c6;
+  text-align: left;
+}
+.diff-files button.active {
+  background: #1c2c3d;
+  color: #e7f1fd;
+}
+.diff-files button span {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.diff-editor {
+  min-width: 0;
+  min-height: 0;
+}
+.panel-loading {
+  display: flex;
+  height: 100%;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  color: var(--text-muted);
+}
 .terminal-panel {
   padding: 12px;
   overflow: auto;
