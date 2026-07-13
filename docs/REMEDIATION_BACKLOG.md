@@ -352,3 +352,41 @@ Linux 独立复验：后端 90 项、前端 14 项、TypeScript、ESLint（0 err
   - **验证结果（2026-07-13）**：通过稳定 Hook 依赖与具体健康状态类型消除全部 warning；lint 门禁已设为 `--max-warnings=0`。TypeScript、前端 14 项、严格 ESLint 与 Prettier 全部通过。
 
 R3、R4 各自独立 commit，完成并推送 CI 绿后无需单独 review，直接继续 Phase 2 条目。
+
+### Phase 2 Review（2026-07-13，Claude）
+
+**结论：Phase 2 通过，关闭。Phase 3 放行，开工前先完成 R5、R6 两个小项。**
+
+Linux 独立复验：后端 94 项、前端 32 项、TypeScript、严格 ESLint（`--max-warnings=0`）、Ruff、
+E2E 1 项、生产构建全部通过；GitHub Actions run `29255107831` 双平台绿。逐项核查：
+
+- R3 WS 鉴权测试（缺失/错误 token 4401、正确 token 收到 `connected`）✓；R4 warning 清零 + lint 门禁收紧 ✓。
+- P2-1 字号 token（11/12/13/14px）+ 全局 `:focus-visible` + 防回归策略测试 ✓，CSS 中仅存 ≥15px 字面量；
+  P2-2 `react-markdown` + `remark-gfm` + `skipHtml`，链接 `target=_blank rel=noreferrer`，四类元素测试 ✓；
+  P2-3 Monaco 经 `lazy(import())` 双模块懒加载、Diff 按文件边界拆分导航，初始 JS 481kB ✓；
+  P2-4 交接分区呈现 + Diff 行数统计 ✓；P2-5 通知队列（分级/堆叠/info 自动消失/后台失败降级）✓；
+  P2-6 后端 PATCH/DELETE 带 404/422/409 守卫、活动任务禁止删除、级联清库 + 附件目录 `rmtree` 限定在
+  `attachments/{workspace}/{thread}`、审计齐全 ✓；P2-7 底栏跳转 + 快照语义提示 + 搜索空状态 ✓；
+  P2-8 通用 ConfirmDialog/InputDialog + `useDialogFocus`（Esc、Tab 圈定、焦点恢复、aria）替换全部
+  `window.confirm/prompt`，平台中性文案 ✓；P2-9 Composer 自动增高、单一附件入口、超限通知、拖放高亮、
+  灯箱非 passive 滚轮 + 拖拽平移 ✓；P2-10 RemoteRepository 拆为独立组件、`deriveRemoteFeedback` 纯函数
+  单一反馈来源、旧 fetch/pull 分支删除、三态测试 ✓；P2-11 Agent/系统消息中文化、前端错误统一
+  「请求失败：」包装 ✓（遗留见 R5）。
+
+**流程警告 W2**：最后三个条目的 commit（`eaa1335`/`c3fc8b8`/`1c271fe`）未按约定携带 P2-9/P2-10/P2-11
+编号且 message 为英文。验收按内容对号入座完成，但下一 Phase 请恢复「编号 + 中文说明」格式。
+
+**改进备注 N6（不阻塞）**：P2-3 用 `chunkSizeWarningLimit: 5000` 消除构建警告——Monaco 懒加载的
+实质达标，但 5MB 阈值会掩盖未来主包体积回归。建议降到 ~600kB 并在 vite 配置注释说明 editor.api
+chunk 为预期大小；随 Phase 3 顺带处理。
+
+**Phase 3 开工前置项：**
+
+- **R5｜api.py 用户可见 HTTP 错误中文化**：`HTTPException` 的 detail 仍有 20+ 条英文语义句
+  （"Stop the active task before deleting it"、"Workspace/Thread mismatch" 等），经前端
+  「请求失败：」包装后直接展示给用户。删除/重命名/审批/附件等用户高频路径的 detail 改为中文
+  （保留技术细节），并同步更新断言这些字符串的测试。
+- **R6｜InputDialog 补 `isComposing` 守卫**：`components/dialogs.tsx` 的 Enter 提交未检查输入法
+  组合态，P1-1 的同类缺陷在新组件中复发；一行守卫 + 一条组件测试。
+
+R5、R6 各自独立 commit，CI 绿后直接继续 Phase 3 条目（P3-1 → P3-5），完成后停下等待 review。
