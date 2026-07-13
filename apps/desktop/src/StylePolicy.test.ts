@@ -16,6 +16,9 @@ const styles = [
 describe("desktop visual policy", () => {
   it("does not use text smaller than 11px", () => {
     expect(styles).not.toMatch(/font-size:\s*(?:[0-9]|10)px/);
+    // font 简写同样受最小字号约束（含换行书写的 font: \n 10px …）。
+    expect(styles).not.toMatch(/font:\s*(?:[0-9]|10)px/);
+    expect(styles).not.toMatch(/font:\n\s*(?:[0-9]|10)px/);
   });
 
   it("defines shared typography and keyboard focus tokens", () => {
@@ -23,6 +26,14 @@ describe("desktop visual policy", () => {
     expect(index).toContain("--text-base: 13px");
     expect(index).toContain(":focus-visible");
     expect(index).toContain("var(--focus-ring)");
+  });
+
+  it("defines the U5 surface, radius and motion tokens", () => {
+    expect(index).toContain("--text-reading: 15px");
+    expect(index).toContain("--surface-1:");
+    expect(index).toContain("--radius-md: 10px");
+    expect(index).toContain("--transition-fast: 150ms ease");
+    expect(index).toContain("@media (prefers-reduced-motion: reduce)");
   });
 
   it("keeps message spacing uniform without hidden actions taking layout space", () => {

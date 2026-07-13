@@ -159,8 +159,16 @@
   --text-sm: 12px;
   --text-base: 13px;
   --text-lg: 14px;
+  --text-reading: 15px;
   --text-muted: #778595;
   --focus-ring: #63a8ff;
+  --surface-0: #0a0e13;
+  --surface-1: #11161d;
+  --surface-2: #1a212b;
+  --radius-sm: 6px;
+  --radius-md: 10px;
+  --radius-lg: 14px;
+  --transition-fast: 150ms ease;
   font-family: Inter, "Segoe UI", ui-sans-serif, system-ui, sans-serif;
   color: #e6eaf0;
   background: #090c10;
@@ -1037,7 +1045,7 @@ button:disabled {
   background: #090c10;
   color: #8d9aab;
   font:
-    9px/1.5 "Cascadia Code",
+    var(--text-xs)/1.5 "Cascadia Code",
     monospace;
   white-space: pre-wrap;
 }
@@ -2428,7 +2436,7 @@ button:disabled {
   flex: 0 0 auto;
   color: #7faef8;
   font:
-    10px "Cascadia Code",
+    var(--text-xs) "Cascadia Code",
     monospace;
 }
 .commit-row > div {
@@ -2597,7 +2605,7 @@ button:disabled {
   padding: 7px;
   color: #d5d9dd;
   font:
-    10px "Cascadia Code",
+    var(--text-xs) "Cascadia Code",
     monospace;
 }
 .settings-footer > span.settings-saved {
@@ -2691,7 +2699,7 @@ button:disabled {
   white-space: nowrap;
   color: #9da5ad;
   font:
-    10px "Cascadia Code",
+    var(--text-xs) "Cascadia Code",
     Consolas,
     monospace;
 }
@@ -3613,7 +3621,7 @@ button:disabled {
   overflow: hidden;
   color: #c7d3df;
   font:
-    10px Consolas,
+    var(--text-xs) Consolas,
     monospace;
   text-overflow: ellipsis;
   white-space: nowrap;
@@ -3695,8 +3703,105 @@ button:disabled {
   margin: 0;
   color: #c8d0d7;
   font:
-    10px Consolas,
+    var(--text-xs) Consolas,
     monospace;
   text-overflow: ellipsis;
   white-space: nowrap;
+}
+
+/* ===================================================================== */
+/* U5 视觉降噪层：token 统一应用（单一主题层；后续视觉调整请改这里， */
+/* 不要在上方历史区块继续叠加覆盖）。                                    */
+/* ===================================================================== */
+
+/* 正文阅读字号 */
+.message-card .message-content {
+  font-size: var(--text-reading);
+}
+
+/* 消息浮现动效 */
+@keyframes message-in {
+  from {
+    opacity: 0;
+    transform: translateY(2px);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+.message-card,
+.system-event,
+.agent-activity {
+  animation: message-in var(--transition-fast);
+}
+@media (prefers-reduced-motion: reduce) {
+  .message-card,
+  .system-event,
+  .agent-activity {
+    animation: none;
+  }
+}
+
+/* 常用交互元素的统一过渡 */
+.inspector-tabs button,
+.inspector-subtabs button,
+.thread-button,
+.run-button,
+.message-actions button,
+.terminal-toolbar button,
+.message-code-copy,
+.thought-pill > summary,
+.open-project,
+.new-thread {
+  transition:
+    background var(--transition-fast),
+    color var(--transition-fast),
+    border-color var(--transition-fast);
+}
+
+/* 边框减量：检查器分区改为背景分层的软卡片 */
+.inspector-pane {
+  background: var(--surface-0);
+}
+.inspector-section {
+  margin: 6px 8px 0;
+  padding: 13px 14px;
+  border-bottom: 0;
+  border-radius: var(--radius-md);
+  background: var(--surface-1);
+}
+.inspector-section:last-child {
+  margin-bottom: 8px;
+}
+.test-command,
+.test-result {
+  border: 0;
+  border-radius: var(--radius-sm);
+  background: var(--surface-2);
+}
+.rail-footer {
+  border: 0;
+  background: var(--surface-1);
+}
+
+/* 圆角尺度统一 */
+.composer,
+.settings-dialog,
+.confirm-dialog,
+.project-dialog {
+  border-radius: var(--radius-lg);
+}
+.thread-button,
+.agent-card,
+.message-code,
+.recovery-job {
+  border-radius: var(--radius-md);
+}
+.run-button,
+.attachment-chip,
+.terminal-toolbar button,
+.message-actions,
+.message-actions button {
+  border-radius: var(--radius-sm);
 }
