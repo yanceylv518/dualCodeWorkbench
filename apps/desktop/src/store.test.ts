@@ -111,6 +111,33 @@ describe("composer drafts", () => {
   });
 });
 
+describe("repository status", () => {
+  it("marks the git status unavailable when the fetch fails", async () => {
+    vi.mocked(api.fetchGitStatus).mockRejectedValueOnce(
+      new Error("not a repository"),
+    );
+    await connectThread();
+
+    await vi.waitFor(() =>
+      expect(useStore.getState().gitStatus).toBeNull(),
+    );
+  });
+});
+
+describe("message timeline", () => {
+  it("timestamps realtime messages that arrive without a stream", async () => {
+    const socket = await connectThread();
+    emitSocketEvent(socket, {
+      type: "message.created",
+      thread_id: "thread",
+      payload: { id: "message-9", role: "system", content: "测试完成" },
+    });
+
+    const message = selectedMessages().find((item) => item.id === "message-9");
+    expect(message?.time).toBeTruthy();
+  });
+});
+
 describe("terminal output", () => {
   it("caps the log at 500 lines and reports truncation once cleared", async () => {
     const socket = await connectThread();

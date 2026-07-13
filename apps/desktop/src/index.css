@@ -948,6 +948,13 @@ button:disabled {
   color: #4f5b6b;
   font-size: var(--text-xs);
 }
+.inspector-loading {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  color: var(--text-muted);
+  font-size: var(--text-xs);
+}
 .test-result > div {
   display: flex;
   align-items: center;

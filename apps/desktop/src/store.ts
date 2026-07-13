@@ -57,7 +57,8 @@ interface Store {
   socket?: WebSocket;
   pendingApproval?: Approval;
   details?: ThreadDetails;
-  gitStatus?: GitStatus;
+  /** undefined = 正在读取；null = 读取失败或不可用。 */
+  gitStatus?: GitStatus | null;
   remoteStatus?: WorkspaceRemoteStatus;
   executionJobs: ExecutionJob[];
   retryingJobId?: string;
@@ -262,7 +263,9 @@ export const useStore = create<Store>((set, get) => ({
     void api
       .fetchGitStatus(workspaceId)
       .then((gitStatus) => set({ gitStatus }))
-      .catch(() => undefined);
+      .catch(() => {
+        if (get().workspaceId === workspaceId) set({ gitStatus: null });
+      });
     void api
       .fetchWorkspaceRemote(workspaceId)
       .then((remoteStatus) => set({ remoteStatus }))
@@ -423,7 +426,10 @@ export const useStore = create<Store>((set, get) => ({
                             agent: payload.role as Agent,
                             text: String(payload.content),
                             attachments,
-                            time: "",
+                            time: new Date().toLocaleTimeString("zh-CN", {
+                              hour: "2-digit",
+                              minute: "2-digit",
+                            }),
                           },
                         ],
                   };
@@ -574,7 +580,10 @@ export const useStore = create<Store>((set, get) => ({
               void api
                 .fetchGitStatus(workspaceId)
                 .then((gitStatus) => set({ gitStatus }))
-                .catch(() => undefined);
+                .catch(() => {
+                  if (get().workspaceId === workspaceId)
+                    set({ gitStatus: null });
+                });
               void api
                 .fetchWorkspaceRemote(workspaceId)
                 .then((remoteStatus) => set({ remoteStatus }))

@@ -1455,7 +1455,7 @@ function ContextPanel({
   runTests,
 }: {
   details?: ReturnType<typeof useStore.getState>["details"];
-  git?: GitStatus;
+  git?: GitStatus | null;
   remote?: WorkspaceRemoteStatus;
   remoteJobs: ExecutionJob[];
   agentSettings?: AgentSettings;
@@ -1477,36 +1477,49 @@ function ContextPanel({
   return (
     <div className="inspector-scroll">
       <InspectorSection title="仓库状态" icon={<GitBranch size={13} />}>
-        {git && !git.head ? (
-          <div className="empty-repository">
-            <strong>远程仓库为空</strong>
-            <span>
-              origin 已关联，但还没有首次提交。现在可以直接描述项目需求，让
-              Codex 创建初始文件。
-            </span>
-            <small>
-              文件生成完成后，Codex 会提出提交或推送操作，由你审批确认。
-            </small>
+        {git === undefined ? (
+          <div className="inspector-loading">
+            <LoaderCircle size={13} className="spin" />
+            正在读取仓库状态…
           </div>
-        ) : null}
-        <dl className="git-meta">
-          <dt>分支</dt>
-          <dd>{git?.branch || "未检测"}</dd>
-          <dt>HEAD</dt>
-          <dd>{git?.head || "尚无提交"}</dd>
-          <dt>上游</dt>
-          <dd title={git?.upstream}>
-            {git?.upstream || (git?.remote ? "等待首次推送" : "未设置")}
-          </dd>
-          <dt>同步</dt>
-          <dd>
-            {git?.upstream
-              ? `领先 ${git.ahead} · 落后 ${git.behind}`
-              : git?.remote
-                ? "远程已关联"
-                : "无远程跟踪"}
-          </dd>
-        </dl>
+        ) : git === null ? (
+          <div className="empty-inline">
+            无法读取仓库状态，请确认项目目录仍是有效的 Git 仓库
+          </div>
+        ) : (
+          <>
+            {!git.head && (
+              <div className="empty-repository">
+                <strong>远程仓库为空</strong>
+                <span>
+                  origin 已关联，但还没有首次提交。现在可以直接描述项目需求，让
+                  Codex 创建初始文件。
+                </span>
+                <small>
+                  文件生成完成后，Codex 会提出提交或推送操作，由你审批确认。
+                </small>
+              </div>
+            )}
+            <dl className="git-meta">
+              <dt>分支</dt>
+              <dd>{git.branch || "未检测"}</dd>
+              <dt>HEAD</dt>
+              <dd>{git.head || "尚无提交"}</dd>
+              <dt>上游</dt>
+              <dd title={git.upstream}>
+                {git.upstream || (git.remote ? "等待首次推送" : "未设置")}
+              </dd>
+              <dt>同步</dt>
+              <dd>
+                {git.upstream
+                  ? `领先 ${git.ahead} · 落后 ${git.behind}`
+                  : git.remote
+                    ? "远程已关联"
+                    : "无远程跟踪"}
+              </dd>
+            </dl>
+          </>
+        )}
       </InspectorSection>
       <RemoteRepository
         remote={remote}
