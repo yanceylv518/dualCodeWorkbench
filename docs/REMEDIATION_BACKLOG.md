@@ -139,10 +139,11 @@ ESLint（0 error）、Prettier 与 Rust `cargo check` 全部通过。Phase 0 到
 ## Phase 2：前端设计与信息架构（P2）
 
 ### P2-1 字号与对比度体系
-- [ ] 建立 CSS 变量字号 token（如 `--text-xs:11px / --text-sm:12px / --text-base:13px / --text-lg:14px`），全局替换现有 8/9/10px：正文 ≥13px，辅助文本 ≥11px，禁止 <11px。
-- [ ] 低对比灰字（#556273 一档）整体提亮一级；改动集中在 `index.css` 与各 `*.css`。
-- [ ] 所有可聚焦元素补 `:focus-visible` 可见样式（统一 outline token）；移除输入框裸 `outline:0` 而无替代的写法。
+- [x] 建立 CSS 变量字号 token（如 `--text-xs:11px / --text-sm:12px / --text-base:13px / --text-lg:14px`），全局替换现有 8/9/10px：正文 ≥13px，辅助文本 ≥11px，禁止 <11px。
+- [x] 低对比灰字（#556273 一档）整体提亮一级；改动集中在 `index.css` 与各 `*.css`。
+- [x] 所有可聚焦元素补 `:focus-visible` 可见样式（统一 outline token）；移除输入框裸 `outline:0` 而无替代的写法。
 - **验收**：抽查主要界面无 <11px 文本；键盘 Tab 遍历时焦点始终可见。
+- **验证结果（2026-07-13）**：建立 11/12/13/14px 字号 token、统一提亮弱文本并增加全局 focus-visible；静态策略测试阻止 <11px 字号回归。TypeScript、前端 16 项、严格 ESLint 与 Prettier 通过。
 
 ### P2-2 Markdown 渲染器替换
 - [ ] 用 `react-markdown`（+ `remark-gfm`，禁 raw HTML）替换 `App.tsx:208-219` 的手写 `FormattedMessage`；代码块用轻量高亮（如 `highlight.js` 按需引入或延续现有 pre 样式），支持标题/链接（`target=_blank rel=noreferrer`）/有序无序列表/表格。

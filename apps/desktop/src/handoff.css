@@ -22,7 +22,7 @@
 .handoff-panel > header span {
   margin-top: 4px;
   color: #87919a;
-  font-size: 10px;
+  font-size: var(--text-xs);
 }
 .handoff-panel button {
   border: 1px solid #3b4650;
@@ -30,7 +30,7 @@
   background: #22282e;
   padding: 7px 9px;
   color: #cbd3dc;
-  font-size: 10px;
+  font-size: var(--text-xs);
 }
 .handoff-actions {
   display: flex;
@@ -57,7 +57,7 @@
   gap: 7px;
   padding: 0 13px 10px;
   color: #8ea5bd;
-  font-size: 10px;
+  font-size: var(--text-xs);
 }
 .handoff-preview,
 .handoff-history {
@@ -83,14 +83,14 @@
 .handoff-preview > header span {
   margin-top: 3px;
   color: #81b497;
-  font-size: 9px;
+  font-size: var(--text-xs);
 }
 .handoff-preview dl {
   display: grid;
   grid-template-columns: 70px 1fr;
   gap: 6px;
   margin: 12px 0;
-  font-size: 10px;
+  font-size: var(--text-xs);
 }
 .handoff-preview dt {
   color: #838e98;
@@ -105,7 +105,7 @@
 }
 .handoff-preview summary {
   color: #9abbe0;
-  font-size: 10px;
+  font-size: var(--text-xs);
 }
 .handoff-preview pre {
   max-height: 320px;
@@ -119,7 +119,7 @@
 .handoff-history > strong {
   display: block;
   margin-bottom: 7px;
-  font-size: 11px;
+  font-size: var(--text-xs);
 }
 .handoff-history button {
   display: flex;

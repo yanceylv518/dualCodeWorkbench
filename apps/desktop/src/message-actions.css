@@ -14,7 +14,7 @@
   background: transparent;
   padding: 3px 5px;
   color: #7f8a95;
-  font-size: 9px;
+  font-size: var(--text-xs);
 }
 .message-actions button:hover {
   color: #b9d6f5;

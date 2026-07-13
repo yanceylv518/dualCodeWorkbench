@@ -32,12 +32,12 @@
 }
 .recovery-heading strong {
   color: #f0f1f2;
-  font-size: 13px;
+  font-size: var(--text-base);
 }
 .recovery-heading span {
   margin-top: 5px;
   color: #989fa7;
-  font-size: 11px;
+  font-size: var(--text-xs);
   line-height: 1.45;
 }
 .recovery-heading > button {
@@ -90,18 +90,18 @@
   display: block;
 }
 .recovery-job strong {
-  font-size: 12px;
+  font-size: var(--text-sm);
   color: #f0f0f0;
 }
 .recovery-job small {
   margin-top: 3px;
   color: #a5a8ab;
-  font-size: 10px;
+  font-size: var(--text-xs);
 }
 .recovery-job p {
   margin: 11px 0;
   color: #c2c4c6;
-  font-size: 11px;
+  font-size: var(--text-xs);
   line-height: 1.55;
   overflow-wrap: anywhere;
 }
@@ -114,7 +114,7 @@
   min-width: 0;
   flex: 1;
   color: #80878d;
-  font-size: 9px;
+  font-size: var(--text-xs);
 }
 .recovery-meta button {
   display: flex;
@@ -125,7 +125,7 @@
   background: #265f9f;
   padding: 6px 9px;
   color: #fff;
-  font-size: 10px;
+  font-size: var(--text-xs);
 }
 .recovery-meta button:disabled {
   opacity: 0.55;
@@ -145,13 +145,13 @@
 }
 .execution-evidence > header strong {
   flex: 1;
-  font-size: 11px;
+  font-size: var(--text-xs);
 }
 .execution-evidence > header span {
   display: flex;
   align-items: center;
   gap: 3px;
-  font-size: 9px;
+  font-size: var(--text-xs);
   color: #d2b86b;
 }
 .execution-evidence.verified > header span {
@@ -175,7 +175,7 @@
 }
 .evidence-snapshot > small {
   color: #7f8991;
-  font-size: 9px;
+  font-size: var(--text-xs);
 }
 .evidence-snapshot dl {
   margin: 5px 0 0;
@@ -184,7 +184,7 @@
   display: flex;
   gap: 5px;
   margin-top: 3px;
-  font-size: 9px;
+  font-size: var(--text-xs);
 }
 .evidence-snapshot dt {
   color: #79838b;
@@ -200,12 +200,12 @@
 .evidence-snapshot p {
   margin: 5px 0 0;
   color: #777f85;
-  font-size: 9px;
+  font-size: var(--text-xs);
 }
 .evidence-guidance {
   margin: 8px 0 0 !important;
   color: #aeb6bc !important;
-  font-size: 9px !important;
+  font-size: var(--text-xs) !important;
 }
 .evidence-empty {
   display: flex;
@@ -215,6 +215,6 @@
   border-radius: 6px;
   background: #262116;
   color: #d5bd78;
-  font-size: 9px;
+  font-size: var(--text-xs);
   line-height: 1.45;
 }

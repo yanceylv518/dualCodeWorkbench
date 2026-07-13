@@ -1,5 +1,9 @@
 # DualCode Workbench 项目状态
 
+## 2026-07-13 Phase 2 前端设计与信息架构
+
+- P2-1 已完成：建立统一字号、弱文本与键盘焦点 token，移除小于 11px 的文本和裸焦点轮廓；TypeScript、前端 16 项、严格 ESLint 与 Prettier 通过。
+
 ## 2026-07-13 Phase 1 前端高严重度交互整改
 
 - P1-1 已完成：Composer 在中文输入法候选态忽略 Enter，避免误发送；前端类型检查与 8 项组件测试通过。
