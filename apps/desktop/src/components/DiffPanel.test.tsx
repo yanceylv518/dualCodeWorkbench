@@ -5,7 +5,9 @@ vi.mock("@monaco-editor/react", () => ({
   default: ({ value }: { value: string }) => (
     <pre data-testid="editor">{value}</pre>
   ),
+  loader: { config: vi.fn() },
 }));
+vi.mock("monaco-editor/esm/vs/editor/editor.api", () => ({}));
 
 import { DiffPanel, splitGitDiff } from "./DiffPanel";
 

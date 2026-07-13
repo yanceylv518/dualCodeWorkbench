@@ -4,7 +4,7 @@ import { Code2, FileCode2, LoaderCircle } from "lucide-react";
 const MonacoEditor = lazy(async () => {
   const [reactMonaco, monaco] = await Promise.all([
     import("@monaco-editor/react"),
-    import("monaco-editor"),
+    import("monaco-editor/esm/vs/editor/editor.api"),
   ]);
   reactMonaco.loader.config({ monaco });
   return { default: reactMonaco.default };
