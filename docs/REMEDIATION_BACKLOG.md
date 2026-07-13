@@ -220,4 +220,28 @@ ESLint（0 error）、Prettier 与 Rust `cargo check` 全部通过。Phase 0 到
 
 ## Review 记录
 
-（Claude 每个 Phase review 后在此追加结论：通过 / 需返工条目及原因）
+### Phase 0 Review（2026-07-13，Claude）
+
+**结论：有条件通过。P0-1 / P0-2 / P0-3 / P0-5 / P0-6 通过；P0-4 需返工（GitHub CI 实际为红）。修复下列 R1、R2 并确认 CI 全绿后 Phase 0 关闭，即可进入 Phase 1。**
+
+本次为 Linux 环境独立复验（此前所有验证均在 Windows 单机完成）：
+
+- 后端 pytest 90 项通过（前提是手动安装 Pillow，见 R2）；Ruff 通过。
+- 前端 typecheck、ESLint（0 error / 5 warning）、vitest 7 项、E2E 1 项全部通过。
+- 残留检查：`Mock diff`、`12 passed`、`collaboration|auto` 模式、`D:/Projects/dualcode`、`Offline Demo`、演示降级路径均已清除；`mode=collaboration` 返回 422 有测试覆盖。
+- 格式化提交 `3152c80` 做了严格等价性验证：对其父提交源码用同一 Prettier 配置重新格式化，与该提交内容**逐字节一致**（diff 为 0 行），确认纯格式化、无逻辑夹带。
+- P0-5 鉴权实现审查：ASGI 最外层中间件统一拦截 `/api/*`、`hmac.compare_digest` 恒时比较、OPTIONS 放行合理、Tauri env 注入 + invoke 读取、浏览器开发模式 0600 token 文件，方案与记录一致。
+- P0-6 规则表结构清晰，`.env*`/`id_ed25519*` 等新规则有正反例测试。
+
+**返工项（Codex 处理，归属 P0-4）：**
+
+- **R1｜ci.yml 步骤顺序错误，双平台在 setup-node 即失败。** 实际运行 `29242237915` 报错 `Unable to locate executable file: pnpm`：`setup-node` 配了 `cache: pnpm`，但 `corepack enable` 在其之后执行。修复：把 pnpm 的安装（`corepack enable` 或改用 `pnpm/action-setup@v4`）移到 `setup-node` 之前；同时确认 `setup-python` 的 `cache: pip` 在无 requirements 文件时可用（必要时加 `cache-dependency-path: apps/backend/pyproject.toml`）。
+- **R2｜`apps/backend/pyproject.toml` 缺少 Pillow 依赖。** `api.py:21` `from PIL import Image`，但依赖未声明——Windows 机器碰巧装过所以本地全绿，全新环境（含 CI 的 `pip install -e ".[dev]"`）pytest 直接收集失败。修复：在 `dependencies` 中声明 `pillow`（建议 `>=11,<12`），CI 修好后此问题会立刻暴露在 pytest 步骤。
+- R1、R2 完成后推送，以 GitHub Actions 双平台全绿为 P0-4 的最终验收证据。
+
+**备注（不阻塞 Phase 0，并入后续条目执行）：**
+
+- N1：token 中间件的 WebSocket 拒绝路径（未 accept 直接 `websocket.close`）没有自动化测试，uvicorn 真实行为未验证 → 并入 P1-4 一起补 WS 测试。
+- N2：`api.ts` 的 `attachmentContentUrl` 同步读取 `cachedToken`，首次渲染存在空 token 竞态（当前被 initialize 先行掩盖）→ 并入 P2 附件相关条目。
+- N3：浏览器开发模式 token 在 Vite 启动时一次性注入，后端重启后需重启 Vite；属已知开发体验限制，记录即可。
+- N4：ESLint 现存 5 个 warning（exhaustive-deps ×4、no-explicit-any ×1）；建议 Phase 1 顺带清零后将 lint 提升为 `--max-warnings=0`，防止 warning 堆积。
