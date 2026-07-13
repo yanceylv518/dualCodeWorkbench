@@ -21,9 +21,10 @@ function developmentToken(): string {
 
 export default defineConfig({
   plugins: [react()],
-  // Monaco is intentionally isolated behind the Diff panel's dynamic import.
-  // Its self-contained editor chunk is large but does not affect initial startup.
-  build: { chunkSizeWarningLimit: 5000 },
+  // Monaco is intentionally isolated behind the Diff panel's dynamic import;
+  // its ~2.3MB editor.api chunk is the only chunk allowed near the limit, so
+  // further growth there or in the main bundle still triggers the warning.
+  build: { chunkSizeWarningLimit: 2500 },
   define: { __DUALCODE_DEV_TOKEN__: JSON.stringify(developmentToken()) },
   server: {
     host: "127.0.0.1",
