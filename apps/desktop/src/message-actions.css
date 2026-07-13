@@ -1,27 +1,64 @@
+.message-card .message-body {
+  position: relative;
+}
+
 .message-actions {
   position: absolute;
-  top: calc(100% + 2px);
-  right: 0;
-  z-index: 2;
+  top: 4px;
+  right: 6px;
+  z-index: 3;
   display: flex;
-  justify-content: flex-end;
-  gap: 5px;
+  gap: 2px;
+  padding: 3px;
+  border: 1px solid #3b424a;
+  border-radius: 7px;
+  background: #20252a;
+  box-shadow: 0 4px 14px rgb(0 0 0 / 28%);
   opacity: 0;
   pointer-events: none;
-  transition: opacity 0.15s;
+  transform: translateY(-2px);
+  transition:
+    opacity 0.15s ease,
+    transform 0.15s ease;
 }
-.message-card.user:hover .message-actions,
-.message-card.user:focus-within .message-actions {
+.message-card:hover .message-actions,
+.message-card:focus-within .message-actions {
   opacity: 1;
   pointer-events: auto;
+  transform: translateY(0);
 }
 .message-actions button {
   border: 0;
   background: transparent;
-  padding: 3px 5px;
-  color: #7f8a95;
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 4px 6px;
+  border-radius: 5px;
+  color: #aab4bf;
   font-size: var(--text-xs);
+  white-space: nowrap;
 }
-.message-actions button:hover {
+.message-actions button:hover,
+.message-actions button:focus-visible {
+  background: #2b333c;
   color: #b9d6f5;
+}
+
+@media (hover: none) {
+  .message-actions {
+    position: static;
+    width: max-content;
+    margin: 4px 0 0 auto;
+    opacity: 1;
+    pointer-events: auto;
+    transform: none;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .message-actions {
+    transition: opacity 0.15s ease;
+    transform: none;
+  }
 }

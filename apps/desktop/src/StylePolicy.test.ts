@@ -28,6 +28,10 @@ describe("desktop visual policy", () => {
   it("keeps message spacing uniform without hidden actions taking layout space", () => {
     expect(index).toContain("margin: 0 auto 24px");
     expect(index).toContain("padding: 10px 0 12px 14px");
-    expect(css("./message-actions.css")).toContain("position: absolute");
+    const actions = css("./message-actions.css");
+    expect(actions).toContain("position: absolute");
+    expect(actions).toContain(".message-card:hover .message-actions");
+    expect(actions).toContain(".message-card:focus-within .message-actions");
+    expect(actions).toContain("@media (hover: none)");
   });
 });

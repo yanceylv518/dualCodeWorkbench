@@ -40,6 +40,89 @@ const singleTaskState = (state: "CREATED" | "IMPLEMENTING") => ({
 });
 
 describe("workbench", () => {
+  it("shows a focusable message toolbar and copies the exact agent Markdown", async () => {
+    const writeText = vi.fn(async () => undefined);
+    Object.defineProperty(HTMLElement.prototype, "scrollIntoView", {
+      configurable: true,
+      value: vi.fn(),
+    });
+    Object.defineProperty(navigator, "clipboard", {
+      configurable: true,
+      value: { writeText },
+    });
+    const base = singleTaskState("CREATED");
+    useStore.setState({
+      ...base,
+      workspaces: [
+        {
+          ...base.workspaces[0],
+          threads: [
+            {
+              ...base.workspaces[0].threads[0],
+              messages: [
+                {
+                  id: "agent-message",
+                  agent: "codex",
+                  text: "## 结论\n\n- 保留 **Markdown**",
+                  time: "10:00",
+                },
+              ],
+            },
+          ],
+        },
+      ],
+    });
+
+    const { container } = render(<App />);
+    const card = container.querySelector(".message-card.codex")!;
+    fireEvent.mouseEnter(card);
+    const toolbar = screen.getByRole("toolbar", { name: "消息操作" });
+    const copy = screen.getByRole("button", { name: "复制" });
+    copy.focus();
+    expect(toolbar.contains(document.activeElement)).toBe(true);
+    fireEvent.click(copy);
+
+    await vi.waitFor(() =>
+      expect(writeText).toHaveBeenCalledWith("## 结论\n\n- 保留 **Markdown**"),
+    );
+    expect(await screen.findByRole("button", { name: "已复制" })).toBeTruthy();
+  });
+
+  it("keeps the user edit and retry actions in the message toolbar", async () => {
+    const retryMessage = vi.fn(async () => undefined);
+    const base = singleTaskState("CREATED");
+    useStore.setState({
+      ...base,
+      retryMessage,
+      workspaces: [
+        {
+          ...base.workspaces[0],
+          threads: [
+            {
+              ...base.workspaces[0].threads[0],
+              messages: [
+                {
+                  id: "user-message",
+                  agent: "user",
+                  text: "需要继续完善交互",
+                  time: "10:01",
+                },
+              ],
+            },
+          ],
+        },
+      ],
+    });
+
+    render(<App />);
+    fireEvent.click(screen.getByRole("button", { name: "编辑后重新发送" }));
+    expect(useStore.getState().drafts["thread-1"]).toBe("需要继续完善交互");
+    fireEvent.click(screen.getByRole("button", { name: "重试本轮" }));
+    await vi.waitFor(() =>
+      expect(retryMessage).toHaveBeenCalledWith("user-message"),
+    );
+  });
+
   it("renders the compact inspector navigation", () => {
     render(<App />);
 

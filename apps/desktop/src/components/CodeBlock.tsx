@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useMemo, useState } from "react";
 import { Check, Copy } from "lucide-react";
 import hljs from "highlight.js/lib/core";
 import bash from "highlight.js/lib/languages/bash";
@@ -13,6 +13,7 @@ import sql from "highlight.js/lib/languages/sql";
 import typescript from "highlight.js/lib/languages/typescript";
 import xml from "highlight.js/lib/languages/xml";
 import yaml from "highlight.js/lib/languages/yaml";
+import { useCopyFeedback } from "../hooks/useCopyFeedback";
 
 const COLLAPSE_AFTER_LINES = 400;
 const COLLAPSED_LINES = 80;
@@ -58,8 +59,7 @@ export function CodeBlock({
   const collapsible = lines.length > COLLAPSE_AFTER_LINES;
   const [expanded, setExpanded] = useState(false);
   const showAll = expanded || !collapsible;
-  const [copied, setCopied] = useState(false);
-  const resetTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const { copyState, copyText } = useCopyFeedback();
   const visibleCode = showAll
     ? code
     : lines.slice(0, COLLAPSED_LINES).join("\n");
@@ -69,19 +69,12 @@ export function CodeBlock({
     return hljs.highlight(visibleCode, { language: normalizedLanguage }).value;
   }, [normalizedLanguage, visibleCode]);
 
-  useEffect(
-    () => () => {
-      if (resetTimer.current) clearTimeout(resetTimer.current);
-    },
-    [],
-  );
-
-  const copyCode = async () => {
-    await navigator.clipboard.writeText(code);
-    setCopied(true);
-    if (resetTimer.current) clearTimeout(resetTimer.current);
-    resetTimer.current = setTimeout(() => setCopied(false), 1500);
-  };
+  const copyLabel =
+    copyState === "copied"
+      ? "已复制"
+      : copyState === "failed"
+        ? "复制失败"
+        : "复制";
 
   return (
     <div className="message-code">
@@ -91,11 +84,11 @@ export function CodeBlock({
       <button
         className="message-code-copy"
         type="button"
-        onClick={() => void copyCode()}
-        aria-label={copied ? "代码已复制" : "复制代码"}
+        onClick={() => void copyText(code)}
+        aria-label={copyState === "copied" ? "代码已复制" : `${copyLabel}代码`}
       >
-        {copied ? <Check size={12} /> : <Copy size={12} />}
-        {copied ? "已复制" : "复制"}
+        {copyState === "copied" ? <Check size={12} /> : <Copy size={12} />}
+        {copyLabel}
       </button>
       <pre>
         {highlighted === null ? (

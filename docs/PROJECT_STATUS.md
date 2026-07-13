@@ -1,5 +1,12 @@
 # DualCode Workbench 项目状态
 
+## 2026-07-14 U2 消息工具条与复制
+
+- Codex/Claude 消息新增右上角 hover/focus 工具条，可一键复制完整 Markdown 原文；用户消息的“编辑后重新发送”和“重试本轮”收敛到同一交互样式，原行为保持不变。
+- 工具条按钮支持键盘聚焦；无 hover 的触屏环境直接保持可见，避免只靠鼠标悬浮才能操作。
+- U1/U2 共同复用 `useCopyFeedback`：剪贴板写入成功显示“已复制”1.5 秒，权限拒绝显示“复制失败”，不再产生未处理 Promise rejection。
+- 验证：前端 56 项、TypeScript 与严格 ESLint 通过。后端代码未修改；后端全量测试因当前 Windows 测试临时目录 ACL 拒绝创建子目录而无法完成，首次收集 4 项错误，沙箱外重跑为 62 项通过、41 项环境错误。
+
 ## 2026-07-14 U1 代码块阅读与操作体验
 
 - Markdown 块级代码由独立 `CodeBlock` 接管，highlight.js 通过 core 按需注册 TypeScript、JavaScript、Python、Rust、Bash、JSON、Diff、CSS、HTML/XML、SQL、YAML 与 Markdown，不识别的语言安全回退纯文本。

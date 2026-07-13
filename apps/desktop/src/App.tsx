@@ -15,6 +15,8 @@ import {
   LoaderCircle,
   MessageSquarePlus,
   MoreHorizontal,
+  Copy,
+  Pencil,
   Play,
   Plus,
   Search,
@@ -42,6 +44,7 @@ import { ExecutionEvidence } from "./ExecutionEvidence";
 import { ContractPanel } from "./ContractPanel";
 import { HandoffPanel } from "./HandoffPanel";
 import { RemoteRepository } from "./components/RemoteRepository";
+import { useCopyFeedback } from "./hooks/useCopyFeedback";
 import "./recovery.css";
 import "./message-actions.css";
 import { useStore, type Mode } from "./store";
@@ -1066,6 +1069,7 @@ function MessageCard({
   const { agent, time, text } = message;
   const workspaceId = useStore((state) => state.workspaceId);
   const threadId = useStore((state) => state.threadId);
+  const { copyState, copyText } = useCopyFeedback();
   const names: Record<Agent, string> = {
     user: "你",
     codex: "Codex",
@@ -1096,6 +1100,33 @@ function MessageCard({
         </div>
       )}
       <div className="message-body">
+        <div className="message-actions" role="toolbar" aria-label="消息操作">
+          {agent === "user" ? (
+            <>
+              <button type="button" onClick={() => edit(text)}>
+                <Pencil size={13} />
+                编辑后重新发送
+              </button>
+              <button type="button" onClick={() => void retry(message.id)}>
+                <RotateCcw size={13} />
+                重试本轮
+              </button>
+            </>
+          ) : (
+            <button type="button" onClick={() => void copyText(text)}>
+              {copyState === "copied" ? (
+                <Check size={13} />
+              ) : (
+                <Copy size={13} />
+              )}
+              {copyState === "copied"
+                ? "已复制"
+                : copyState === "failed"
+                  ? "复制失败"
+                  : "复制"}
+            </button>
+          )}
+        </div>
         {agent !== "user" && (
           <header>
             <strong>{names[agent]}</strong>
@@ -1128,12 +1159,6 @@ function MessageCard({
             <MarkdownMessage text={text} />
           )}
         </div>
-        {agent === "user" && (
-          <div className="message-actions">
-            <button onClick={() => edit(text)}>编辑后重新发送</button>
-            <button onClick={() => void retry(message.id)}>重试本轮</button>
-          </div>
-        )}
       </div>
     </article>
   );

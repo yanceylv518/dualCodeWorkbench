@@ -70,6 +70,21 @@ describe("MarkdownMessage", () => {
     ).toBeTruthy();
   });
 
+  it("shows inline feedback when clipboard access is rejected", async () => {
+    writeText.mockRejectedValueOnce(new Error("clipboard denied"));
+    const { container } = render(
+      <MarkdownMessage
+        text={["```js", "const value = 1;", "```"].join("\n")}
+      />,
+    );
+    fireEvent.click(
+      within(container).getByRole("button", { name: "复制代码" }),
+    );
+    expect(
+      await within(container).findByRole("button", { name: "复制失败代码" }),
+    ).toBeTruthy();
+  });
+
   it("collapses code over 400 lines and expands it on demand", () => {
     const code = Array.from({ length: 401 }, (_, index) => `line ${index + 1}`);
     const { container } = render(
