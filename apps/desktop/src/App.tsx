@@ -15,7 +15,6 @@ import {
   LoaderCircle,
   MessageSquarePlus,
   MoreHorizontal,
-  Copy,
   Pencil,
   Play,
   Plus,
@@ -44,7 +43,6 @@ import { ExecutionEvidence } from "./ExecutionEvidence";
 import { ContractPanel } from "./ContractPanel";
 import { HandoffPanel } from "./HandoffPanel";
 import { RemoteRepository } from "./components/RemoteRepository";
-import { useCopyFeedback } from "./hooks/useCopyFeedback";
 import "./recovery.css";
 import "./message-actions.css";
 import { useStore, type Mode } from "./store";
@@ -1074,7 +1072,6 @@ function MessageCard({
   const isStreaming = message.id.startsWith("stream-");
   const workspaceId = useStore((state) => state.workspaceId);
   const threadId = useStore((state) => state.threadId);
-  const { copyState, copyText } = useCopyFeedback();
   const names: Record<Agent, string> = {
     user: "你",
     codex: "Codex",
@@ -1105,8 +1102,8 @@ function MessageCard({
         </div>
       )}
       <div className="message-body">
-        <div className="message-actions" role="toolbar" aria-label="消息操作">
-          {agent === "user" ? (
+        {agent === "user" && (
+          <div className="message-actions" role="toolbar" aria-label="消息操作">
             <>
               <button type="button" onClick={() => edit(text)}>
                 <Pencil size={13} />
@@ -1117,21 +1114,8 @@ function MessageCard({
                 重试本轮
               </button>
             </>
-          ) : (
-            <button type="button" onClick={() => void copyText(text)}>
-              {copyState === "copied" ? (
-                <Check size={13} />
-              ) : (
-                <Copy size={13} />
-              )}
-              {copyState === "copied"
-                ? "已复制"
-                : copyState === "failed"
-                  ? "复制失败"
-                  : "复制"}
-            </button>
-          )}
-        </div>
+          </div>
+        )}
         {agent !== "user" && (
           <header>
             <strong>{names[agent]}</strong>

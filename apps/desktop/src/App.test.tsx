@@ -96,15 +96,10 @@ describe("workbench", () => {
     expect(container.querySelector(".streaming-message")).toBeNull();
   });
 
-  it("shows a focusable message toolbar and copies the exact agent Markdown", async () => {
-    const writeText = vi.fn(async () => undefined);
+  it("does not show a copy toolbar on agent messages", () => {
     Object.defineProperty(HTMLElement.prototype, "scrollIntoView", {
       configurable: true,
       value: vi.fn(),
-    });
-    Object.defineProperty(navigator, "clipboard", {
-      configurable: true,
-      value: { writeText },
     });
     const base = singleTaskState("CREATED");
     useStore.setState({
@@ -129,19 +124,9 @@ describe("workbench", () => {
       ],
     });
 
-    const { container } = render(<App />);
-    const card = container.querySelector(".message-card.codex")!;
-    fireEvent.mouseEnter(card);
-    const toolbar = screen.getByRole("toolbar", { name: "消息操作" });
-    const copy = screen.getByRole("button", { name: "复制" });
-    copy.focus();
-    expect(toolbar.contains(document.activeElement)).toBe(true);
-    fireEvent.click(copy);
-
-    await vi.waitFor(() =>
-      expect(writeText).toHaveBeenCalledWith("## 结论\n\n- 保留 **Markdown**"),
-    );
-    expect(await screen.findByRole("button", { name: "已复制" })).toBeTruthy();
+    render(<App />);
+    expect(screen.queryByRole("toolbar", { name: "消息操作" })).toBeNull();
+    expect(screen.queryByRole("button", { name: "复制" })).toBeNull();
   });
 
   it("keeps the user edit and retry actions in the message toolbar", async () => {
