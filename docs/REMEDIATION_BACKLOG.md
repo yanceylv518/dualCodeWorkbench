@@ -34,12 +34,13 @@ corepack pnpm --filter @dualcode/desktop lint
 ## Phase 0：清除 demo 遗留与工程基础（P0）
 
 ### P0-1 删除旧演示流水线与假数据路径
-- [ ] `apps/backend/dualcode/schemas.py:7`：`MessageCreate.mode` 收窄为 `^(codex|claude)$`，默认值改为 `codex`；`auto` 与 `collaboration` 一并移除。
-- [ ] `apps/backend/dualcode/scheduler.py:128-372`：删除 `_execute` 中的编排流水线分支（PLANNING→IMPLEMENTING→TESTING→REVIEWING 那条），包括 `diff = "Mock diff"`（约 :284）和伪造的 `TestRun(command="pytest", output="12 passed")`（约 :322）。`_execute` 只保留对 `_execute_chat` 的分发或直接内联。
-- [ ] 同步清理不再被引用的 `state_machine.transition` 调用链、`GitService.create_worktree` 若仅被该流水线使用则保留代码但移除死引用（先确认 `git_service.py` 其他调用方）。
-- [ ] 更新受影响的后端测试；新增一条 API 测试：POST message 传 `mode=collaboration` 必须返回 422。
+- [x] `apps/backend/dualcode/schemas.py:7`：`MessageCreate.mode` 收窄为 `^(codex|claude)$`，默认值改为 `codex`；`auto` 与 `collaboration` 一并移除。
+- [x] `apps/backend/dualcode/scheduler.py:128-372`：删除 `_execute` 中的编排流水线分支（PLANNING→IMPLEMENTING→TESTING→REVIEWING 那条），包括 `diff = "Mock diff"`（约 :284）和伪造的 `TestRun(command="pytest", output="12 passed")`（约 :322）。`_execute` 只保留对 `_execute_chat` 的分发或直接内联。
+- [x] 同步清理不再被引用的 `state_machine.transition` 调用链、`GitService.create_worktree` 若仅被该流水线使用则保留代码但移除死引用（先确认 `git_service.py` 其他调用方）。
+- [x] 更新受影响的后端测试；新增一条 API 测试：POST message 传 `mode=collaboration` 必须返回 422。
 - **为什么**：该路径可从 API 直达并会写入伪造测试记录，是最大的 demo 残留。
 - **验收**：全量后端测试通过；代码中不再出现 `"Mock diff"`、`"12 passed"` 字面量。
+- **验证结果（2026-07-13）**：后端全量 68 项通过；生产代码中已无 `Mock diff`、`12 passed` 及旧编排入口。
 
 ### P0-2 删除前端演示夹具与 sample 分支
 - [ ] 删除 `apps/desktop/src/data.ts`。

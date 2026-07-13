@@ -229,6 +229,12 @@ async def test_attachment_diff_test_result_and_audit_chain(
     )
     assert image_only.status_code == 202
 
+    collaboration = await api_client.post(
+        f"{prefix}/messages",
+        json={"content": "run the old pipeline", "mode": "collaboration"},
+    )
+    assert collaboration.status_code == 422
+
     sessions = api_client._dualcode_test_sessions  # type: ignore[attr-defined]
     async with sessions() as db:
         from dualcode.models import Attachment

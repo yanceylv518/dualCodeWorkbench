@@ -23,17 +23,15 @@ from .models import (
     Message,
     ProjectGovernance,
     RunState,
-    TestRun,
     Thread,
     TaskContract,
     Workspace,
 )
 from .config import settings
-from .state_machine import transition
 from .ssh_adapter import ClaudeSshAdapter, ClaudeSshConfig
 from .runtime_settings import AgentSettings, agent_settings_store
 from .workspace_remote import derived_repository_path, workspace_remote_store
-from .test_executor import TestCommand, TestExecutor
+from .test_executor import TestExecutor
 
 
 class RunScheduler:
@@ -125,251 +123,16 @@ class RunScheduler:
                 pass
         self._tasks.pop(thread_id, None)
 
-    async def _execute(self, thread_id: str, run_id: str, prompt: str, mode: str, attachment_ids: list[str]) -> None:
-        if mode in {"codex", "claude"}:
-            await self._execute_chat(thread_id, run_id, prompt, mode, attachment_ids)
-            return
-        sequence = 0
-        async with SessionLocal() as db:
-            thread = await db.scalar(select(Thread).where(Thread.id == thread_id))
-            if not thread:
-                return
-            run = AgentRun(id=run_id, thread_id=thread_id, agent=mode, state=thread.state)
-            db.add(run)
-            db.add(
-                AuditLog(
-                    workspace_id=thread.workspace_id,
-                    thread_id=thread_id,
-                    event="agent.run.started",
-                    detail=(
-                        f"run={run_id};mode={mode};real={self.real_agents_enabled};"
-                        f"codex_model={self.runtime.codex_model or 'cli-default'};"
-                        f"codex_effort={self.runtime.codex_reasoning_effort};"
-                        f"codex_permission_mode={self.runtime.codex_permission_mode};"
-                        f"claude_model={self.runtime.claude_model};"
-                        f"claude_effort={self.runtime.claude_reasoning_effort};"
-                        f"claude_location={'vps-ssh' if self.runtime.claude_ssh_enabled else 'local'}"
-                    ),
-                )
-            )
-            await db.commit()
-
-            async def emit(kind: EventType, payload: dict[str, object]) -> None:
-                nonlocal sequence
-                sequence += 1
-                await manager.publish(
-                    AgentEvent(
-                        type=kind,
-                        thread_id=thread_id,
-                        run_id=run_id,
-                        sequence=sequence,
-                        payload=payload,
-                    )
-                )
-
-            async def change_state(target: RunState) -> None:
-                thread.state = transition(thread.state, target)
-                run.state = target
-                db.add(
-                    AuditLog(
-                        workspace_id=thread.workspace_id,
-                        thread_id=thread_id,
-                        event="state.transition",
-                        detail=f"{target.value}:{run_id}",
-                    )
-                )
-                await db.commit()
-                await emit(EventType.RUN_STATE_CHANGED, {"state": target.value})
-
-            async def message(role: str, content: str) -> None:
-                item = Message(thread_id=thread_id, role=role, content=content)
-                db.add(item)
-                await db.commit()
-                await emit(
-                    EventType.MESSAGE_CREATED, {"id": item.id, "role": role, "content": content}
-                )
-
-            async def request_approval(action: str, reason: str) -> bool:
-                approval = Approval(thread_id=thread_id, action=action, reason=reason)
-                db.add(approval)
-                await db.flush()
-                db.add(
-                    AuditLog(
-                        workspace_id=thread.workspace_id,
-                        thread_id=thread_id,
-                        event="approval.requested",
-                        detail=f"{approval.id}:{action}:{run_id}",
-                    )
-                )
-                await db.commit()
-                approval_gate.prepare(approval.id)
-                await emit(
-                    EventType.APPROVAL_REQUIRED,
-                    {"id": approval.id, "action": action, "reason": reason},
-                )
-                return await approval_gate.wait(approval.id)
-
-            try:
-                await change_state(RunState.PLANNING)
-                context = {"workspace_path": thread.workspace_id}
-                workspace = await db.get(Workspace, thread.workspace_id)
-                if workspace:
-                    context["workspace_path"] = workspace.path
-                if self.real_agents_enabled:
-                    await change_state(RunState.WAITING_APPROVAL)
-                    if not await request_approval(
-                        "plan_with_claude",
-                        "让 Claude 根据任务描述生成实施计划；此阶段不会修改本地文件",
-                    ):
-                        await change_state(RunState.CANCELLED)
-                        await message("system", "Network access was rejected by the user.")
-                        return
-                    await change_state(RunState.PLANNING)
-                planning_prompt = (
-                    "You are the remote read-only planner. The remote working directory is "
-                    "intentionally empty: the local repository is never synchronized to the VPS. "
-                    "Do not inspect the remote directory and do not infer that local files are missing. "
-                    "Create a concise implementation and verification plan from the task description only. "
-                    "Local Codex will inspect and modify the real repository after approval.\n\nTASK:\n"
-                    + prompt
-                )
-                response = await self._claude.send(
-                    AgentRequest(thread_id, planning_prompt, context)
-                )
-                await message("claude", response.content)
-                await change_state(RunState.WAITING_APPROVAL)
-                if not await request_approval(
-                    "approve_plan",
-                    "确认 Claude 的计划后，才允许进入 Codex 实现阶段",
-                ):
-                    await change_state(RunState.CANCELLED)
-                    await message("system", "计划未获批准，任务已停止。")
-                    return
-                worktree = Path(str(context["workspace_path"]))
-                if self.real_agents_enabled:
-                    if not await request_approval(
-                        "implement_plan",
-                        "创建隔离 Git worktree，并让 Codex 按已批准计划修改文件",
-                    ):
-                        await change_state(RunState.CANCELLED)
-                        await message("system", "实现步骤未获批准，任务已停止。")
-                        return
-                    worktree, branch = await self._git.create_worktree(
-                        worktree, thread.workspace_id, thread_id
-                    )
-                    context["workspace_path"] = str(worktree)
-                    await emit(
-                        EventType.RUN_OUTPUT,
-                        {"kind": "git", "worktree": str(worktree), "branch": branch},
-                    )
-                await change_state(RunState.IMPLEMENTING)
-                codex_response = await self._codex.send(
-                    AgentRequest(thread_id, response.content, context)
-                )
-                if self.real_agents_enabled:
-                    db.add(
-                        AgentSession(
-                            thread_id=thread_id,
-                            agent="codex",
-                            external_session_id=codex_response.run_id,
-                            workspace_path=str(worktree),
-                        )
-                    )
-                    diff = await self._git.diff(worktree)
-                    for path in await self._git.changed_files(worktree):
-                        db.add(FileChange(thread_id=thread_id, path=path, diff=diff))
-                    await db.commit()
-                    await message("codex", codex_response.content)
-                else:
-                    diff = "Mock diff"
-                    await message("codex", "已在隔离工作区完成 Mock 修改，并记录文件变化。")
-
-                if self.real_agents_enabled:
-                    await change_state(RunState.WAITING_APPROVAL)
-                    if not await request_approval(
-                        "run_test", "在隔离 worktree 中运行配置的测试命令"
-                    ):
-                        await change_state(RunState.CANCELLED)
-                        await message("system", "Test execution was rejected by the user.")
-                        return
-                    if not self.runtime.test_executable:
-                        raise RuntimeError("No test executable is configured")
-                    await change_state(RunState.TESTING)
-
-                    async def test_output(channel: str, text: str) -> None:
-                        await emit(
-                            EventType.TERMINAL_OUTPUT,
-                            {"channel": channel, "text": text},
-                        )
-
-                    test_result = await self._tests.execute(
-                        TestCommand(
-                            executable=Path(self.runtime.test_executable),
-                            arguments=tuple(self.runtime.test_arguments),
-                            cwd=worktree,
-                        ),
-                        worktree,
-                        test_output,
-                    )
-                    test = TestRun(
-                        thread_id=thread_id,
-                        command=" ".join(test_result.command),
-                        output=test_result.stdout + test_result.stderr,
-                        exit_code=test_result.exit_code,
-                    )
-                else:
-                    await change_state(RunState.TESTING)
-                    test = TestRun(
-                        thread_id=thread_id, command="pytest", output="12 passed", exit_code=0
-                    )
-                db.add(test)
-                await db.commit()
-                await emit(
-                    EventType.TEST_RESULT,
-                    {"command": test.command, "output": test.output, "exit_code": test.exit_code},
-                )
-                if test.exit_code != 0:
-                    raise RuntimeError(f"Tests failed with exit code {test.exit_code}")
-
-                if self.real_agents_enabled:
-                    await change_state(RunState.WAITING_APPROVAL)
-                    if not await request_approval(
-                        "review_with_claude",
-                        "仅发送 Git Diff 与测试摘要给 Claude 进行最终审查",
-                    ):
-                        await change_state(RunState.CANCELLED)
-                        await message("system", "Review network access was rejected.")
-                        return
-                    await change_state(RunState.REVIEWING)
-                    review_prompt = (
-                        "Review this implementation from the supplied diff and test output only. "
-                        "The remote directory is intentionally empty; do not inspect it and do not "
-                        "request repository access. Return concise findings.\n\nDIFF:\n"
-                        + diff[:200_000]
-                        + "\n\nTESTS:\n"
-                        + test.output[:50_000]
-                    )
-                    review = await self._claude.send(
-                        AgentRequest(thread_id, review_prompt, context)
-                    )
-                    await message("claude", review.content)
-                else:
-                    await change_state(RunState.REVIEWING)
-                    await message("claude", "审查通过：实现符合计划，测试结果有效。")
-                await change_state(RunState.COMPLETED)
-                await emit(EventType.RUN_COMPLETED, {"status": "completed"})
-            except asyncio.CancelledError:
-                if thread.state not in {RunState.COMPLETED, RunState.CANCELLED}:
-                    thread.state = RunState.CANCELLED
-                    run.state = RunState.CANCELLED
-                    await db.commit()
-                    await emit(EventType.RUN_STATE_CHANGED, {"state": RunState.CANCELLED.value})
-            except Exception as exc:
-                thread.state = RunState.FAILED
-                run.state = RunState.FAILED
-                run.output = str(exc)
-                await db.commit()
-                await emit(EventType.ERROR, {"message": str(exc)})
+    async def _execute(
+        self,
+        thread_id: str,
+        run_id: str,
+        prompt: str,
+        mode: str,
+        attachment_ids: list[str],
+    ) -> None:
+        """Dispatch a single explicitly selected Agent turn."""
+        await self._execute_chat(thread_id, run_id, prompt, mode, attachment_ids)
 
     async def _execute_chat(self, thread_id: str, run_id: str, prompt: str, agent: str, attachment_ids: list[str]) -> None:
         """Run one turn for the selected agent without advancing an orchestration pipeline."""
