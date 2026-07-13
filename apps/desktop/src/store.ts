@@ -40,7 +40,9 @@ export const settleActivity = (
   error,
   completedAt: Date.now(),
   steps: activity.steps.map((step) =>
-    step.status === "running" ? { ...step, status: "failed" as const } : step,
+    step.status === "running"
+      ? { ...step, status: "failed" as const, completedAt: Date.now() }
+      : step,
   ),
 });
 
@@ -178,8 +180,22 @@ const toolStep = (
       : String(event).includes("completed")
         ? "completed"
         : "running",
+    startedAt: Date.now(),
   };
 };
+
+/** 合并新旧步骤：保留最早的开始时间，并在离开 running 时记录结束时间。 */
+const stampStep = (
+  previous: ActivityStep,
+  next: ActivityStep,
+): ActivityStep => ({
+  ...next,
+  startedAt: previous.startedAt ?? next.startedAt,
+  completedAt:
+    next.status !== "running"
+      ? (previous.completedAt ?? Date.now())
+      : undefined,
+});
 
 export const useStore = create<Store>((set, get) => ({
   workspaces: [],
@@ -400,7 +416,11 @@ export const useStore = create<Store>((set, get) => ({
                       completedAt: Date.now(),
                       steps: activity.activity.steps.map((step) =>
                         step.status === "running"
-                          ? { ...step, status: "completed" as const }
+                          ? {
+                              ...step,
+                              status: "completed" as const,
+                              completedAt: Date.now(),
+                            }
                           : step,
                       ),
                     },
@@ -517,21 +537,21 @@ export const useStore = create<Store>((set, get) => ({
                                         if (value.id !== step.id) return value;
                                         if (payload.event === "delta") {
                                           const merged = `${value.detail ?? ""}${step.detail ?? ""}`;
-                                          return {
+                                          return stampStep(value, {
                                             ...step,
                                             detail:
                                               merged.length > 6000
                                                 ? `…${merged.slice(-6000)}`
                                                 : merged,
-                                          };
+                                          });
                                         }
-                                        return {
+                                        return stampStep(value, {
                                           ...step,
                                           detail:
                                             step.detail === "reasoning"
                                               ? value.detail
                                               : step.detail,
-                                        };
+                                        });
                                       })
                                     : [...message.activity.steps, step],
                                 },

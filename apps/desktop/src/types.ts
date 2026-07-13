@@ -37,6 +37,8 @@ export interface ActivityStep {
   label: string;
   detail?: string;
   status: "running" | "completed" | "failed";
+  startedAt?: number;
+  completedAt?: number;
 }
 export interface Thread {
   id: string;

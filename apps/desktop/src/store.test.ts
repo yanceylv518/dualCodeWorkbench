@@ -399,6 +399,39 @@ describe("thread realtime event merging", () => {
     expect(step?.detail?.length).toBe(300);
   });
 
+  it("stamps reasoning steps with start and completion times", async () => {
+    const socket = await connectThread();
+    emitSocketEvent(socket, {
+      type: "agent.tool",
+      run_id: "run-6",
+      payload: {
+        agent: "codex",
+        event: "item/started",
+        item: { id: "reasoning-1", type: "reasoning", text: "开始分析" },
+      },
+    });
+    const started = selectedMessages()[0].activity?.steps[0];
+    expect(started?.startedAt).toBeTypeOf("number");
+    expect(started?.completedAt).toBeUndefined();
+
+    emitSocketEvent(socket, {
+      type: "agent.tool",
+      run_id: "run-6",
+      payload: {
+        agent: "codex",
+        event: "item/completed",
+        item: { id: "reasoning-1", type: "reasoning", text: "reasoning" },
+      },
+    });
+    const completed = selectedMessages()[0].activity?.steps[0];
+    expect(completed?.status).toBe("completed");
+    expect(completed?.completedAt).toBeTypeOf("number");
+    expect(completed!.completedAt!).toBeGreaterThanOrEqual(
+      completed!.startedAt!,
+    );
+    expect(completed?.detail).toBe("开始分析");
+  });
+
   it("settles running activity when an error arrives", async () => {
     const socket = await connectThread();
     emitSocketEvent(socket, {

@@ -99,6 +99,45 @@
     opacity: 0;
   }
 }
+.thought-pill {
+  margin: 4px 0 6px 10px;
+}
+.thought-pill > summary {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  padding: 3px 10px;
+  border: 1px solid #333d4e;
+  border-radius: 999px;
+  background: #141a23;
+  cursor: pointer;
+  list-style: none;
+  color: #8592a6;
+  font-size: var(--text-xs);
+}
+.thought-pill > summary::-webkit-details-marker {
+  display: none;
+}
+.thought-pill > summary:hover {
+  color: #aebacd;
+  border-color: #40506a;
+}
+.thought-pill > summary svg {
+  transition: transform 0.15s;
+}
+.thought-pill[open] > summary svg {
+  transform: rotate(180deg);
+}
+.thought-pill > p {
+  margin: 6px 0 4px 4px;
+  padding: 4px 12px;
+  border-left: 2px solid #39435a;
+  color: #93a0b4;
+  white-space: pre-wrap;
+  font-size: var(--text-sm);
+  font-style: italic;
+  line-height: 1.6;
+}
 .agent-activity .activity-step {
   border-bottom: 0;
   padding: 6px 10px;

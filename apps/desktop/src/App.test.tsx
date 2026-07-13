@@ -351,6 +351,58 @@ describe("workbench", () => {
     ).toBeTruthy();
   });
 
+  it("collapses finished reasoning into an expandable thought pill", () => {
+    const base = singleTaskState("CREATED");
+    useStore.setState({
+      ...base,
+      workspaces: [
+        {
+          ...base.workspaces[0],
+          threads: [
+            {
+              ...base.workspaces[0].threads[0],
+              messages: [
+                {
+                  id: "activity-run-9",
+                  agent: "system",
+                  text: "",
+                  time: "",
+                  activity: {
+                    runId: "run-9",
+                    agent: "codex",
+                    status: "completed",
+                    startedAt: 1000,
+                    completedAt: 9000,
+                    steps: [
+                      {
+                        id: "reasoning-1",
+                        kind: "reasoning",
+                        label: "思考",
+                        detail: "先梳理调用链，再定位修改点",
+                        status: "completed",
+                        startedAt: 1000,
+                        completedAt: 4000,
+                      },
+                    ],
+                  },
+                },
+              ],
+            },
+          ],
+        },
+      ],
+    });
+
+    const { container } = render(<App />);
+    const pill = container.querySelector(".thought-pill");
+    expect(pill?.querySelector("summary")?.textContent).toContain(
+      "已思考 3 秒",
+    );
+    expect(pill?.querySelector("p")?.textContent).toBe(
+      "先梳理调用链，再定位修改点",
+    );
+  });
+
   it("supports inline task rename and explicit delete confirmation", () => {
     useStore.setState({
       backend: "online",

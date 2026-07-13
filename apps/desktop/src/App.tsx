@@ -958,6 +958,17 @@ function TaskHeader({ thread }: { thread: Thread }) {
     </div>
   );
 }
+function thoughtDuration(step: {
+  startedAt?: number;
+  completedAt?: number;
+}): string {
+  if (!step.startedAt || !step.completedAt) return "";
+  const seconds = Math.max(
+    1,
+    Math.round((step.completedAt - step.startedAt) / 1000),
+  );
+  return ` ${seconds} 秒`;
+}
 function ActivityCard({
   activity,
 }: {
@@ -1016,21 +1027,28 @@ function ActivityCard({
         {activity.steps.map((step) =>
           step.kind === "reasoning" ? (
             step.detail &&
-            step.detail !== "reasoning" && (
+            step.detail !== "reasoning" &&
+            (step.status === "running" ? (
               <div
-                className={`thinking-block ${step.status}`}
+                className="thinking-block running"
                 key={step.id}
                 aria-label="思考过程"
               >
                 <header>
-                  {step.status === "running" && (
-                    <LoaderCircle size={11} className="spin" />
-                  )}
+                  <LoaderCircle size={11} className="spin" />
                   思考
                 </header>
                 <p>{step.detail}</p>
               </div>
-            )
+            ) : (
+              <details className="thought-pill" key={step.id}>
+                <summary>
+                  已思考{thoughtDuration(step)}
+                  <ChevronDown size={12} />
+                </summary>
+                <p>{step.detail}</p>
+              </details>
+            ))
           ) : (
             <div className={`activity-step ${step.status}`} key={step.id}>
               <span>
