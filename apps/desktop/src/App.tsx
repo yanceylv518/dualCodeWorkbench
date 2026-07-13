@@ -457,6 +457,13 @@ export default function App() {
                     waitingApproval={Boolean(store.pendingApproval)}
                   />
                 )}
+                {store.pendingApproval && (
+                  <ApprovalCard
+                    action={store.pendingApproval.action}
+                    reason={store.pendingApproval.reason}
+                    decide={store.decideApproval}
+                  />
+                )}
                 <div className="message-end" ref={messageEnd} />
               </div>
               <Composer
@@ -514,13 +521,6 @@ export default function App() {
               </button>
             )}
           </div>
-          {store.pendingApproval && (
-            <ApprovalCard
-              action={store.pendingApproval.action}
-              reason={store.pendingApproval.reason}
-              decide={store.decideApproval}
-            />
-          )}
           {rightTab === "status" && (
             <>
               <div className="inspector-subtabs">

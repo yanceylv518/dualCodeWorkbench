@@ -105,9 +105,11 @@ ESLint（0 error）、Prettier 与 Rust `cargo check` 全部通过。Phase 0 到
 - **验证结果（2026-07-13）**：契约与测试参数输入均保留原始编辑文本，仅保存时解析；前端类型检查和 9 项组件测试通过。
 
 ### P1-3 审批卡可见性
-- [ ] 审批请求（`store.pendingApproval`）必须在右侧面板隐藏或窄屏（<960px，`index.css:15` 会 `display:none` 检查器）时依然可见可操作。方案建议：审批卡移入对话流（ProcessingCard 位置）或改为居中模态；右侧面板保留只读展示。方案先写在本条目下再实施。
-- [ ] 新增组件测试：`rightHidden` 状态下出现 approval 时仍能渲染审批操作按钮。
+- **实施方案（2026-07-13）**：将待审批卡渲染到中央对话流、紧邻当前 ProcessingCard，作为阻塞运行的唯一主操作入口；右侧检查器不再承载审批动作。该位置不受 `rightHidden` 与窄屏检查器 CSS 影响，审批完成后由 store 状态自动移除。
+- [x] 审批请求（`store.pendingApproval`）必须在右侧面板隐藏或窄屏（<960px，`index.css:15` 会 `display:none` 检查器）时依然可见可操作。方案建议：审批卡移入对话流（ProcessingCard 位置）或改为居中模态；右侧面板保留只读展示。方案先写在本条目下再实施。
+- [x] 新增组件测试：`rightHidden` 状态下出现 approval 时仍能渲染审批操作按钮。
 - **为什么**：现状面板被藏起时运行永久挂起，且用户无从发现。
+- **验证结果（2026-07-13）**：审批主操作已进入中央对话流；隐藏检查器后仍可见“允许一次”和审批原因。前端类型检查与 10 项组件测试通过。
 
 ### P1-4 WebSocket 断线重连
 - [ ] `store.ts:110-168`：为线程 socket 增加 `onclose` 处理与指数退避重连（上限约 30s），重连成功后调用现有的 `refreshDetails`/`fetchApprovals`/`refreshExecutionJobs` 补齐丢失事件；连接状态反映到 UI（复用 backend badge 或新增连接指示）。

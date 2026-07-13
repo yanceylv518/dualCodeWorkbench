@@ -91,4 +91,39 @@ describe("workbench", () => {
 
     expect(sendPrompt).not.toHaveBeenCalled();
   });
+
+  it("keeps approval actions visible when the inspector is hidden", () => {
+    useStore.setState({
+      backend: "online",
+      workspaceId: "workspace-1",
+      threadId: "thread-1",
+      pendingApproval: {
+        id: "approval-1",
+        action: "codex_command",
+        reason: "需要执行检查命令",
+        status: "PENDING",
+      },
+      workspaces: [
+        {
+          id: "workspace-1",
+          name: "Project",
+          path: "D:/Project",
+          threads: [
+            {
+              id: "thread-1",
+              title: "Task",
+              state: "WAITING_APPROVAL",
+              messages: [],
+            },
+          ],
+        },
+      ],
+    });
+
+    render(<App />);
+    fireEvent.click(screen.getByTitle("隐藏检查器"));
+
+    expect(screen.getByRole("button", { name: "允许一次" })).toBeTruthy();
+    expect(screen.getByText("需要执行检查命令")).toBeTruthy();
+  });
 });
