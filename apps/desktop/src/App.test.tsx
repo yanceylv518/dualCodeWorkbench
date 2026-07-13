@@ -1,4 +1,4 @@
-import { cleanup, fireEvent, render, screen } from "@testing-library/react";
+import { act, cleanup, fireEvent, render, screen } from "@testing-library/react";
 import { afterEach, describe, expect, it, vi } from "vitest";
 
 import App from "./App";
@@ -125,5 +125,61 @@ describe("workbench", () => {
 
     expect(screen.getByRole("button", { name: "允许一次" })).toBeTruthy();
     expect(screen.getByText("需要执行检查命令")).toBeTruthy();
+  });
+
+  it("does not force the message stream to the bottom after the user scrolls up", () => {
+    const scrollIntoView = vi.fn();
+    Object.defineProperty(HTMLElement.prototype, "scrollIntoView", {
+      configurable: true,
+      value: scrollIntoView,
+    });
+    useStore.setState({
+      backend: "online",
+      workspaceId: "workspace-1",
+      threadId: "thread-1",
+      workspaces: [
+        {
+          id: "workspace-1",
+          name: "Project",
+          path: "D:/Project",
+          threads: [
+            {
+              id: "thread-1",
+              title: "Task",
+              state: "CREATED",
+              messages: [{ id: "one", agent: "user", text: "旧消息", time: "" }],
+            },
+          ],
+        },
+      ],
+    });
+
+    const { container } = render(<App />);
+    const stream = container.querySelector(".message-stream") as HTMLDivElement;
+    Object.defineProperties(stream, {
+      scrollHeight: { configurable: true, value: 1000 },
+      clientHeight: { configurable: true, value: 400 },
+      scrollTop: { configurable: true, value: 100 },
+    });
+    fireEvent.scroll(stream);
+    expect(screen.getByRole("button", { name: "回到最新" })).toBeTruthy();
+    scrollIntoView.mockClear();
+
+    act(() => {
+      useStore.setState((state) => ({
+        workspaces: state.workspaces.map((workspace) => ({
+          ...workspace,
+          threads: workspace.threads.map((thread) => ({
+            ...thread,
+            messages: [
+              ...thread.messages,
+              { id: "two", agent: "codex", text: "新消息", time: "" },
+            ],
+          })),
+        })),
+      }));
+    });
+
+    expect(scrollIntoView).not.toHaveBeenCalled();
   });
 });

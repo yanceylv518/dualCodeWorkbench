@@ -107,7 +107,9 @@ export default function App() {
   const [leftHidden, setLeftHidden] = useState(false);
   const [rightHidden, setRightHidden] = useState(false);
   const fileInput = useRef<HTMLInputElement>(null);
+  const messageStream = useRef<HTMLDivElement>(null);
   const messageEnd = useRef<HTMLDivElement>(null);
+  const [followingLatest, setFollowingLatest] = useState(true);
   const activeTasks = useMemo(
     () =>
       store.workspaces
@@ -159,12 +161,23 @@ export default function App() {
   }, [hasRecovery, rightTab]);
   const latestMessageLength = thread?.messages.at(-1)?.text.length ?? 0;
   useEffect(() => {
-    if (!thread) return;
+    if (!thread || !followingLatest) return;
     const frame = window.requestAnimationFrame(() =>
       messageEnd.current?.scrollIntoView({ block: "end", behavior: "smooth" }),
     );
     return () => window.cancelAnimationFrame(frame);
-  }, [thread?.id, thread?.messages.length, latestMessageLength, thread?.state]);
+  }, [
+    thread?.id,
+    thread?.messages.length,
+    latestMessageLength,
+    thread?.state,
+    followingLatest,
+  ]);
+  useEffect(() => setFollowingLatest(true), [thread?.id]);
+  const scrollToLatest = () => {
+    setFollowingLatest(true);
+    messageEnd.current?.scrollIntoView({ block: "end", behavior: "smooth" });
+  };
 
   const openWorkspace = async () => {
     const selected = isTauri()
@@ -435,7 +448,17 @@ export default function App() {
                   </button>
                 </div>
               )}
-              <div className="message-stream">
+              <div
+                className="message-stream"
+                ref={messageStream}
+                onScroll={(event) => {
+                  const target = event.currentTarget;
+                  setFollowingLatest(
+                    target.scrollHeight - target.scrollTop - target.clientHeight <=
+                      80,
+                  );
+                }}
+              >
                 {thread.messages.length ? (
                   thread.messages.map((message) => (
                     <MessageCard
@@ -469,6 +492,11 @@ export default function App() {
                   />
                 )}
                 <div className="message-end" ref={messageEnd} />
+                {!followingLatest && (
+                  <button className="back-to-latest" onClick={scrollToLatest}>
+                    回到最新
+                  </button>
+                )}
               </div>
               <Composer
                 text={text}
