@@ -116,7 +116,11 @@ export default function App() {
     () =>
       store.workspaces
         .flatMap((item) =>
-          item.threads.map((task) => ({ workspace: item.name, task })),
+          item.threads.map((task) => ({
+            workspaceId: item.id,
+            workspace: item.name,
+            task,
+          })),
         )
         .filter(({ task }) => activeStates.has(task.state)),
     [store.workspaces],
@@ -390,6 +394,9 @@ export default function App() {
             )}
           </label>
           <div className="project-list">
+            {query && filteredWorkspaces.length === 0 && (
+              <div className="search-empty">没有匹配的项目或任务</div>
+            )}
             {filteredWorkspaces.map((item) => (
               <section key={item.id} className="project-group">
                 <div className="project-heading">
@@ -668,15 +675,21 @@ export default function App() {
               ? `${activeTasks.length} 个运行中`
               : "无运行任务"}
           </span>
+          <small className="activity-snapshot-note">状态以进入任务后为准</small>
         </div>
         <div className="activity-tasks">
-          {activeTasks.slice(0, 3).map(({ workspace: name, task }) => (
-            <button key={task.id}>
-              <LoaderCircle size={11} className="spin" />
-              {name} · {task.title}
-              <small>{stateLabel[task.state]}</small>
-            </button>
-          ))}
+          {activeTasks
+            .slice(0, 3)
+            .map(({ workspaceId, workspace: name, task }) => (
+              <button
+                key={task.id}
+                onClick={() => store.setSelection(workspaceId, task.id)}
+              >
+                <LoaderCircle size={11} className="spin" />
+                {name} · {task.title}
+                <small>{stateLabel[task.state]}</small>
+              </button>
+            ))}
         </div>
         <div className="security-note">
           <ShieldCheck size={12} />

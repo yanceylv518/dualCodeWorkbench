@@ -335,6 +335,12 @@ button:disabled {
 .thread-list {
   margin-top: 4px;
 }
+.search-empty {
+  padding: 24px 12px;
+  color: var(--text-muted);
+  font-size: var(--text-sm);
+  text-align: center;
+}
 .thread-button {
   position: relative;
   width: 100%;
@@ -1152,6 +1158,11 @@ button:disabled {
 }
 .activity-tasks small {
   color: #5677a5;
+}
+.activity-snapshot-note {
+  margin-left: 6px;
+  color: var(--text-muted);
+  font-size: var(--text-xs);
 }
 .security-note {
   display: flex;

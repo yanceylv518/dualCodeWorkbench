@@ -195,9 +195,10 @@ ESLint（0 error）、Prettier 与 Rust `cargo check` 全部通过。Phase 0 到
 
 ### P2-7 侧栏与底栏交互修正
 
-- [ ] `App.tsx:149` 底部"后台任务"按钮 onClick 跳转到对应 workspace/thread。
-- [ ] 明确其数据来源为最近一次 `fetchWorkspaces` 快照，展示处加"状态以进入任务后为准"的弱提示；（真正的多线程实时状态属架构改动，记入「不做」）。
-- [ ] 搜索无结果时显示空状态文案。
+- [x] 底部"后台任务"按钮跳转到对应 workspace/thread。
+- [x] 明确其数据来源为最近一次 `fetchWorkspaces` 快照，展示处增加"状态以进入任务后为准"的弱提示。
+- [x] 搜索无结果时显示空状态文案。
+- **验证结果（2026-07-13）**：后台任务条可直接切换任务并标注快照语义，项目搜索提供明确空状态；TypeScript、前端 25 项、严格 ESLint 与 Prettier 通过。
 
 ### P2-8 对话框行为统一
 

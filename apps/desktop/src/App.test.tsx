@@ -132,6 +132,43 @@ describe("workbench", () => {
     expect(screen.getByRole("button", { name: "确认删除任务" })).toBeTruthy();
   });
 
+  it("shows an empty search state and opens a task from the activity bar", () => {
+    const setSelection = vi.fn();
+    useStore.setState({
+      backend: "online",
+      workspaceId: "workspace-1",
+      threadId: "thread-1",
+      setSelection,
+      workspaces: [
+        {
+          id: "workspace-1",
+          name: "Project",
+          path: "D:/Project",
+          threads: [
+            {
+              id: "thread-1",
+              title: "Running task",
+              state: "IMPLEMENTING",
+              messages: [],
+            },
+          ],
+        },
+      ],
+    });
+
+    render(<App />);
+    fireEvent.click(
+      screen.getByRole("button", { name: /Project · Running task/ }),
+    );
+    expect(setSelection).toHaveBeenCalledWith("workspace-1", "thread-1");
+    expect(screen.getByText("状态以进入任务后为准")).toBeTruthy();
+
+    fireEvent.change(screen.getByPlaceholderText("搜索项目和任务"), {
+      target: { value: "missing" },
+    });
+    expect(screen.getByText("没有匹配的项目或任务")).toBeTruthy();
+  });
+
   it("keeps approval actions visible when the inspector is hidden", () => {
     useStore.setState({
       backend: "online",
