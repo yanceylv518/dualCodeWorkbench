@@ -18,6 +18,7 @@ export function ContractPanel({
   threadId: string;
 }) {
   const [value, setValue] = useState<ProjectContract>();
+  const [listDrafts, setListDrafts] = useState<Record<string, string>>({});
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState("");
@@ -25,7 +26,16 @@ export function ContractPanel({
     setLoading(true);
     setError("");
     try {
-      setValue(await api.fetchContract(workspaceId, threadId));
+      const contract = await api.fetchContract(workspaceId, threadId);
+      setValue(contract);
+      setListDrafts({
+        rules: contract.governance.rules.join("\n"),
+        deliverables: contract.governance.deliverables.join("\n"),
+        non_goals: contract.task.non_goals.join("\n"),
+        acceptance: contract.task.acceptance.join("\n"),
+        constraints: contract.task.constraints.join("\n"),
+        risks: contract.task.risks.join("\n"),
+      });
     } catch (reason) {
       setError(String(reason));
     } finally {
@@ -37,11 +47,23 @@ export function ContractPanel({
   }, [workspaceId, threadId]);
   const save = async () => {
     if (!value) return;
+    const governance = {
+      ...value.governance,
+      rules: lines(listDrafts.rules ?? ""),
+      deliverables: lines(listDrafts.deliverables ?? ""),
+    };
+    const task = {
+      ...value.task,
+      non_goals: lines(listDrafts.non_goals ?? ""),
+      acceptance: lines(listDrafts.acceptance ?? ""),
+      constraints: lines(listDrafts.constraints ?? ""),
+      risks: lines(listDrafts.risks ?? ""),
+    };
     setSaving(true);
     setError("");
     try {
-      await api.saveGovernance(workspaceId, value.governance);
-      await api.saveTaskContract(workspaceId, threadId, value.task);
+      await api.saveGovernance(workspaceId, governance);
+      await api.saveTaskContract(workspaceId, threadId, task);
       await load();
     } catch (reason) {
       setError(String(reason));
@@ -59,16 +81,12 @@ export function ContractPanel({
     <label>
       <span>{label}</span>
       <textarea
-        value={value?.task[key].join("\n") ?? ""}
+        value={listDrafts[key] ?? ""}
         onChange={(event) =>
-          setValue((current) =>
-            current
-              ? {
-                  ...current,
-                  task: { ...current.task, [key]: lines(event.target.value) },
-                }
-              : current,
-          )
+          setListDrafts((current) => ({
+            ...current,
+            [key]: event.target.value,
+          }))
         }
         placeholder="每行一项"
       />
@@ -158,30 +176,24 @@ export function ContractPanel({
         <label>
           <span>项目规则（每行一项）</span>
           <textarea
-            value={value.governance.rules.join("\n")}
+            value={listDrafts.rules ?? ""}
             onChange={(event) =>
-              setValue({
-                ...value,
-                governance: {
-                  ...value.governance,
-                  rules: lines(event.target.value),
-                },
-              })
+              setListDrafts((current) => ({
+                ...current,
+                rules: event.target.value,
+              }))
             }
           />
         </label>
         <label>
           <span>必备交付物（每行一项）</span>
           <textarea
-            value={value.governance.deliverables.join("\n")}
+            value={listDrafts.deliverables ?? ""}
             onChange={(event) =>
-              setValue({
-                ...value,
-                governance: {
-                  ...value.governance,
-                  deliverables: lines(event.target.value),
-                },
-              })
+              setListDrafts((current) => ({
+                ...current,
+                deliverables: event.target.value,
+              }))
             }
           />
         </label>

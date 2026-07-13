@@ -1,5 +1,5 @@
-import { fireEvent, render, screen, waitFor } from "@testing-library/react";
-import { beforeEach, describe, expect, it, vi } from "vitest";
+import { cleanup, fireEvent, render, screen, waitFor } from "@testing-library/react";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import { ContractPanel } from "./ContractPanel";
 import { HandoffPanel } from "./HandoffPanel";
@@ -52,6 +52,7 @@ const handoff = {
 
 describe("inspector panels", () => {
   beforeEach(() => vi.clearAllMocks());
+  afterEach(cleanup);
 
   it("loads and saves the project contract", async () => {
     vi.mocked(api.fetchContract).mockResolvedValue(contract);
@@ -72,6 +73,25 @@ describe("inspector panels", () => {
       "workspace",
       "thread",
       contract.task,
+    );
+  });
+
+  it("keeps empty list lines while editing and filters them on save", async () => {
+    vi.mocked(api.fetchContract).mockResolvedValue(contract);
+    vi.mocked(api.saveGovernance).mockResolvedValue(undefined);
+    vi.mocked(api.saveTaskContract).mockResolvedValue(undefined);
+
+    render(<ContractPanel workspaceId="workspace" threadId="thread" />);
+    const rules = await screen.findByDisplayValue("禁止临时方案");
+    fireEvent.change(rules, { target: { value: "规则一\n\n规则二" } });
+    expect(rules).toHaveProperty("value", "规则一\n\n规则二");
+    fireEvent.click(screen.getByRole("button", { name: "保存契约" }));
+
+    await waitFor(() =>
+      expect(api.saveGovernance).toHaveBeenCalledWith("workspace", {
+        ...contract.governance,
+        rules: ["规则一", "规则二"],
+      }),
     );
   });
 

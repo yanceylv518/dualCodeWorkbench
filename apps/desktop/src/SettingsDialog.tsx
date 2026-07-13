@@ -11,6 +11,12 @@ import {
 import * as api from "./api";
 import type { AgentModel, AgentModelCatalog, AgentSettings } from "./types";
 
+const lines = (value: string) =>
+  value
+    .split("\n")
+    .map((item) => item.trim())
+    .filter(Boolean);
+
 export function SettingsDialog({
   onClose,
   target = "general",
@@ -28,6 +34,7 @@ export function SettingsDialog({
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [saved, setSaved] = useState(false);
+  const [testArgumentsText, setTestArgumentsText] = useState("");
   const testSection = useRef<HTMLElement>(null);
   const load = async () => {
     setLoading(true);
@@ -43,6 +50,7 @@ export function SettingsDialog({
         enable_real_agents: true,
         claude_model: settings.claude_model || "opus",
       });
+      setTestArgumentsText(settings.test_arguments.join("\n"));
       setHealth(status);
       setModels(catalog);
     } catch (reason) {
@@ -202,6 +210,7 @@ export function SettingsDialog({
     try {
       const persisted = await api.saveAgentSettings({
         ...value,
+        test_arguments: lines(testArgumentsText),
         enable_real_agents: true,
         claude_ssh_enabled: sshConfigured,
       });
@@ -372,19 +381,10 @@ export function SettingsDialog({
                           placeholder={
                             "例如：\npnpm\n--filter\n@dualcode/desktop\ntest"
                           }
-                          value={(value?.test_arguments ?? []).join("\n")}
+                          value={testArgumentsText}
                           onChange={(event) => {
                             changed();
-                            setValue((current) =>
-                              current
-                                ? {
-                                    ...current,
-                                    test_arguments: event.target.value
-                                      .split("\n")
-                                      .filter(Boolean),
-                                  }
-                                : current,
-                            );
+                            setTestArgumentsText(event.target.value);
                           }}
                         />
                       </label>

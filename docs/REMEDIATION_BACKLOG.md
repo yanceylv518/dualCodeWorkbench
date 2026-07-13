@@ -99,9 +99,10 @@ ESLint（0 error）、Prettier 与 Rust `cargo check` 全部通过。Phase 0 到
 - **验证结果（2026-07-13）**：前端类型检查通过；组件测试 8 项通过，覆盖中文输入法候选态 Enter 不发送。
 
 ### P1-2 列表输入框无法换行
-- [ ] `ContractPanel.tsx:7,17` 与 `SettingsDialog.tsx:35`：受控 textarea 不得在 `onChange` 里做 `split/filter/join` 回写。改为：textarea 持有原始字符串 state，仅在保存（或 blur）时解析为行数组。
-- [ ] 新增组件测试：输入含空行的多行文本，光标行为正常，保存后得到过滤后的数组。
+- [x] `ContractPanel.tsx:7,17` 与 `SettingsDialog.tsx:35`：受控 textarea 不得在 `onChange` 里做 `split/filter/join` 回写。改为：textarea 持有原始字符串 state，仅在保存（或 blur）时解析为行数组。
+- [x] 新增组件测试：输入含空行的多行文本，光标行为正常，保存后得到过滤后的数组。
 - **为什么**：现状按 Enter 产生的空行被立即过滤，光标弹回，多行输入事实上不可用。
+- **验证结果（2026-07-13）**：契约与测试参数输入均保留原始编辑文本，仅保存时解析；前端类型检查和 9 项组件测试通过。
 
 ### P1-3 审批卡可见性
 - [ ] 审批请求（`store.pendingApproval`）必须在右侧面板隐藏或窄屏（<960px，`index.css:15` 会 `display:none` 检查器）时依然可见可操作。方案建议：审批卡移入对话流（ProcessingCard 位置）或改为居中模态；右侧面板保留只读展示。方案先写在本条目下再实施。
