@@ -33,7 +33,7 @@ async def lifespan(app: FastAPI):
         active_states = [RunState.PLANNING, RunState.WAITING_APPROVAL, RunState.IMPLEMENTING, RunState.TESTING, RunState.REVIEWING, RunState.FALLBACK_TO_CODEX]
         await session.execute(update(Thread).where(Thread.state.in_(active_states)).values(state=RunState.CREATED))
         await session.execute(update(AgentRun).where(AgentRun.state.in_(active_states)).values(
-            state=RunState.CANCELLED, output="Sidecar restarted before this Agent turn completed"
+            state=RunState.CANCELLED, output="本地后台服务已重启，本轮 Agent 任务未完成"
         ))
         await session.commit()
     await repair_legacy_labels()

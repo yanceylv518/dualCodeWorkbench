@@ -223,8 +223,9 @@ ESLint（0 error）、Prettier 与 Rust `cargo check` 全部通过。Phase 0 到
 
 ### P2-11 文案统一为中文
 
-- [ ] 全局排查用户可见英文串：`scheduler.py`（"Network access was rejected by the user." 等系统消息）、`main.py`（"Sidecar restarted before this Agent turn completed"）、BackendBadge（P0-2 已含）、brand-subtitle 保留品牌英文可接受。
-- [ ] 错误信息保留技术细节但外层包中文说明。
+- [x] 全局排查用户可见英文串：`scheduler.py`（"Network access was rejected by the user." 等系统消息）、`main.py`（"Sidecar restarted before this Agent turn completed"）、BackendBadge（P0-2 已含）、brand-subtitle 保留品牌英文可接受。
+- [x] 错误信息保留技术细节但外层包中文说明。
+- **验证结果（2026-07-13）**：Agent 冲突、后台重启、CLI/SSH 缺失与退出、Codex app-server 异常及前端 HTTP 错误均增加中文用户语义，原始路径、退出码和底层错误继续保留用于排障；后端 94 项、前端 32 项、TypeScript 与严格 ESLint 通过。
 
 ---
 

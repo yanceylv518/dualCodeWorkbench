@@ -40,14 +40,16 @@ async function responseError(response: Response): Promise<Error> {
   const text = await response.text();
   try {
     const value = JSON.parse(text) as { detail?: string };
-    return new Error(value.detail || text);
+    return new Error(`请求失败：${value.detail || text}`);
   } catch {
-    return new Error(text || `Request failed (${response.status})`);
+    return new Error(
+      text ? `请求失败：${text}` : `请求失败（状态码 ${response.status}）`,
+    );
   }
 }
 export async function fetchWorkspaces(): Promise<Workspace[]> {
   const r = await fetch(`${API}/workspaces`);
-  if (!r.ok) throw new Error("Backend unavailable");
+  if (!r.ok) throw new Error("后端服务不可用");
   const items = (await r.json()) as Array<{
     id: string;
     name: string;

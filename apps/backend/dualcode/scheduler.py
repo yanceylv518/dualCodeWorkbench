@@ -108,7 +108,7 @@ class RunScheduler:
 
     async def start(self, thread_id: str, prompt: str, mode: str, attachment_ids: list[str] | None = None) -> str:
         if thread_id in self._tasks and not self._tasks[thread_id].done():
-            raise RuntimeError("A run is already active for this thread")
+            raise RuntimeError("当前任务已有 Agent 正在运行")
         run_id = str(uuid.uuid4())
         self._tasks[thread_id] = asyncio.create_task(self._execute(thread_id, run_id, prompt, mode, attachment_ids or []))
         return run_id
@@ -308,9 +308,10 @@ class RunScheduler:
             except Exception as exc:
                 thread.state = RunState.CREATED
                 run.state = RunState.FAILED
-                run.output = str(exc)
+                error_message = f"Agent 运行失败：{exc}"
+                run.output = error_message
                 await db.commit()
-                await emit(EventType.ERROR, {"message": str(exc)})
+                await emit(EventType.ERROR, {"message": error_message})
                 await emit(EventType.RUN_STATE_CHANGED, {"state": RunState.CREATED.value})
 
     async def _stream_agent(self, adapter, request: AgentRequest, agent: str, emit) -> AgentResponse:

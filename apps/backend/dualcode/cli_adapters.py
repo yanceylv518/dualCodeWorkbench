@@ -80,7 +80,7 @@ class BaseCliAdapter(AgentAdapter):
     async def _spawn(self, run_id: str, request: AgentRequest) -> asyncio.subprocess.Process:
         executable = self.resolve_executable()
         if not executable:
-            raise CliUnavailableError(f"CLI executable not found: {self.executable}")
+            raise CliUnavailableError(f"未找到 CLI 可执行文件：{self.executable}")
         workspace = self.workspace(request)
         self.validate_attachments(request, workspace)
         process = await asyncio.create_subprocess_exec(
@@ -112,7 +112,7 @@ class BaseCliAdapter(AgentAdapter):
             if exit_code != 0:
                 assert process.stderr is not None
                 error = (await process.stderr.read()).decode("utf-8", errors="replace")
-                raise RuntimeError(error.strip() or f"CLI exited with {exit_code}")
+                raise RuntimeError(error.strip() or f"CLI 已退出，退出码：{exit_code}")
         finally:
             if process.returncode is None:
                 process.terminate()

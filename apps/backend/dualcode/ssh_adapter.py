@@ -46,7 +46,7 @@ class ClaudeSshConfig:
             raise ValueError("claude_executable must be an absolute normalized path")
         for key in self.client_keys:
             if not key.is_file():
-                raise ValueError(f"SSH client key not found: {key}")
+                raise ValueError(f"未找到 SSH 客户端密钥：{key}")
 
 
 @dataclass
@@ -298,7 +298,7 @@ class ClaudeSshAdapter(AgentAdapter):
                 result = await connection.run(command, check=True, timeout=120)
             except asyncssh.ProcessError as exc:
                 detail = (exc.stderr or exc.stdout or str(exc)).strip()
-                raise ValueError(f"Remote Git {action} failed: {detail}") from exc
+                raise ValueError(f"远端 Git {action} 操作失败：{detail}") from exc
             return result.stdout.strip() or result.stderr.strip()
         finally:
             connection.close()

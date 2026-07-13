@@ -67,7 +67,7 @@ class CodexAppServerAdapter(BaseCliAdapter):
                 return
             executable = self.resolve_executable()
             if not executable:
-                raise CliUnavailableError(f"CLI executable not found: {self.executable}")
+                raise CliUnavailableError(f"未找到 Codex CLI 可执行文件：{self.executable}")
             self._process = await asyncio.create_subprocess_exec(
                 executable, "app-server", cwd=workspace, env=self.safe_environment(),
                 stdin=asyncio.subprocess.PIPE, stdout=asyncio.subprocess.PIPE,
@@ -149,7 +149,7 @@ class CodexAppServerAdapter(BaseCliAdapter):
                 with suppress(Exception):
                     await process.wait()
             detail = " | ".join(self._stderr_lines)
-            message = "Codex app-server exited unexpectedly"
+            message = "Codex app-server 意外退出"
             if detail:
                 message += f": {detail[-1200:]}"
             error = AppServerProtocolError(message)
