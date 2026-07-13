@@ -10,6 +10,7 @@
 - P0-6 已完成：凭据防护集中为带原因说明的 glob 规则列表，覆盖环境文件、证书/私钥、SSH 身份文件、常见凭据配置与密钥库；专项 22 项、后端全量 90 项和 Ruff 检查通过。
 - Phase 0 最终验收完成：后端 90 项、前端 7 项、E2E 1 项、Ruff、TypeScript、ESLint（0 error，保留 5 条既有 warning）、Prettier 与 Rust `cargo check` 全部通过。按执行约定停止，等待 Claude review，不进入 Phase 1。
 - Phase 0 Claude review 返工已完成：CI 在 `setup-node` 前安装固定 pnpm 并指定 pip 缓存依赖文件，后端正式声明 Pillow；全新虚拟环境确认自动安装 Pillow 11.3.0，本地等价 CI 全绿，等待 GitHub Actions 双平台最终确认。
+- CI 首次返工复验进一步发现 pnpm 11 的依赖构建审核占位值；已仅允许前端工具链必需的 esbuild 构建脚本，保持其他依赖默认拒绝，等待双平台再次确认。
 
 ## 2026-07-13 VPS 克隆显式授权
 

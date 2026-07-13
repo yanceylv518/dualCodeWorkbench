@@ -254,3 +254,6 @@ ESLint（0 error）、Prettier 与 Rust `cargo check` 全部通过。Phase 0 到
 - **本地验证**：全新虚拟环境执行 `pip install -e ".\apps\backend[dev]"` 后自动安装
   Pillow 11.3.0 并可导入；后端 90 项、Ruff、前端 typecheck、ESLint（0 error）和 Vitest
   7 项全部通过。推送后以 GitHub Actions Windows/Linux 全绿作为最终关闭证据。
+- **首次推送复验**：CI #3 已能完成 pnpm 初始化，但 pnpm 11 发现仓库中自动生成的
+  `allowBuilds.esbuild` 占位值，按 `strictDepBuilds` 在双平台拒绝安装。已明确只允许 Vite/Vitest
+  所需的 `esbuild` 构建脚本，未启用 `dangerouslyAllowAllBuilds`，继续等待双平台复验。
