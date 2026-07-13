@@ -3286,12 +3286,18 @@ button:disabled {
 .message-card {
   max-width: 800px;
   gap: 10px;
-  margin-bottom: 16px;
+  margin: 0 auto 24px;
+}
+.message-card.user,
+.message-card.codex,
+.message-card.claude {
+  margin: 0 auto 24px;
 }
 .message-card.user {
   justify-content: flex-end;
 }
 .message-card.user .message-body {
+  position: relative;
   flex: 0 1 auto;
   max-width: min(640px, 82%);
 }
@@ -3311,7 +3317,7 @@ button:disabled {
   border-left: 2px solid #2f5c90;
   border-radius: 0;
   background: transparent;
-  padding: 2px 0 2px 14px;
+  padding: 10px 0 12px 14px;
   box-shadow: none;
 }
 .message-card.claude .message-content {

@@ -24,4 +24,10 @@ describe("desktop visual policy", () => {
     expect(index).toContain(":focus-visible");
     expect(index).toContain("var(--focus-ring)");
   });
+
+  it("keeps message spacing uniform without hidden actions taking layout space", () => {
+    expect(index).toContain("margin: 0 auto 24px");
+    expect(index).toContain("padding: 10px 0 12px 14px");
+    expect(css("./message-actions.css")).toContain("position: absolute");
+  });
 });
