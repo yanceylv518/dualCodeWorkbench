@@ -227,6 +227,15 @@ ESLint（0 error）、Prettier 与 Rust `cargo check` 全部通过。Phase 0 到
 - [x] 错误信息保留技术细节但外层包中文说明。
 - **验证结果（2026-07-13）**：Agent 冲突、后台重启、CLI/SSH 缺失与退出、Codex app-server 异常及前端 HTTP 错误均增加中文用户语义，原始路径、退出码和底层错误继续保留用于排障；后端 94 项、前端 32 项、TypeScript 与严格 ESLint 通过。
 
+### Phase 2 最终验收（2026-07-13）
+
+**结论：R3、R4 及 P2-1 至 P2-11 全部完成，Phase 2 实施侧关闭，按约定停止并等待 Claude review。**
+
+- 后端全量：94 项通过（仅 1 条 Starlette/httpx 上游弃用提示）。
+- 前端全量：32 项通过；TypeScript、ESLint `--max-warnings=0`、Ruff 与 Prettier 通过。
+- 产物验证：Vite 生产构建、Windows sidecar PyInstaller 构建、Tauri release `--no-bundle` 构建通过；生成 `dualcode-workbench.exe`。PyInstaller 的未使用可选数据库驱动提示及 MSVC import library 链接提示不影响本产品 SQLite 构建产物。
+- 提交纪律：R3、R4 和 P2-1 至 P2-11 均按条目独立提交；P2-3 的测试兼容修复作为同条目后续独立提交保留。
+
 ---
 
 ## Phase 3：后端结构与可维护性（P3）

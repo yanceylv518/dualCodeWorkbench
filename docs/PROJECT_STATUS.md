@@ -13,6 +13,7 @@
 - P2-9 已完成：Composer 支持 40vh 内自动增高、单一附件入口、附件超限通知与拖放高亮；图片灯箱支持非 passive 滚轮缩放和指针拖拽平移。TypeScript、前端 29 项与严格 ESLint 通过。
 - P2-10 已完成：VPS 仓库配置和状态收敛为单一独立组件，作业反馈改由纯函数派生，删除重复旧操作并安全处理空 HEAD；克隆运行、失败修复重试和就绪三态已有组件测试。TypeScript、前端 32 项与严格 ESLint 通过。
 - P2-11 已完成：Agent、后台服务、CLI、SSH、Codex app-server 与 HTTP 错误统一增加中文用户语义，同时保留路径、退出码和原始错误等技术细节。后端 94 项、前端 32 项、TypeScript 与严格 ESLint 通过。
+- Phase 2 最终验收完成：R3、R4、P2-1 至 P2-11 全部关闭；后端 94 项、前端 32 项、TypeScript、严格 ESLint、Ruff、Prettier、Vite 生产构建、Windows sidecar 与 Tauri release `--no-bundle` 构建通过。按执行约定停止，等待 Claude review，不进入下一阶段。
 
 ## 2026-07-13 Phase 1 前端高严重度交互整改
 
