@@ -132,6 +132,8 @@ ESLint（0 error）、Prettier 与 Rust `cargo check` 全部通过。Phase 0 到
 - [x] 测试：运行中切换发送目标下拉，处理卡名字不变。
 - **验证结果（2026-07-13）**：store 固化当前运行 Agent 并在终态清除，ProcessingCard 不再跟随发送目标变化；前端类型检查与 14 项测试通过。
 
+**Phase 1 最终验收（2026-07-13）**：P1-1 至 P1-7 全部完成；后端 90 项、前端 14 项、TypeScript、Prettier 与 ESLint（0 error，保留 5 条既有 warning）通过。Phase 1 到此停止，等待 Claude review。
+
 ---
 
 ## Phase 2：前端设计与信息架构（P2）

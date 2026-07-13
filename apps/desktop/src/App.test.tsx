@@ -1,4 +1,10 @@
-import { act, cleanup, fireEvent, render, screen } from "@testing-library/react";
+import {
+  act,
+  cleanup,
+  fireEvent,
+  render,
+  screen,
+} from "@testing-library/react";
 import { afterEach, describe, expect, it, vi } from "vitest";
 
 import App from "./App";
@@ -87,9 +93,8 @@ describe("workbench", () => {
     });
 
     render(<App />);
-    const composer = screen.getByPlaceholderText(
-      "输入消息；可以拖入文件或粘贴截图…",
-    );
+    const composer =
+      screen.getByPlaceholderText("输入消息；可以拖入文件或粘贴截图…");
     fireEvent.change(composer, { target: { value: "中文" } });
     fireEvent.keyDown(composer, { key: "Enter", isComposing: true });
 
@@ -151,7 +156,9 @@ describe("workbench", () => {
               id: "thread-1",
               title: "Task",
               state: "CREATED",
-              messages: [{ id: "one", agent: "user", text: "旧消息", time: "" }],
+              messages: [
+                { id: "one", agent: "user", text: "旧消息", time: "" },
+              ],
             },
           ],
         },
@@ -229,11 +236,11 @@ describe("workbench", () => {
       useStore.getState().setMode("claude");
     });
 
-    expect(container.querySelector(".processing-card strong")?.textContent).toContain(
-      "Codex 正在处理",
-    );
-    expect(container.querySelector(".processing-card strong")?.textContent).not.toContain(
-      "Claude 正在处理",
-    );
+    expect(
+      container.querySelector(".processing-card strong")?.textContent,
+    ).toContain("Codex 正在处理");
+    expect(
+      container.querySelector(".processing-card strong")?.textContent,
+    ).not.toContain("Claude 正在处理");
   });
 });

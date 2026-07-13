@@ -1,4 +1,11 @@
-import { Fragment, useEffect, useMemo, useRef, useState } from "react";
+import {
+  Fragment,
+  useCallback,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+} from "react";
 import Editor from "@monaco-editor/react";
 import { isTauri } from "@tauri-apps/api/core";
 import { getCurrentWindow } from "@tauri-apps/api/window";
@@ -106,6 +113,7 @@ export default function App() {
   const [rightWidth, setRightWidth] = useState(360);
   const [leftHidden, setLeftHidden] = useState(false);
   const [rightHidden, setRightHidden] = useState(false);
+  const openWorkspaceInStore = store.openWorkspace;
   const fileInput = useRef<HTMLInputElement>(null);
   const messageStream = useRef<HTMLDivElement>(null);
   const messageEnd = useRef<HTMLDivElement>(null);
@@ -179,7 +187,7 @@ export default function App() {
     messageEnd.current?.scrollIntoView({ block: "end", behavior: "smooth" });
   };
 
-  const openWorkspace = async () => {
+  const openWorkspace = useCallback(async () => {
     const selected = isTauri()
       ? await open({
           directory: true,
@@ -188,8 +196,8 @@ export default function App() {
         })
       : window.prompt("输入本地 Git 仓库的绝对路径");
     if (typeof selected === "string" && selected.trim())
-      await store.openWorkspace(selected.trim());
-  };
+      await openWorkspaceInStore(selected.trim());
+  }, [openWorkspaceInStore]);
   const chooseDirectory = async () => {
     const selected = isTauri()
       ? await open({
@@ -206,7 +214,11 @@ export default function App() {
       const editing =
         target instanceof HTMLElement &&
         target.matches("input, textarea, select, [contenteditable=true]");
-      if (!editing && (event.ctrlKey || event.metaKey) && event.key.toLowerCase() === "o") {
+      if (
+        !editing &&
+        (event.ctrlKey || event.metaKey) &&
+        event.key.toLowerCase() === "o"
+      ) {
         event.preventDefault();
         void openWorkspace();
       }
@@ -480,7 +492,9 @@ export default function App() {
                 onScroll={(event) => {
                   const target = event.currentTarget;
                   setFollowingLatest(
-                    target.scrollHeight - target.scrollTop - target.clientHeight <=
+                    target.scrollHeight -
+                      target.scrollTop -
+                      target.clientHeight <=
                       80,
                   );
                 }}
