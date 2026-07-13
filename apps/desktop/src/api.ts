@@ -9,7 +9,33 @@ import type {
   Workspace,
   WorkspaceRemoteStatus,
 } from "./types";
+import { invoke, isTauri } from "@tauri-apps/api/core";
+
+declare const __DUALCODE_DEV_TOKEN__: string;
 const API = "http://127.0.0.1:8876/api";
+let cachedToken = "";
+let tokenPromise: Promise<string> | undefined;
+
+async function apiToken(): Promise<string> {
+  if (cachedToken) return cachedToken;
+  tokenPromise ??= isTauri()
+    ? invoke<string>("sidecar_token")
+    : Promise.resolve(__DUALCODE_DEV_TOKEN__);
+  cachedToken = await tokenPromise;
+  return cachedToken;
+}
+
+async function authorizedFetch(
+  input: RequestInfo | URL,
+  init: RequestInit = {},
+) {
+  const token = await apiToken();
+  const headers = new Headers(init.headers);
+  headers.set("X-DualCode-Token", token);
+  return window.fetch(input, { ...init, headers });
+}
+
+const fetch = authorizedFetch;
 async function responseError(response: Response): Promise<Error> {
   const text = await response.text();
   try {
@@ -62,8 +88,10 @@ export const attachmentContentUrl = (
   workspaceId: string,
   threadId: string,
   attachmentId: string,
-) =>
-  `${API}/workspaces/${workspaceId}/threads/${threadId}/attachments/${attachmentId}/content`;
+) => {
+  const query = new URLSearchParams({ token: cachedToken });
+  return `${API}/workspaces/${workspaceId}/threads/${threadId}/attachments/${attachmentId}/content?${query}`;
+};
 export async function createWorkspace(path: string) {
   const r = await fetch(`${API}/workspaces`, {
     method: "POST",
@@ -165,8 +193,11 @@ export async function uploadAttachment(
   if (!r.ok) throw new Error(await r.text());
   return r.json();
 }
-export function threadSocket(threadId: string) {
-  return new WebSocket(`ws://127.0.0.1:8876/api/ws/threads/${threadId}`);
+export async function threadSocket(threadId: string) {
+  const query = new URLSearchParams({ token: await apiToken() });
+  return new WebSocket(
+    `ws://127.0.0.1:8876/api/ws/threads/${threadId}?${query}`,
+  );
 }
 export async function fetchApprovals(workspaceId: string, threadId: string) {
   const r = await fetch(

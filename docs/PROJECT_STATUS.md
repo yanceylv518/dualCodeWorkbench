@@ -6,6 +6,7 @@
 - P0-2 已完成：删除前端演示夹具、sample 魔法路径和离线伪造回复；后端离线时编辑器与附件操作明确禁用，并提供中文重试入口；前端 7 项测试与类型检查通过。
 - P0-3 已完成：E2E 改为真实空状态与设置对话框冒烟，不依赖演示数据或后端；Playwright 1 项通过，并补充 README 一键命令。
 - P0-4 已完成：建立 Windows/Linux CI，覆盖 Ruff、pytest、ESLint、类型检查和 Vitest；前端源码已独立完成 Prettier 格式化。本地 Ruff、后端 68 项、前端 7 项、lint、格式及类型检查通过。
+- P0-5 已完成：Tauri 每次启动生成独立 sidecar token，FastAPI 统一保护全部 `/api/*` HTTP 与 WebSocket，前端请求、附件和实时连接统一携带鉴权信息；浏览器开发模式支持用户数据目录 token 文件。后端 70 项、前端 7 项、类型检查、lint 与 Rust `cargo check` 通过。
 
 ## 2026-07-13 VPS 克隆显式授权
 

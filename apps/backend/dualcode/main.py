@@ -9,6 +9,8 @@ from .diagnostics import build_diagnostic_snapshot
 from .execution_jobs import migrate_execution_jobs, recover_execution_jobs
 from .models import AgentRun, Base, RunState, Thread
 from .seed import repair_legacy_labels
+from .auth import SidecarTokenMiddleware
+from .config import sidecar_token
 
 
 @asynccontextmanager
@@ -50,8 +52,9 @@ app.add_middleware(
     ],
     allow_credentials=False,
     allow_methods=["GET", "POST", "PUT", "DELETE"],
-    allow_headers=["Content-Type"],
+    allow_headers=["Content-Type", "X-DualCode-Token"],
 )
+app.add_middleware(SidecarTokenMiddleware, token=sidecar_token)
 app.include_router(router)
 
 

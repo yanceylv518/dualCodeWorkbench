@@ -10,6 +10,7 @@ import pytest
 from sqlalchemy.ext.asyncio import async_sessionmaker, create_async_engine
 
 from dualcode import diagnostics
+from dualcode.config import sidecar_token
 from dualcode.database import get_session
 from dualcode.main import app
 from dualcode.models import AuditLog, Base, ExecutionJob
@@ -29,7 +30,11 @@ async def api_client(tmp_path):
 
     app.dependency_overrides[get_session] = isolated_session
     transport = httpx.ASGITransport(app=app)
-    async with httpx.AsyncClient(transport=transport, base_url="http://test") as client:
+    async with httpx.AsyncClient(
+        transport=transport,
+        base_url="http://test",
+        headers={"X-DualCode-Token": sidecar_token},
+    ) as client:
         yield client
     app.dependency_overrides.clear()
     await engine.dispose()

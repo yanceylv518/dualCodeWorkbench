@@ -64,12 +64,20 @@ corepack pnpm --filter @dualcode/desktop lint
 - **验证结果（2026-07-13）**：格式化已用独立提交 `3152c80` 完成；本地等价 CI 验证为 Ruff 通过、后端 68 项、前端 7 项、ESLint、Prettier 和类型检查通过。GitHub 双平台 workflow 将在推送后执行。
 
 ### P0-5 本地 API 增加 sidecar token 鉴权
-- [ ] 后端启动时生成一次性随机 token；所有 `/api/*`（含 WebSocket）校验 `X-DualCode-Token` 头或 `?token=` 查询参数，缺失/错误返回 401。
-- [ ] Tauri 壳（`src-tauri/src/lib.rs`）启动 sidecar 时传入/读取 token 并注入前端（环境变量→`invoke` 或启动参数，方案自定，写明理由）；浏览器开发模式支持从 `~/.dualcode-workbench` 下的 token 文件读取。
-- [ ] `apps/desktop/src/api.ts` 统一附带 token。
-- [ ] 新增后端测试：无 token 请求 401；错误 token 401；正确 token 200。
+**实现方案（动手前记录）**：Tauri 壳每次启动使用 UUID v4 组合生成高熵会话 token，通过
+`DUALCODE_SIDECAR_TOKEN` 环境变量只传给 sidecar，并以只读 `invoke` 命令提供给 WebView；后端在
+ASGI 最外层中间件统一校验 `/api/*` 的 HTTP 请求头和 WebSocket 查询参数，避免各路由遗漏。
+浏览器开发模式由后端启动时在 `~/.dualcode-workbench/sidecar.token` 原子写入仅当前用户可读的
+临时 token，Vite 启动时读取并注入；生产模式不落盘。前端 `api.ts` 以单一鉴权 fetch 包装器和
+WebSocket URL 工厂附带 token，附件 URL 同样携带查询参数。CORS 预检 OPTIONS 不访问业务数据，
+允许无 token 通过，以保证自定义请求头可在浏览器中使用。
+- [x] 后端启动时生成一次性随机 token；所有 `/api/*`（含 WebSocket）校验 `X-DualCode-Token` 头或 `?token=` 查询参数，缺失/错误返回 401。
+- [x] Tauri 壳（`src-tauri/src/lib.rs`）启动 sidecar 时传入/读取 token 并注入前端（环境变量→`invoke` 或启动参数，方案自定，写明理由）；浏览器开发模式支持从 `~/.dualcode-workbench` 下的 token 文件读取。
+- [x] `apps/desktop/src/api.ts` 统一附带 token。
+- [x] 新增后端测试：无 token 请求 401；错误 token 401；正确 token 200。
 - **为什么**：当前任何本机进程都能调审批接口、读附件，审批体系形同虚设。
 - **验收**：测试通过；`docs/ARCHITECTURE.md` 补一段 token 机制说明。
+- **验证结果（2026-07-13）**：后端全量 70 项通过；前端 7 项、类型检查与 ESLint 通过；Rust `cargo check` 通过。缺失、错误、正确请求头及查询参数均有自动化覆盖，架构文档已补充 token 生命周期与传递边界。
 
 ### P0-6 凭据防护由黑名单改为分层策略
 - [ ] `apps/backend/dualcode/security.py`：扩充规则至少覆盖 `.env*`、`*.pem/.key/.p12/.pfx`、`id_rsa*/id_ed25519*/id_ecdsa*`、`credentials.json`、`.npmrc`、`.netrc`、`*.keystore`；用可维护的规则列表（glob + 说明）替代散落条件。

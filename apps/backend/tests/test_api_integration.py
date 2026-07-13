@@ -13,6 +13,7 @@ from sqlalchemy.ext.asyncio import async_sessionmaker, create_async_engine
 os.environ["DATA_DIR"] = tempfile.mkdtemp(prefix="dualcode-api-integration-")
 
 from dualcode.database import get_session
+from dualcode.config import sidecar_token
 from dualcode.main import app
 from dualcode.models import AuditLog, Base, ExecutionJob, FileChange, TestRun as PersistedTestRun
 from sqlalchemy import select
@@ -33,7 +34,11 @@ async def api_client(tmp_path: Path):
 
     app.dependency_overrides[get_session] = isolated_session
     transport = httpx.ASGITransport(app=app)
-    async with httpx.AsyncClient(transport=transport, base_url="http://test") as client:
+    async with httpx.AsyncClient(
+        transport=transport,
+        base_url="http://test",
+        headers={"X-DualCode-Token": sidecar_token},
+    ) as client:
         client._dualcode_test_sessions = sessions  # type: ignore[attr-defined]
         yield client
 

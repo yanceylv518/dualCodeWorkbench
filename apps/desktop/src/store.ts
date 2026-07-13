@@ -227,302 +227,315 @@ export const useStore = create<Store>((set, get) => ({
       .then((remoteStatus) => set({ remoteStatus }))
       .catch(() => undefined);
     void get().refreshExecutionJobs();
-    const socket = api.threadSocket(threadId);
-    socket.onmessage = (event) => {
-      const data = JSON.parse(event.data) as AgentEvent;
-      const payload = data.payload;
-      if (
-        data.type === "agent.delta" &&
-        payload.agent &&
-        payload.text &&
-        data.run_id
-      )
-        set((state) => ({
-          workspaces: mapThread(state, (thread) => {
-            const id = `stream-${data.run_id}`;
-            const existing = thread.messages.find((item) => item.id === id);
-            return {
-              ...thread,
-              messages: existing
-                ? thread.messages.map((item) =>
-                    item.id === id
-                      ? { ...item, text: item.text + String(payload.text) }
-                      : item,
-                  )
-                : [
-                    ...thread.messages,
-                    {
-                      id,
-                      agent: payload.agent as Agent,
-                      text: String(payload.text),
-                      time: "",
-                    },
+    void api
+      .threadSocket(threadId)
+      .then((socket) => {
+        socket.onmessage = (event) => {
+          const data = JSON.parse(event.data) as AgentEvent;
+          const payload = data.payload;
+          if (
+            data.type === "agent.delta" &&
+            payload.agent &&
+            payload.text &&
+            data.run_id
+          )
+            set((state) => ({
+              workspaces: mapThread(state, (thread) => {
+                const id = `stream-${data.run_id}`;
+                const existing = thread.messages.find((item) => item.id === id);
+                return {
+                  ...thread,
+                  messages: existing
+                    ? thread.messages.map((item) =>
+                        item.id === id
+                          ? { ...item, text: item.text + String(payload.text) }
+                          : item,
+                      )
+                    : [
+                        ...thread.messages,
+                        {
+                          id,
+                          agent: payload.agent as Agent,
+                          text: String(payload.text),
+                          time: "",
+                        },
+                      ],
+                };
+              }),
+            }));
+          if (data.type === "message.created" && data.run_id)
+            set((state) => ({
+              workspaces: mapThread(state, (thread) => {
+                const activityId = `activity-${data.run_id}`;
+                const streamId = `stream-${data.run_id}`;
+                const activity = thread.messages.find(
+                  (item) => item.id === activityId,
+                );
+                if (!activity?.activity) return thread;
+                const completed = {
+                  ...activity,
+                  activity: {
+                    ...activity.activity,
+                    status: "completed" as const,
+                    completedAt: Date.now(),
+                    steps: activity.activity.steps.map((step) =>
+                      step.status === "running"
+                        ? { ...step, status: "completed" as const }
+                        : step,
+                    ),
+                  },
+                };
+                const withoutActivity = thread.messages.filter(
+                  (item) => item.id !== activityId,
+                );
+                const responseIndex = withoutActivity.findIndex(
+                  (item) => item.id === streamId,
+                );
+                if (responseIndex < 0)
+                  return {
+                    ...thread,
+                    messages: [...withoutActivity, completed],
+                  };
+                return {
+                  ...thread,
+                  messages: [
+                    ...withoutActivity.slice(0, responseIndex + 1),
+                    completed,
+                    ...withoutActivity.slice(responseIndex + 1),
                   ],
-            };
-          }),
-        }));
-      if (data.type === "message.created" && data.run_id)
-        set((state) => ({
-          workspaces: mapThread(state, (thread) => {
-            const activityId = `activity-${data.run_id}`;
-            const streamId = `stream-${data.run_id}`;
-            const activity = thread.messages.find(
-              (item) => item.id === activityId,
-            );
-            if (!activity?.activity) return thread;
-            const completed = {
-              ...activity,
-              activity: {
-                ...activity.activity,
-                status: "completed" as const,
-                completedAt: Date.now(),
-                steps: activity.activity.steps.map((step) =>
-                  step.status === "running"
-                    ? { ...step, status: "completed" as const }
-                    : step,
-                ),
-              },
-            };
-            const withoutActivity = thread.messages.filter(
-              (item) => item.id !== activityId,
-            );
-            const responseIndex = withoutActivity.findIndex(
-              (item) => item.id === streamId,
-            );
-            if (responseIndex < 0)
-              return { ...thread, messages: [...withoutActivity, completed] };
-            return {
-              ...thread,
-              messages: [
-                ...withoutActivity.slice(0, responseIndex + 1),
-                completed,
-                ...withoutActivity.slice(responseIndex + 1),
-              ],
-            };
-          }),
-        }));
-      if (
-        data.type === "message.created" &&
-        payload.role &&
-        payload.content !== undefined
-      )
-        set((state) => ({
-          workspaces: mapThread(state, (thread) => {
-            const streamId = data.run_id ? `stream-${data.run_id}` : "";
-            const hasStream = thread.messages.some(
-              (item) => item.id === streamId,
-            );
-            const attachments = Array.isArray(payload.attachments)
-              ? (payload.attachments as Message["attachments"])
-              : [];
-            return {
-              ...thread,
-              messages: hasStream
-                ? thread.messages.map((item) =>
-                    item.id === streamId
-                      ? {
-                          ...item,
+                };
+              }),
+            }));
+          if (
+            data.type === "message.created" &&
+            payload.role &&
+            payload.content !== undefined
+          )
+            set((state) => ({
+              workspaces: mapThread(state, (thread) => {
+                const streamId = data.run_id ? `stream-${data.run_id}` : "";
+                const hasStream = thread.messages.some(
+                  (item) => item.id === streamId,
+                );
+                const attachments = Array.isArray(payload.attachments)
+                  ? (payload.attachments as Message["attachments"])
+                  : [];
+                return {
+                  ...thread,
+                  messages: hasStream
+                    ? thread.messages.map((item) =>
+                        item.id === streamId
+                          ? {
+                              ...item,
+                              id: String(payload.id ?? crypto.randomUUID()),
+                              text: String(payload.content),
+                              attachments,
+                              time: new Date().toLocaleTimeString("zh-CN", {
+                                hour: "2-digit",
+                                minute: "2-digit",
+                              }),
+                            }
+                          : item,
+                      )
+                    : [
+                        ...thread.messages,
+                        {
                           id: String(payload.id ?? crypto.randomUUID()),
+                          agent: payload.role as Agent,
                           text: String(payload.content),
                           attachments,
-                          time: new Date().toLocaleTimeString("zh-CN", {
-                            hour: "2-digit",
-                            minute: "2-digit",
-                          }),
-                        }
-                      : item,
-                  )
-                : [
-                    ...thread.messages,
-                    {
-                      id: String(payload.id ?? crypto.randomUUID()),
-                      agent: payload.role as Agent,
-                      text: String(payload.content),
-                      attachments,
-                      time: "",
-                    },
-                  ],
-            };
-          }),
-        }));
-      if (
-        data.type === "agent.tool" &&
-        payload.item &&
-        ![
-          "userMessage",
-          "agentMessage",
-          "user_message",
-          "agent_message",
-        ].includes(String((payload.item as Record<string, unknown>).type))
-      ) {
-        const item = payload.item as Record<string, unknown>;
-        const step = toolStep(item, payload.event);
-        set((state) => {
-          const activityId = `activity-${data.run_id ?? "current"}`;
-          const workspace = state.workspaces.find(
-            (entry) => entry.id === state.workspaceId,
-          );
-          const thread = workspace?.threads.find(
-            (entry) => entry.id === state.threadId,
-          );
-          const current = thread?.messages.find(
-            (entry) => entry.id === activityId,
-          );
-          return {
-            workspaces: mapThread(state, (entry) => ({
-              ...entry,
-              messages: current
-                ? entry.messages.map((message) =>
-                    message.id === activityId && message.activity
-                      ? {
-                          ...message,
-                          activity: {
-                            ...message.activity,
-                            status: "running",
-                            steps: message.activity.steps.some(
-                              (value) => value.id === step.id,
-                            )
-                              ? message.activity.steps.map((value) => {
-                                  if (value.id !== step.id) return value;
-                                  if (payload.event === "delta")
-                                    return {
-                                      ...step,
-                                      detail: `${value.detail ?? ""}${step.detail ?? ""}`,
-                                    };
-                                  return {
-                                    ...step,
-                                    detail:
-                                      step.detail === "reasoning"
-                                        ? value.detail
-                                        : step.detail,
-                                  };
-                                })
-                              : [...message.activity.steps, step],
-                          },
-                        }
-                      : message,
-                  )
-                : [
-                    ...entry.messages,
-                    {
-                      id: activityId,
-                      agent: "system",
-                      text: "",
-                      time: "",
-                      activity: {
-                        runId: String(data.run_id ?? "current"),
-                        agent: String(payload.agent),
-                        status: "running",
-                        steps: [step],
-                        startedAt: Date.now(),
-                      },
-                    },
-                  ],
-            })),
-          };
-        });
-      }
-      if (data.type === "run.state_changed" && payload.state) {
-        get().setState(payload.state as RunState);
-        if (data.run_id && activeStatesForStore.has(payload.state as RunState))
-          set((state) => {
-            const activityId = `activity-${data.run_id}`;
-            return {
-              workspaces: mapThread(state, (thread) =>
-                thread.messages.some((item) => item.id === activityId)
-                  ? thread
-                  : {
-                      ...thread,
-                      messages: [
-                        ...thread.messages,
+                          time: "",
+                        },
+                      ],
+                };
+              }),
+            }));
+          if (
+            data.type === "agent.tool" &&
+            payload.item &&
+            ![
+              "userMessage",
+              "agentMessage",
+              "user_message",
+              "agent_message",
+            ].includes(String((payload.item as Record<string, unknown>).type))
+          ) {
+            const item = payload.item as Record<string, unknown>;
+            const step = toolStep(item, payload.event);
+            set((state) => {
+              const activityId = `activity-${data.run_id ?? "current"}`;
+              const workspace = state.workspaces.find(
+                (entry) => entry.id === state.workspaceId,
+              );
+              const thread = workspace?.threads.find(
+                (entry) => entry.id === state.threadId,
+              );
+              const current = thread?.messages.find(
+                (entry) => entry.id === activityId,
+              );
+              return {
+                workspaces: mapThread(state, (entry) => ({
+                  ...entry,
+                  messages: current
+                    ? entry.messages.map((message) =>
+                        message.id === activityId && message.activity
+                          ? {
+                              ...message,
+                              activity: {
+                                ...message.activity,
+                                status: "running",
+                                steps: message.activity.steps.some(
+                                  (value) => value.id === step.id,
+                                )
+                                  ? message.activity.steps.map((value) => {
+                                      if (value.id !== step.id) return value;
+                                      if (payload.event === "delta")
+                                        return {
+                                          ...step,
+                                          detail: `${value.detail ?? ""}${step.detail ?? ""}`,
+                                        };
+                                      return {
+                                        ...step,
+                                        detail:
+                                          step.detail === "reasoning"
+                                            ? value.detail
+                                            : step.detail,
+                                      };
+                                    })
+                                  : [...message.activity.steps, step],
+                              },
+                            }
+                          : message,
+                      )
+                    : [
+                        ...entry.messages,
                         {
                           id: activityId,
                           agent: "system",
                           text: "",
                           time: "",
                           activity: {
-                            runId: String(data.run_id),
-                            agent: String(payload.agent ?? state.mode),
+                            runId: String(data.run_id ?? "current"),
+                            agent: String(payload.agent),
                             status: "running",
-                            steps: [],
+                            steps: [step],
                             startedAt: Date.now(),
                           },
                         },
                       ],
-                    },
-              ),
-            };
-          });
-      }
-      if (data.type === "test.result")
-        get().addMessage("system", `测试结果：\n${String(payload.output)}`);
-      if (data.type === "terminal.output" && payload.text)
-        set((state) => ({
-          terminal: [...state.terminal, String(payload.text)].slice(-500),
-        }));
-      if (data.type === "run.output" && payload.kind === "git")
-        set({
-          runMeta: {
-            branch: String(payload.branch ?? ""),
-            worktree: String(payload.worktree ?? ""),
-          },
-        });
-      if (["test.result", "run.completed", "run.output"].includes(data.type)) {
-        refreshDetails();
-        void api
-          .fetchGitStatus(workspaceId)
-          .then((gitStatus) => set({ gitStatus }))
-          .catch(() => undefined);
-        void api
-          .fetchWorkspaceRemote(workspaceId)
-          .then((remoteStatus) => set({ remoteStatus }))
-          .catch(() => undefined);
-      }
-      if (
-        data.type.startsWith("execution.") ||
-        data.type === "approval.decided" ||
-        ((data.type === "run.output" || data.type === "error") &&
-          payload.job_id)
-      )
-        void get().refreshExecutionJobs();
-      if (data.type === "error")
-        set((state) => {
-          const message = String(
-            payload.message || "Agent 运行失败，请重试本轮任务。",
-          );
-          const activityId = `activity-${data.run_id ?? "current"}`;
-          return {
-            error: message,
-            workspaces: mapThread(state, (thread) => ({
-              ...thread,
-              messages: thread.messages.map((entry) =>
-                entry.id === activityId && entry.activity
-                  ? {
-                      ...entry,
-                      activity: settleActivity(
-                        entry.activity,
-                        "failed",
-                        message,
-                      ),
-                    }
-                  : entry,
-              ),
-            })),
-          };
-        });
-      if (data.type === "approval.required" && payload.id)
-        set({
-          pendingApproval: {
-            id: String(payload.id),
-            action: String(payload.action),
-            reason: String(payload.reason),
-            status: "PENDING",
-          },
-        });
-      if (data.type === "approval.decided") set({ pendingApproval: undefined });
-    };
-    socket.onerror = () => set({ error: "实时连接已中断。" });
-    set({ socket });
+                })),
+              };
+            });
+          }
+          if (data.type === "run.state_changed" && payload.state) {
+            get().setState(payload.state as RunState);
+            if (
+              data.run_id &&
+              activeStatesForStore.has(payload.state as RunState)
+            )
+              set((state) => {
+                const activityId = `activity-${data.run_id}`;
+                return {
+                  workspaces: mapThread(state, (thread) =>
+                    thread.messages.some((item) => item.id === activityId)
+                      ? thread
+                      : {
+                          ...thread,
+                          messages: [
+                            ...thread.messages,
+                            {
+                              id: activityId,
+                              agent: "system",
+                              text: "",
+                              time: "",
+                              activity: {
+                                runId: String(data.run_id),
+                                agent: String(payload.agent ?? state.mode),
+                                status: "running",
+                                steps: [],
+                                startedAt: Date.now(),
+                              },
+                            },
+                          ],
+                        },
+                  ),
+                };
+              });
+          }
+          if (data.type === "test.result")
+            get().addMessage("system", `测试结果：\n${String(payload.output)}`);
+          if (data.type === "terminal.output" && payload.text)
+            set((state) => ({
+              terminal: [...state.terminal, String(payload.text)].slice(-500),
+            }));
+          if (data.type === "run.output" && payload.kind === "git")
+            set({
+              runMeta: {
+                branch: String(payload.branch ?? ""),
+                worktree: String(payload.worktree ?? ""),
+              },
+            });
+          if (
+            ["test.result", "run.completed", "run.output"].includes(data.type)
+          ) {
+            refreshDetails();
+            void api
+              .fetchGitStatus(workspaceId)
+              .then((gitStatus) => set({ gitStatus }))
+              .catch(() => undefined);
+            void api
+              .fetchWorkspaceRemote(workspaceId)
+              .then((remoteStatus) => set({ remoteStatus }))
+              .catch(() => undefined);
+          }
+          if (
+            data.type.startsWith("execution.") ||
+            data.type === "approval.decided" ||
+            ((data.type === "run.output" || data.type === "error") &&
+              payload.job_id)
+          )
+            void get().refreshExecutionJobs();
+          if (data.type === "error")
+            set((state) => {
+              const message = String(
+                payload.message || "Agent 运行失败，请重试本轮任务。",
+              );
+              const activityId = `activity-${data.run_id ?? "current"}`;
+              return {
+                error: message,
+                workspaces: mapThread(state, (thread) => ({
+                  ...thread,
+                  messages: thread.messages.map((entry) =>
+                    entry.id === activityId && entry.activity
+                      ? {
+                          ...entry,
+                          activity: settleActivity(
+                            entry.activity,
+                            "failed",
+                            message,
+                          ),
+                        }
+                      : entry,
+                  ),
+                })),
+              };
+            });
+          if (data.type === "approval.required" && payload.id)
+            set({
+              pendingApproval: {
+                id: String(payload.id),
+                action: String(payload.action),
+                reason: String(payload.reason),
+                status: "PENDING",
+              },
+            });
+          if (data.type === "approval.decided")
+            set({ pendingApproval: undefined });
+        };
+        socket.onerror = () => set({ error: "实时连接已中断。" });
+        set({ socket });
+      })
+      .catch(() => set({ error: "实时连接鉴权失败。" }));
   },
   setMode: (mode) => set({ mode }),
   addMessage: (agent, text) =>
