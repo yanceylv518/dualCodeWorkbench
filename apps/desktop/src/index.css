@@ -3087,6 +3087,42 @@ button:disabled {
 .message-content p:last-child {
   margin-bottom: 0;
 }
+.message-content :is(h1, h2, h3, h4) {
+  margin: 16px 0 8px;
+  color: #f2f6fb;
+  line-height: 1.35;
+}
+.message-content :is(h1, h2, h3, h4):first-child {
+  margin-top: 0;
+}
+.message-content :is(ul, ol) {
+  margin: 8px 0 12px;
+  padding-left: 24px;
+}
+.message-content li {
+  margin: 4px 0;
+}
+.message-content a {
+  color: #72aef2;
+  text-underline-offset: 2px;
+}
+.message-content table {
+  display: block;
+  overflow-x: auto;
+  width: max-content;
+  max-width: 100%;
+  margin: 12px 0;
+  border-collapse: collapse;
+}
+.message-content :is(th, td) {
+  border: 1px solid #34404c;
+  padding: 6px 10px;
+  text-align: left;
+}
+.message-content th {
+  background: #18232f;
+  color: #f2f6fb;
+}
 .message-content strong {
   color: #f2f6fb;
   font-weight: 650;
@@ -3118,16 +3154,11 @@ button:disabled {
     11px/1.6 Consolas,
     monospace;
 }
-.message-code small {
-  position: absolute;
-  top: 6px;
-  left: 10px;
-  color: #667484;
-  font: 9px sans-serif;
-  text-transform: uppercase;
-}
 .message-code code {
   white-space: pre;
+}
+.message-code-content {
+  font: inherit;
 }
 .agent-activity {
   max-width: 758px;

@@ -146,9 +146,10 @@ ESLint（0 error）、Prettier 与 Rust `cargo check` 全部通过。Phase 0 到
 - **验证结果（2026-07-13）**：建立 11/12/13/14px 字号 token、统一提亮弱文本并增加全局 focus-visible；静态策略测试阻止 <11px 字号回归。TypeScript、前端 16 项、严格 ESLint 与 Prettier 通过。
 
 ### P2-2 Markdown 渲染器替换
-- [ ] 用 `react-markdown`（+ `remark-gfm`，禁 raw HTML）替换 `App.tsx:208-219` 的手写 `FormattedMessage`；代码块用轻量高亮（如 `highlight.js` 按需引入或延续现有 pre 样式），支持标题/链接（`target=_blank rel=noreferrer`）/有序无序列表/表格。
-- [ ] 保留现有消息气泡样式，新增 markdown 元素样式。
-- [ ] 组件测试：列表、链接、代码块、表格各一条渲染断言。
+- [x] 用 `react-markdown`（+ `remark-gfm`，禁 raw HTML）替换 `App.tsx:208-219` 的手写 `FormattedMessage`；代码块延续现有 pre 样式，支持标题/链接（`target=_blank rel=noreferrer`）/有序无序列表/表格。
+- [x] 保留现有消息气泡样式，新增 markdown 元素样式。
+- [x] 组件测试：列表、链接、代码块、表格各一条渲染断言。
+- **验证结果（2026-07-13）**：消息正文改用标准 GFM 渲染且跳过 raw HTML，补齐标题、列表、链接、代码块和表格样式；TypeScript、前端 18 项、严格 ESLint 与 Prettier 通过。
 
 ### P2-3 Diff 面板文件导航 + Monaco 懒加载
 - [ ] 按 `details.changes`（后端已有 changed_files）拆分 diff：文件列表 + 单文件视图，或逐文件可折叠分组；保留只读。

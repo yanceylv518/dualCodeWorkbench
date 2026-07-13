@@ -1,11 +1,4 @@
-import {
-  Fragment,
-  useCallback,
-  useEffect,
-  useMemo,
-  useRef,
-  useState,
-} from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import Editor from "@monaco-editor/react";
 import { isTauri } from "@tauri-apps/api/core";
 import { getCurrentWindow } from "@tauri-apps/api/window";
@@ -43,6 +36,7 @@ import {
   RefreshCw,
   RotateCcw,
 } from "lucide-react";
+import { MarkdownMessage } from "./components/MarkdownMessage";
 import { SettingsDialog } from "./SettingsDialog";
 import { ProjectDialog } from "./ProjectDialog";
 import { ExecutionEvidence } from "./ExecutionEvidence";
@@ -970,7 +964,7 @@ function MessageCard({
               })}
             </div>
           ) : null}
-          <FormattedMessage text={text} />
+          <MarkdownMessage text={text} />
         </div>
         {agent === "user" && (
           <div className="message-actions">
@@ -1052,59 +1046,6 @@ function ImageAttachment({ url, name }: { url: string; name: string }) {
           </div>
         </div>
       )}
-    </>
-  );
-}
-function FormattedMessage({ text }: { text: string }) {
-  const inline = (value: string) =>
-    value
-      .split(/(`[^`]+`|\*\*[^*]+\*\*)/g)
-      .filter(Boolean)
-      .map((part, index) => {
-        if (part.startsWith("**") && part.endsWith("**"))
-          return <strong key={index}>{part.slice(2, -2)}</strong>;
-        if (part.startsWith("`") && part.endsWith("`"))
-          return (
-            <code className="message-inline-code" key={index}>
-              {part.slice(1, -1)}
-            </code>
-          );
-        return <Fragment key={index}>{part}</Fragment>;
-      });
-  const blocks = text.split(/```/);
-  return (
-    <>
-      {blocks.map((block, index) => {
-        if (index % 2 === 1) {
-          const lines = block.replace(/^\s+/, "").split("\n");
-          const language = lines[0]?.match(/^[\w+-]+$/) ? lines.shift() : "";
-          return (
-            <pre className="message-code" key={index}>
-              <small>{language}</small>
-              <code>{lines.join("\n").trim()}</code>
-            </pre>
-          );
-        }
-        return block
-          .split(/\n{2,}/)
-          .filter(Boolean)
-          .map((paragraph, part) => (
-            <p key={`${index}-${part}`}>
-              {paragraph.split("\n").map((line, lineIndex) => {
-                const list = /^\s*[-*]\s/.test(line);
-                return (
-                  <span
-                    className={list ? "message-list-line" : ""}
-                    key={lineIndex}
-                  >
-                    {inline(line.replace(/^\s*[-*]\s/, "• "))}
-                    {lineIndex < paragraph.split("\n").length - 1 && <br />}
-                  </span>
-                );
-              })}
-            </p>
-          ));
-      })}
     </>
   );
 }

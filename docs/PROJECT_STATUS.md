@@ -3,6 +3,7 @@
 ## 2026-07-13 Phase 2 前端设计与信息架构
 
 - P2-1 已完成：建立统一字号、弱文本与键盘焦点 token，移除小于 11px 的文本和裸焦点轮廓；TypeScript、前端 16 项、严格 ESLint 与 Prettier 通过。
+- P2-2 已完成：手写消息格式化器替换为禁用 raw HTML 的 `react-markdown + remark-gfm`，支持标题、链接、列表、代码块和表格；TypeScript、前端 18 项、严格 ESLint 与 Prettier 通过。
 
 ## 2026-07-13 Phase 1 前端高严重度交互整改
 
