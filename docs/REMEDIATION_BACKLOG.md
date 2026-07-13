@@ -51,9 +51,10 @@ corepack pnpm --filter @dualcode/desktop lint
 - **验证结果（2026-07-13）**：TypeScript 类型检查通过；前端 7 项组件测试通过；指定演示字符串全局搜索无结果。
 
 ### P0-3 重写 E2E 冒烟测试
-- [ ] `tests/e2e/workbench.spec.ts` 当前断言的是已删除的演示 UI，必然失败。重写为最小真实冒烟：启动前端（后端 mock 或真实 sidecar 任选，写清前置条件），断言空状态「打开本地代码项目」渲染、设置对话框可打开可关闭。
-- [ ] 把 e2e 纳入 `tests/e2e/package.json` 可一键运行，并在 README「检查与测试」补充命令。
+- [x] `tests/e2e/workbench.spec.ts` 当前断言的是已删除的演示 UI，必然失败。重写为最小真实冒烟：启动前端（后端 mock 或真实 sidecar 任选，写清前置条件），断言空状态「打开本地代码项目」渲染、设置对话框可打开可关闭。
+- [x] 把 e2e 纳入 `tests/e2e/package.json` 可一键运行，并在 README「检查与测试」补充命令。
 - **验收**：`pnpm --dir tests/e2e test`（或等价命令）本机可跑通。
+- **验证结果（2026-07-13）**：`corepack pnpm --dir tests/e2e test` 通过（1 项）；测试使用独立 1421 端口自行启动前端，后端可不启动。
 
 ### P0-4 建立 CI 与前端 lint
 - [ ] 新增 `.github/workflows/ci.yml`：matrix 覆盖 ubuntu-latest 与 windows-latest；任务包含后端 pytest、`ruff check`、前端 typecheck、前端 vitest。Tauri 打包不进 CI（保留本地脚本）。
