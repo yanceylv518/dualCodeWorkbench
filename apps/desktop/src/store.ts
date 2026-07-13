@@ -68,6 +68,8 @@ interface Store {
     media_type: string;
     size: number;
   }[];
+  drafts: Record<string, string>;
+  setDraft: (threadId: string, text: string) => void;
   creatingThread: boolean;
   notify: (
     level: Notification["level"],
@@ -185,6 +187,9 @@ export const useStore = create<Store>((set, get) => ({
   notifications: [],
   executionJobs: [],
   draftAttachments: [],
+  drafts: {},
+  setDraft: (threadId, text) =>
+    set((state) => ({ drafts: { ...state.drafts, [threadId]: text } })),
   creatingThread: false,
   notify: (level, message, timeoutMs = level === "info" ? 5000 : undefined) => {
     const id = `notification-${Date.now()}-${notificationSequence++}`;

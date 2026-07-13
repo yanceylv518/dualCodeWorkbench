@@ -21,7 +21,22 @@ afterEach(() => {
     workspaces: [],
     workspaceId: "",
     threadId: "",
+    drafts: {},
   });
+});
+
+const singleTaskState = (state: "CREATED" | "IMPLEMENTING") => ({
+  backend: "online" as const,
+  workspaceId: "workspace-1",
+  threadId: "thread-1",
+  workspaces: [
+    {
+      id: "workspace-1",
+      name: "Project",
+      path: "D:/Project",
+      threads: [{ id: "thread-1", title: "Task", state, messages: [] }],
+    },
+  ],
 });
 
 describe("workbench", () => {
@@ -99,6 +114,40 @@ describe("workbench", () => {
     fireEvent.keyDown(composer, { key: "Enter", isComposing: true });
 
     expect(sendPrompt).not.toHaveBeenCalled();
+  });
+
+  it("keeps the composer editable while a run is active and blocks Enter", () => {
+    const sendPrompt = vi.fn(async () => undefined);
+    useStore.setState({ ...singleTaskState("IMPLEMENTING"), sendPrompt });
+
+    render(<App />);
+    const composer = screen.getByPlaceholderText<HTMLTextAreaElement>(
+      "Agent 处理中；可以先起草下一条消息…",
+    );
+    expect(composer.disabled).toBe(false);
+    fireEvent.change(composer, { target: { value: "下一条草稿" } });
+    expect(useStore.getState().drafts["thread-1"]).toBe("下一条草稿");
+    fireEvent.keyDown(composer, { key: "Enter" });
+    expect(sendPrompt).not.toHaveBeenCalled();
+    const stop = screen.getByRole("button", {
+      name: /停止/,
+    }) as HTMLButtonElement;
+    expect(stop.disabled).toBe(false);
+  });
+
+  it("disables send until the draft has content", () => {
+    useStore.setState(singleTaskState("CREATED"));
+
+    render(<App />);
+    const send = screen.getByRole("button", {
+      name: /发送/,
+    }) as HTMLButtonElement;
+    expect(send.disabled).toBe(true);
+    fireEvent.change(
+      screen.getByPlaceholderText("输入消息；可以拖入文件或粘贴截图…"),
+      { target: { value: "开始" } },
+    );
+    expect(send.disabled).toBe(false);
   });
 
   it("supports inline task rename and explicit delete confirmation", () => {

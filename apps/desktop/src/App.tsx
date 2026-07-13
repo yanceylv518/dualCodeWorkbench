@@ -88,7 +88,8 @@ export default function App() {
     (item) => item.id === store.workspaceId,
   );
   const thread = workspace?.threads.find((item) => item.id === store.threadId);
-  const [text, setText] = useState("");
+  const text = store.drafts[store.threadId] ?? "";
+  const setText = (value: string) => store.setDraft(store.threadId, value);
   const [query, setQuery] = useState("");
   const [rightTab, setRightTab] = useState<
     "status" | "contract" | "handoff" | "recovery"
@@ -1258,7 +1259,7 @@ export function Composer({
   removeAttachment: (id: string) => void;
   notify: (level: "info" | "error", message: string) => void;
 }) {
-  const unavailable = running || offline;
+  const emptyDraft = !text.trim() && attachments.length === 0;
   const [dragging, setDragging] = useState(false);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
   useEffect(() => {
@@ -1314,7 +1315,7 @@ export function Composer({
         <textarea
           ref={textareaRef}
           value={text}
-          disabled={unavailable}
+          disabled={offline}
           onChange={(event) => setText(event.target.value)}
           onPaste={(event) => {
             if (offline) return;
@@ -1325,14 +1326,14 @@ export function Composer({
             if (event.nativeEvent.isComposing) return;
             if (event.key === "Enter" && !event.shiftKey) {
               event.preventDefault();
-              run();
+              if (!running) run();
             }
           }}
           placeholder={
             offline
               ? "后端离线，请重试连接…"
               : running
-                ? "Agent 正在处理本轮请求…"
+                ? "Agent 处理中；可以先起草下一条消息…"
                 : "输入消息；可以拖入文件或粘贴截图…"
           }
         />
@@ -1356,9 +1357,13 @@ export function Composer({
           >
             <ImagePlus size={15} />
           </button>
-          <span className="composer-hint">Enter 发送 · Shift+Enter 换行</span>
+          <span className="composer-hint">
+            {running
+              ? "本轮完成后即可发送草稿"
+              : "Enter 发送 · Shift+Enter 换行"}
+          </span>
           <select
-            disabled={unavailable}
+            disabled={offline}
             value={mode}
             onChange={(event) => setMode(event.target.value as Mode)}
           >
@@ -1369,7 +1374,7 @@ export function Composer({
             ))}
           </select>
           <button
-            disabled={offline}
+            disabled={offline || (!running && emptyDraft)}
             className={`run-button ${running ? "stop" : ""}`}
             onClick={() => (running ? void cancel() : run())}
           >

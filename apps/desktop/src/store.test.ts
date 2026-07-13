@@ -99,6 +99,18 @@ describe("notifications", () => {
   });
 });
 
+describe("composer drafts", () => {
+  it("keeps an independent draft per thread", () => {
+    const store = useStore.getState();
+    store.setDraft("thread-a", "给任务 A 的草稿");
+    store.setDraft("thread-b", "任务 B");
+    store.setDraft("thread-b", "任务 B 的新草稿");
+
+    expect(useStore.getState().drafts["thread-a"]).toBe("给任务 A 的草稿");
+    expect(useStore.getState().drafts["thread-b"]).toBe("任务 B 的新草稿");
+  });
+});
+
 describe("thread management", () => {
   it("derives and persists a title from the first user message", async () => {
     useStore.setState({
