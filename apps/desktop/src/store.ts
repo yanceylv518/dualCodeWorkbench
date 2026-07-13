@@ -667,14 +667,10 @@ export const useStore = create<Store>((set, get) => ({
     get().setSelection(workspace.id, workspace.threads[0]?.id ?? "");
   },
   provisionWorkspace: async (value) => {
-    try {
-      const created = await api.provisionWorkspace(value);
-      const workspaces = await api.fetchWorkspaces();
-      set({ workspaces });
-      get().setSelection(created.id, created.threads[0]?.id ?? "");
-    } catch (error) {
-      throw error;
-    }
+    const created = await api.provisionWorkspace(value);
+    const workspaces = await api.fetchWorkspaces();
+    set({ workspaces });
+    get().setSelection(created.id, created.threads[0]?.id ?? "");
   },
   removeWorkspace: async (workspaceId) => {
     try {

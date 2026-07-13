@@ -57,10 +57,11 @@ corepack pnpm --filter @dualcode/desktop lint
 - **验证结果（2026-07-13）**：`corepack pnpm --dir tests/e2e test` 通过（1 项）；测试使用独立 1421 端口自行启动前端，后端可不启动。
 
 ### P0-4 建立 CI 与前端 lint
-- [ ] 新增 `.github/workflows/ci.yml`：matrix 覆盖 ubuntu-latest 与 windows-latest；任务包含后端 pytest、`ruff check`、前端 typecheck、前端 vitest。Tauri 打包不进 CI（保留本地脚本）。
-- [ ] 前端引入 ESLint（typescript-eslint + react-hooks 插件）与 Prettier 强制格式化：新增 `lint` script，`prettier --write` 全量格式化一次 `apps/desktop/src`（**单独一个 commit，只做格式化，不夹带逻辑改动**）。
-- [ ] `pyproject.toml` 确认 ruff 配置存在并在 CI 中执行。
+- [x] 新增 `.github/workflows/ci.yml`：matrix 覆盖 ubuntu-latest 与 windows-latest；任务包含后端 pytest、`ruff check`、前端 typecheck、前端 vitest。Tauri 打包不进 CI（保留本地脚本）。
+- [x] 前端引入 ESLint（typescript-eslint + react-hooks 插件）与 Prettier 强制格式化：新增 `lint` script，`prettier --write` 全量格式化一次 `apps/desktop/src`（**单独一个 commit，只做格式化，不夹带逻辑改动**）。
+- [x] `pyproject.toml` 确认 ruff 配置存在并在 CI 中执行。
 - **验收**：CI 在 PR 上全绿；`App.tsx` 等文件不再存在超长单行组件（Prettier 默认 printWidth 即可）。
+- **验证结果（2026-07-13）**：格式化已用独立提交 `3152c80` 完成；本地等价 CI 验证为 Ruff 通过、后端 68 项、前端 7 项、ESLint、Prettier 和类型检查通过。GitHub 双平台 workflow 将在推送后执行。
 
 ### P0-5 本地 API 增加 sidecar token 鉴权
 - [ ] 后端启动时生成一次性随机 token；所有 `/api/*`（含 WebSocket）校验 `X-DualCode-Token` 头或 `?token=` 查询参数，缺失/错误返回 401。
