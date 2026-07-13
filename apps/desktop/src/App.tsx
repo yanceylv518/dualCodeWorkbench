@@ -433,6 +433,8 @@ export default function App() {
                       task={task}
                       active={task.id === store.threadId}
                       onClick={() => store.setSelection(item.id, task.id)}
+                      rename={(title) => store.renameThread(task.id, title)}
+                      remove={() => store.removeThread(task.id)}
                     />
                   ))}
                 </div>
@@ -797,25 +799,93 @@ function ThreadButton({
   task,
   active,
   onClick,
+  rename,
+  remove,
 }: {
   task: Thread;
   active: boolean;
   onClick: () => void;
+  rename: (title: string) => Promise<void>;
+  remove: () => Promise<void>;
 }) {
+  const [editing, setEditing] = useState(false);
+  const [title, setTitle] = useState(task.title);
+  const [menu, setMenu] = useState(false);
+  const [confirmingDelete, setConfirmingDelete] = useState(false);
+  const save = async () => {
+    const normalized = title.trim();
+    if (normalized && normalized !== task.title) await rename(normalized);
+    else setTitle(task.title);
+    setEditing(false);
+  };
   return (
-    <button
+    <div
       className={`thread-button ${active ? "active" : ""}`}
       onClick={onClick}
     >
       <span className={`state-dot ${task.state.toLowerCase()}`} />
       <div>
-        <strong>{task.title}</strong>
+        {editing ? (
+          <input
+            autoFocus
+            value={title}
+            onClick={(event) => event.stopPropagation()}
+            onChange={(event) => setTitle(event.target.value)}
+            onBlur={() => void save()}
+            onKeyDown={(event) => {
+              if (event.key === "Enter") void save();
+              if (event.key === "Escape") {
+                setTitle(task.title);
+                setEditing(false);
+              }
+            }}
+          />
+        ) : (
+          <strong onDoubleClick={() => setEditing(true)}>{task.title}</strong>
+        )}
         <small>{stateLabel[task.state]}</small>
       </div>
-      {activeStates.has(task.state) && (
+      {activeStates.has(task.state) ? (
         <LoaderCircle size={12} className="spin" />
+      ) : (
+        <button
+          className="thread-menu-trigger"
+          aria-label={`管理任务 ${task.title}`}
+          onClick={(event) => {
+            event.stopPropagation();
+            setMenu((value) => !value);
+            setConfirmingDelete(false);
+          }}
+        >
+          <MoreHorizontal size={13} />
+        </button>
       )}
-    </button>
+      {menu && (
+        <div
+          className="thread-menu"
+          onClick={(event) => event.stopPropagation()}
+        >
+          <button
+            onClick={() => {
+              setMenu(false);
+              setEditing(true);
+            }}
+          >
+            重命名
+          </button>
+          <button
+            className={confirmingDelete ? "danger" : ""}
+            onClick={() => {
+              if (!confirmingDelete) return setConfirmingDelete(true);
+              setMenu(false);
+              void remove();
+            }}
+          >
+            {confirmingDelete ? "确认删除任务" : "删除任务"}
+          </button>
+        </div>
+      )}
+    </div>
   );
 }
 function TaskHeader({ thread }: { thread: Thread }) {

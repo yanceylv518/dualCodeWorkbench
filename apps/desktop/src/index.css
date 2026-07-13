@@ -336,6 +336,7 @@ button:disabled {
   margin-top: 4px;
 }
 .thread-button {
+  position: relative;
   width: 100%;
   min-height: 47px;
   display: flex;
@@ -347,6 +348,7 @@ button:disabled {
   background: transparent;
   text-align: left;
   color: #778395;
+  cursor: pointer;
 }
 .thread-button:hover {
   background: #141a22;
@@ -373,6 +375,57 @@ button:disabled {
   margin-top: 4px;
   font-size: var(--text-xs);
   color: #697689;
+}
+.thread-button input {
+  width: 100%;
+  border: 1px solid #4c78a8;
+  border-radius: 4px;
+  background: #10171f;
+  padding: 3px 5px;
+  color: #f1f5fa;
+  font-size: var(--text-base);
+}
+.thread-menu-trigger {
+  display: grid;
+  place-items: center;
+  border: 0;
+  background: transparent;
+  padding: 3px;
+  color: #8995a3;
+  opacity: 0;
+}
+.thread-button:hover .thread-menu-trigger,
+.thread-menu-trigger:focus-visible {
+  opacity: 1;
+}
+.thread-button > .thread-menu {
+  position: absolute;
+  z-index: 12;
+  top: 36px;
+  right: 6px;
+  display: grid;
+  min-width: 130px;
+  flex: none;
+  border: 1px solid #434a52;
+  border-radius: 7px;
+  background: #20252a;
+  padding: 4px;
+  box-shadow: 0 10px 24px #0009;
+}
+.thread-menu button {
+  border: 0;
+  border-radius: 4px;
+  background: transparent;
+  padding: 7px 8px;
+  color: #d1d6dc;
+  text-align: left;
+}
+.thread-menu button:hover {
+  background: #30363c;
+}
+.thread-menu button.danger {
+  background: #482326;
+  color: #ffadb0;
 }
 .state-dot {
   width: 6px;

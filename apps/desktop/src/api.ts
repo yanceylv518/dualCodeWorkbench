@@ -130,6 +130,31 @@ export async function createThread(workspaceId: string, title: string) {
   if (!r.ok) throw new Error(await r.text());
   return r.json();
 }
+export async function updateThread(
+  workspaceId: string,
+  threadId: string,
+  title: string,
+) {
+  const r = await fetch(
+    `${API}/workspaces/${workspaceId}/threads/${threadId}`,
+    {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ title }),
+    },
+  );
+  if (!r.ok) throw await responseError(r);
+  return r.json();
+}
+export async function removeThread(workspaceId: string, threadId: string) {
+  const r = await fetch(
+    `${API}/workspaces/${workspaceId}/threads/${threadId}`,
+    {
+      method: "DELETE",
+    },
+  );
+  if (!r.ok) throw await responseError(r);
+}
 export async function sendMessage(
   workspaceId: string,
   threadId: string,

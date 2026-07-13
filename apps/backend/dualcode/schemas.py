@@ -39,6 +39,10 @@ class ThreadCreate(BaseModel):
     title: str = Field(min_length=1, max_length=200)
 
 
+class ThreadUpdate(BaseModel):
+    title: str = Field(min_length=1, max_length=200)
+
+
 class WorkspaceCreate(BaseModel):
     path: str = Field(min_length=1, max_length=1024)
     name: str | None = Field(default=None, min_length=1, max_length=120)

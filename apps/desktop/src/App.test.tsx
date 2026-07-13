@@ -101,6 +101,37 @@ describe("workbench", () => {
     expect(sendPrompt).not.toHaveBeenCalled();
   });
 
+  it("supports inline task rename and explicit delete confirmation", () => {
+    useStore.setState({
+      backend: "online",
+      workspaceId: "workspace-1",
+      threadId: "thread-1",
+      workspaces: [
+        {
+          id: "workspace-1",
+          name: "Project",
+          path: "D:/Project",
+          threads: [
+            { id: "thread-1", title: "Task", state: "CREATED", messages: [] },
+          ],
+        },
+      ],
+    });
+
+    render(<App />);
+    const taskName = screen
+      .getAllByText("Task")
+      .find((element) => element.tagName === "STRONG");
+    expect(taskName).toBeTruthy();
+    fireEvent.doubleClick(taskName!);
+    expect(screen.getByDisplayValue("Task")).toBeTruthy();
+    fireEvent.keyDown(screen.getByDisplayValue("Task"), { key: "Escape" });
+
+    fireEvent.click(screen.getByRole("button", { name: "管理任务 Task" }));
+    fireEvent.click(screen.getByRole("button", { name: "删除任务" }));
+    expect(screen.getByRole("button", { name: "确认删除任务" })).toBeTruthy();
+  });
+
   it("keeps approval actions visible when the inspector is hidden", () => {
     useStore.setState({
       backend: "online",

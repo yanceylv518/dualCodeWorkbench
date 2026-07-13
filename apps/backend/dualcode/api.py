@@ -2,6 +2,7 @@ import asyncio
 import io
 import json
 import re
+import shutil
 import subprocess
 import uuid
 from pathlib import Path, PurePosixPath
@@ -53,7 +54,7 @@ from .models import (
     Workspace,
 )
 from .scheduler import scheduler
-from .schemas import ApprovalDecision, GitActionCreate, GovernanceUpdate, HandoffCreate, MessageCreate, RemoteGitActionCreate, TaskContractUpdate, ThreadCreate, WorkspaceCreate, WorkspaceProvision, WorkspaceRead
+from .schemas import ApprovalDecision, GitActionCreate, GovernanceUpdate, HandoffCreate, MessageCreate, RemoteGitActionCreate, TaskContractUpdate, ThreadCreate, ThreadUpdate, WorkspaceCreate, WorkspaceProvision, WorkspaceRead
 from .ssh_adapter import ClaudeSshAdapter, ClaudeSshConfig, RemoteRepositoryUnavailable
 from .test_executor import TestCommand
 from .runtime_settings import AgentSettings, agent_settings_store
@@ -1136,6 +1137,79 @@ async def create_thread(
         await db.commit()
         await db.refresh(thread)
         return {"id": thread.id, "title": thread.title, "state": thread.state}
+
+
+@router.patch("/workspaces/{workspace_id}/threads/{thread_id}")
+async def update_thread(
+    workspace_id: str,
+    thread_id: str,
+    body: ThreadUpdate,
+    db: AsyncSession = Depends(get_session),
+):
+    thread = await db.scalar(
+        select(Thread).where(Thread.id == thread_id, Thread.workspace_id == workspace_id)
+    )
+    if not thread:
+        raise HTTPException(404, "Workspace/Thread mismatch")
+    title = body.title.strip()
+    if not title:
+        raise HTTPException(422, "Thread title cannot be blank")
+    thread.title = title
+    db.add(
+        AuditLog(
+            workspace_id=workspace_id,
+            thread_id=thread_id,
+            event="thread.renamed",
+            detail=f"length={len(thread.title)}",
+        )
+    )
+    await db.commit()
+    return {"id": thread.id, "title": thread.title, "state": thread.state}
+
+
+@router.delete("/workspaces/{workspace_id}/threads/{thread_id}", status_code=204)
+async def remove_thread(
+    workspace_id: str, thread_id: str, db: AsyncSession = Depends(get_session)
+):
+    thread = await db.scalar(
+        select(Thread).where(Thread.id == thread_id, Thread.workspace_id == workspace_id)
+    )
+    if not thread:
+        raise HTTPException(404, "Workspace/Thread mismatch")
+    if thread.state in {
+        RunState.PLANNING,
+        RunState.WAITING_APPROVAL,
+        RunState.IMPLEMENTING,
+        RunState.TESTING,
+        RunState.REVIEWING,
+        RunState.FALLBACK_TO_CODEX,
+    }:
+        raise HTTPException(409, "Stop the active task before deleting it")
+
+    for model in (
+        ExecutionJob,
+        AgentSession,
+        AgentRun,
+        Attachment,
+        FileChange,
+        TestRun,
+        Approval,
+        HandoffPackage,
+        TaskContract,
+        Message,
+    ):
+        await db.execute(delete(model).where(model.thread_id == thread_id))
+    await db.execute(delete(Thread).where(Thread.id == thread_id))
+    db.add(
+        AuditLog(
+            workspace_id=workspace_id,
+            thread_id=thread_id,
+            event="thread.deleted",
+            detail="task data and attachments removed",
+        )
+    )
+    await db.commit()
+    shutil.rmtree(settings.data_dir / "attachments" / workspace_id / thread_id, ignore_errors=True)
 
 
 @router.post("/workspaces/{workspace_id}/threads/{thread_id}/messages", status_code=202)

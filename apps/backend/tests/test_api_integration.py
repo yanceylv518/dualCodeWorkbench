@@ -99,6 +99,43 @@ async def test_workspace_and_thread_lifecycle_persists(api_client: httpx.AsyncCl
 
 
 @pytest.mark.asyncio
+async def test_thread_can_be_renamed_and_deleted_with_audit(
+    api_client: httpx.AsyncClient, tmp_path: Path
+):
+    repository = tmp_path / "thread-management"
+    repository.mkdir()
+    (repository / ".git").mkdir()
+    workspace = (
+        await api_client.post("/api/workspaces", json={"path": str(repository)})
+    ).json()
+    thread_id = workspace["threads"][0]["id"]
+
+    renamed = await api_client.patch(
+        f"/api/workspaces/{workspace['id']}/threads/{thread_id}",
+        json={"title": "正式任务名称"},
+    )
+    assert renamed.status_code == 200
+    assert renamed.json()["title"] == "正式任务名称"
+
+    removed = await api_client.delete(
+        f"/api/workspaces/{workspace['id']}/threads/{thread_id}"
+    )
+    assert removed.status_code == 204
+    listed = (await api_client.get("/api/workspaces")).json()
+    assert listed[0]["threads"] == []
+
+    sessions = api_client._dualcode_test_sessions  # type: ignore[attr-defined]
+    async with sessions() as db:
+        events = list(
+            await db.scalars(
+                select(AuditLog.event).where(AuditLog.thread_id == thread_id)
+            )
+        )
+    assert "thread.renamed" in events
+    assert "thread.deleted" in events
+
+
+@pytest.mark.asyncio
 async def test_workspace_creation_rejects_non_repository(api_client: httpx.AsyncClient, tmp_path: Path):
     directory = tmp_path / "not-a-repository"
     directory.mkdir()

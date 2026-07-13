@@ -87,6 +87,8 @@ interface Store {
   upload: (file: File) => Promise<void>;
   removeAttachment: (id: string) => void;
   newThread: () => Promise<void>;
+  renameThread: (threadId: string, title: string) => Promise<void>;
+  removeThread: (threadId: string) => Promise<void>;
   openWorkspace: (path: string) => Promise<void>;
   provisionWorkspace: (value: {
     path: string;
@@ -662,6 +664,14 @@ export const useStore = create<Store>((set, get) => ({
     })),
   sendPrompt: async (text) => {
     const state = get();
+    const selectedThread = state.workspaces
+      .find((workspace) => workspace.id === state.workspaceId)
+      ?.threads.find((thread) => thread.id === state.threadId);
+    const autoTitle =
+      selectedThread?.title === "新开发任务" &&
+      !selectedThread.messages.some((message) => message.agent === "user")
+        ? text.trim().replace(/\s+/g, " ").slice(0, 20)
+        : "";
     try {
       const draft = state.draftAttachments;
       const result = (await api.sendMessage(
@@ -675,9 +685,11 @@ export const useStore = create<Store>((set, get) => ({
         activeAgent: state.mode,
         draftAttachments: [],
         workspaces: mapThread(current, (thread) => {
+          const title = autoTitle || thread.title;
           if (thread.messages.some((item) => item.id === result.message_id))
             return {
               ...thread,
+              title,
               messages: thread.messages.map((item) =>
                 item.id === result.message_id
                   ? { ...item, attachments: result.attachments ?? draft }
@@ -686,6 +698,7 @@ export const useStore = create<Store>((set, get) => ({
             };
           return {
             ...thread,
+            title,
             messages: [
               ...thread.messages,
               {
@@ -699,6 +712,13 @@ export const useStore = create<Store>((set, get) => ({
           };
         }),
       }));
+      if (autoTitle) {
+        try {
+          await api.updateThread(state.workspaceId, state.threadId, autoTitle);
+        } catch (error) {
+          get().notify("info", `任务标题保存失败：${String(error)}`);
+        }
+      }
     } catch (error) {
       get().notify("error", String(error));
       throw error;
@@ -767,6 +787,45 @@ export const useStore = create<Store>((set, get) => ({
       get().notify("error", String(error));
     } finally {
       set({ creatingThread: false });
+    }
+  },
+  renameThread: async (threadId, title) => {
+    const normalized = title.trim().slice(0, 200);
+    if (!normalized) return;
+    const { workspaceId } = get();
+    try {
+      await api.updateThread(workspaceId, threadId, normalized);
+      set((state) => ({
+        workspaces: state.workspaces.map((workspace) =>
+          workspace.id !== workspaceId
+            ? workspace
+            : {
+                ...workspace,
+                threads: workspace.threads.map((thread) =>
+                  thread.id === threadId
+                    ? { ...thread, title: normalized }
+                    : thread,
+                ),
+              },
+        ),
+      }));
+    } catch (error) {
+      get().notify("error", `任务重命名失败：${String(error)}`);
+      throw error;
+    }
+  },
+  removeThread: async (threadId) => {
+    const { workspaceId } = get();
+    try {
+      await api.removeThread(workspaceId, threadId);
+      const workspaces = await api.fetchWorkspaces();
+      const workspace = workspaces.find((item) => item.id === workspaceId);
+      const nextThreadId = workspace?.threads[0]?.id ?? "";
+      set({ workspaces, threadId: nextThreadId });
+      if (nextThreadId) get().setSelection(workspaceId, nextThreadId);
+    } catch (error) {
+      get().notify("error", `删除任务失败：${String(error)}`);
+      throw error;
     }
   },
   openWorkspace: async (path) => {

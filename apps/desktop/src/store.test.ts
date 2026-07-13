@@ -16,6 +16,11 @@ vi.mock("./api", () => ({
   fetchGitStatus: vi.fn(async () => undefined),
   fetchWorkspaceRemote: vi.fn(async () => undefined),
   fetchExecutionJobs: vi.fn(async () => []),
+  sendMessage: vi.fn(async () => ({
+    message_id: "message-1",
+    attachments: [],
+  })),
+  updateThread: vi.fn(async () => ({})),
   threadSocket: vi.fn(),
 }));
 
@@ -47,6 +52,44 @@ describe("notifications", () => {
 
     vi.advanceTimersByTime(5000);
     expect(useStore.getState().notifications).toHaveLength(0);
+  });
+});
+
+describe("thread management", () => {
+  it("derives and persists a title from the first user message", async () => {
+    useStore.setState({
+      workspaceId: "workspace",
+      threadId: "thread",
+      mode: "codex",
+      workspaces: [
+        {
+          id: "workspace",
+          name: "Project",
+          path: "D:/Project",
+          threads: [
+            {
+              id: "thread",
+              title: "新开发任务",
+              state: "CREATED",
+              messages: [],
+            },
+          ],
+        },
+      ],
+    });
+
+    await useStore
+      .getState()
+      .sendPrompt("实现一个面向专业交付的任务管理功能，并补齐测试");
+
+    expect(api.updateThread).toHaveBeenCalledWith(
+      "workspace",
+      "thread",
+      "实现一个面向专业交付的任务管理功能，并补",
+    );
+    expect(useStore.getState().workspaces[0].threads[0].title).toBe(
+      "实现一个面向专业交付的任务管理功能，并补",
+    );
   });
 });
 
