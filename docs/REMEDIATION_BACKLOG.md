@@ -382,10 +382,11 @@ chunk 为预期大小；随 Phase 3 顺带处理。
 
 **Phase 3 开工前置项：**
 
-- **R5｜api.py 用户可见 HTTP 错误中文化**：`HTTPException` 的 detail 仍有 20+ 条英文语义句
+- **R5｜api.py 用户可见 HTTP 错误中文化（已完成）**：`HTTPException` 的 detail 仍有 20+ 条英文语义句
   （"Stop the active task before deleting it"、"Workspace/Thread mismatch" 等），经前端
   「请求失败：」包装后直接展示给用户。删除/重命名/审批/附件等用户高频路径的 detail 改为中文
   （保留技术细节），并同步更新断言这些字符串的测试。
+  - **验证结果（2026-07-13）**：`api.py` 全部 HTTPException 用户语义已中文化，动态底层错误统一增加中文外层；项目接入、任务重命名、审批与附件高频路径增加中文 detail 断言。Ruff 与后端全量 95 项通过。
 - **R6｜InputDialog 补 `isComposing` 守卫**：`components/dialogs.tsx` 的 Enter 提交未检查输入法
   组合态，P1-1 的同类缺陷在新组件中复发；一行守卫 + 一条组件测试。
 

@@ -143,7 +143,36 @@ async def test_workspace_creation_rejects_non_repository(api_client: httpx.Async
     response = await api_client.post("/api/workspaces", json={"path": str(directory)})
 
     assert response.status_code == 400
-    assert response.json()["detail"] == "Workspace must be a Git repository"
+    assert response.json()["detail"] == "项目必须是 Git 仓库"
+
+
+@pytest.mark.asyncio
+async def test_user_facing_http_errors_are_localized(
+    api_client: httpx.AsyncClient, tmp_path: Path
+):
+    workspace, thread = await _workspace(api_client, tmp_path)
+    prefix = f"/api/workspaces/{workspace['id']}/threads/{thread['id']}"
+
+    blank_title = await api_client.patch(
+        prefix,
+        json={"title": "   "},
+    )
+    assert blank_title.status_code == 422
+    assert blank_title.json()["detail"] == "任务标题不能为空"
+
+    missing_approval = await api_client.post(
+        f"{prefix}/approvals/missing",
+        json={"approved": True, "note": ""},
+    )
+    assert missing_approval.status_code == 404
+    assert missing_approval.json()["detail"] == "未找到待处理审批"
+
+    unsupported = await api_client.post(
+        f"{prefix}/attachments",
+        files={"file": ("archive.zip", b"not-a-zip", "application/zip")},
+    )
+    assert unsupported.status_code == 415
+    assert unsupported.json()["detail"] == "不支持此附件类型"
 
 
 @pytest.mark.asyncio

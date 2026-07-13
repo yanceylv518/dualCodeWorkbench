@@ -202,7 +202,7 @@ def _schedule_retry(job_id: str) -> None:
 async def list_execution_jobs(workspace_id: str, thread_id: str, db: AsyncSession = Depends(get_session)):
     thread = await db.scalar(select(Thread).where(Thread.id == thread_id, Thread.workspace_id == workspace_id))
     if not thread:
-        raise HTTPException(404, "Workspace or thread not found")
+        raise HTTPException(404, "未找到指定项目或任务")
     jobs = (await db.scalars(select(ExecutionJob).where(
         ExecutionJob.workspace_id == workspace_id, ExecutionJob.thread_id == thread_id
     ).order_by(ExecutionJob.created_at.desc()))).all()
@@ -216,7 +216,7 @@ async def get_execution_job(workspace_id: str, thread_id: str, job_id: str,
         ExecutionJob.id == job_id, ExecutionJob.workspace_id == workspace_id,
         ExecutionJob.thread_id == thread_id))
     if not job:
-        raise HTTPException(404, "Execution job not found")
+        raise HTTPException(404, "未找到执行任务")
     return _job_response(job)
 
 
@@ -227,11 +227,11 @@ async def retry_execution_job(workspace_id: str, thread_id: str, job_id: str,
         ExecutionJob.id == job_id, ExecutionJob.workspace_id == workspace_id,
         ExecutionJob.thread_id == thread_id))
     if not job:
-        raise HTTPException(404, "Execution job not found")
+        raise HTTPException(404, "未找到执行任务")
     try:
         changed = await request_retry(db, job)
     except ValueError as exc:
-        raise HTTPException(409, str(exc)) from exc
+        raise HTTPException(409, f"无法重试执行任务：{exc}") from exc
     await db.commit()
     if changed:
         _schedule_retry(job.id)
@@ -242,18 +242,18 @@ async def retry_execution_job(workspace_id: str, thread_id: str, job_id: str,
 async def workspace_git_status(workspace_id: str, db: AsyncSession = Depends(get_session)):
     workspace = await db.get(Workspace, workspace_id)
     if not workspace:
-        raise HTTPException(404, "Workspace not found")
+        raise HTTPException(404, "未找到指定项目")
     try:
         return await scheduler._git.repository_status(Path(workspace.path))
     except (GitError, OSError, ValueError) as exc:
-        raise HTTPException(400, str(exc)) from exc
+        raise HTTPException(400, f"无法保存 VPS 仓库配置：{exc}") from exc
 
 
 @router.get("/workspaces/{workspace_id}/remote")
 async def workspace_remote_status(workspace_id: str, db: AsyncSession = Depends(get_session)):
     workspace = await db.get(Workspace, workspace_id)
     if not workspace:
-        raise HTTPException(404, "Workspace not found")
+        raise HTTPException(404, "未找到指定项目")
     value = workspace_remote_store.get(workspace_id)
     runtime = agent_settings_store.load()
     if not value.vps_repo_path:
@@ -294,7 +294,7 @@ async def workspace_remote_status(workspace_id: str, db: AsyncSession = Depends(
 async def update_workspace_remote(workspace_id: str, value: WorkspaceRemoteSettings, db: AsyncSession = Depends(get_session)):
     workspace = await db.get(Workspace, workspace_id)
     if not workspace:
-        raise HTTPException(404, "Workspace not found")
+        raise HTTPException(404, "未找到指定项目")
     runtime = agent_settings_store.load()
     value = value.model_copy(update={"vps_repo_path": derived_repository_path(runtime.claude_ssh_projects_root, value.remote_url, workspace.name)})
     workspace_remote_store.save(workspace_id, value)
@@ -314,9 +314,9 @@ async def request_remote_git_action(
     thread = await db.scalar(select(Thread).where(Thread.id == thread_id, Thread.workspace_id == workspace_id))
     remote = workspace_remote_store.get(workspace_id)
     if not workspace or not thread:
-        raise HTTPException(404, "Workspace or thread not found")
+        raise HTTPException(404, "未找到指定项目或任务")
     if not remote.vps_repo_path:
-        raise HTTPException(400, "VPS repository path is not configured")
+        raise HTTPException(400, "尚未配置 VPS 仓库路径")
     runtime = agent_settings_store.load()
     expected_repository = derived_repository_path(
         runtime.claude_ssh_projects_root,
@@ -324,7 +324,7 @@ async def request_remote_git_action(
         workspace.name,
     )
     if body.action == "repair_provision" and remote.vps_repo_path != expected_repository:
-        raise HTTPException(400, "Refusing to repair a VPS path that was not derived for this workspace")
+        raise HTTPException(400, "拒绝修复并非由当前项目自动生成的 VPS 路径")
     adapter = ClaudeSshAdapter(ClaudeSshConfig(
         host=runtime.claude_ssh_host,
         username=runtime.claude_ssh_username,
@@ -465,7 +465,7 @@ async def request_git_action(
     workspace = await db.get(Workspace, workspace_id)
     thread = await db.scalar(select(Thread).where(Thread.id == thread_id, Thread.workspace_id == workspace_id))
     if not workspace or not thread:
-        raise HTTPException(404, "Workspace or thread not found")
+        raise HTTPException(404, "未找到指定项目或任务")
     reasons = {
         "commit": f"暂存当前全部变更并创建提交：{body.message.strip() or '(未填写提交说明)'}",
         "push": "将当前分支提交推送到已配置的远程仓库",
@@ -522,10 +522,10 @@ async def request_test_run(workspace_id: str, thread_id: str, db: AsyncSession =
     workspace = await db.get(Workspace, workspace_id)
     thread = await db.scalar(select(Thread).where(Thread.id == thread_id, Thread.workspace_id == workspace_id))
     if not workspace or not thread:
-        raise HTTPException(404, "Workspace or thread not found")
+        raise HTTPException(404, "未找到指定项目或任务")
     runtime = agent_settings_store.load()
     if not runtime.test_executable:
-        raise HTTPException(400, "Test executable is not configured in Agent settings")
+        raise HTTPException(400, "Agent 设置中尚未配置测试可执行文件")
     approval = Approval(thread_id=thread_id, action="run_test", reason=f"在本地仓库运行测试：{runtime.test_executable} {' '.join(runtime.test_arguments)}")
     db.add(approval)
     await db.flush()
@@ -692,12 +692,12 @@ async def get_agent_settings():
 @router.put("/settings/agents", response_model=AgentSettings)
 async def update_agent_settings(value: AgentSettings, db: AsyncSession = Depends(get_session)):
     if scheduler.has_active_runs():
-        raise HTTPException(409, "Agent settings cannot change while runs are active")
+        raise HTTPException(409, "Agent 正在运行时不能修改设置")
     try:
         agent_settings_store.save(value)
         scheduler.configure(value)
     except ValueError as exc:
-        raise HTTPException(400, str(exc)) from exc
+        raise HTTPException(400, f"Agent 设置无效：{exc}") from exc
     db.add(
         AuditLog(
             workspace_id="system",
@@ -729,7 +729,7 @@ async def list_approvals(
         select(Thread).where(Thread.id == thread_id, Thread.workspace_id == workspace_id)
     )
     if not thread:
-        raise HTTPException(404, "Workspace/Thread mismatch")
+        raise HTTPException(404, "项目与任务不匹配")
     items = (
         await db.scalars(
             select(Approval)
@@ -788,7 +788,7 @@ async def prepare_handoff(workspace_id: str, thread_id: str, body: HandoffCreate
     workspace = await db.get(Workspace, workspace_id)
     thread = await db.scalar(select(Thread).where(Thread.id == thread_id, Thread.workspace_id == workspace_id))
     if not workspace or not thread:
-        raise HTTPException(404, "Workspace/Thread mismatch")
+        raise HTTPException(404, "项目与任务不匹配")
     try:
         payload = await _handoff_payload(db, workspace, thread_id)
     except GitError as exc:
@@ -818,9 +818,9 @@ async def send_handoff(workspace_id: str, thread_id: str, handoff_id: str, db: A
                                                         HandoffPackage.workspace_id == workspace_id,
                                                         HandoffPackage.thread_id == thread_id))
     if not thread or not item:
-        raise HTTPException(404, "Handoff package not found")
+        raise HTTPException(404, "未找到交接包")
     if item.status != "PREPARED":
-        raise HTTPException(409, "Handoff package was already sent")
+        raise HTTPException(409, "交接包已经发送")
     run_id = await scheduler.start(thread_id, _handoff_prompt(item), item.recipient, [])
     item.status = "SENT"
     db.add(AuditLog(workspace_id=workspace_id, thread_id=thread_id, event="handoff.sent",
@@ -833,7 +833,7 @@ async def send_handoff(workspace_id: str, thread_id: str, handoff_id: str, db: A
 async def get_contract(workspace_id: str, thread_id: str, db: AsyncSession = Depends(get_session)):
     thread = await db.scalar(select(Thread).where(Thread.id == thread_id, Thread.workspace_id == workspace_id))
     if not thread:
-        raise HTTPException(404, "Workspace/Thread mismatch")
+        raise HTTPException(404, "项目与任务不匹配")
     governance = await db.scalar(select(ProjectGovernance).where(ProjectGovernance.workspace_id == workspace_id))
     if not governance:
         governance = ProjectGovernance(workspace_id=workspace_id, rules=json.dumps(DEFAULT_PROJECT_RULES, ensure_ascii=False), deliverables=json.dumps(DEFAULT_DELIVERABLES, ensure_ascii=False))
@@ -871,7 +871,7 @@ async def get_contract(workspace_id: str, thread_id: str, db: AsyncSession = Dep
 @router.put("/workspaces/{workspace_id}/governance")
 async def update_governance(workspace_id: str, body: GovernanceUpdate, db: AsyncSession = Depends(get_session)):
     if not await db.get(Workspace, workspace_id):
-        raise HTTPException(404, "Workspace not found")
+        raise HTTPException(404, "未找到指定项目")
     item = await db.scalar(select(ProjectGovernance).where(ProjectGovernance.workspace_id == workspace_id))
     if not item:
         item = ProjectGovernance(workspace_id=workspace_id)
@@ -889,7 +889,7 @@ async def update_governance(workspace_id: str, body: GovernanceUpdate, db: Async
 async def update_contract(workspace_id: str, thread_id: str, body: TaskContractUpdate, db: AsyncSession = Depends(get_session)):
     thread = await db.scalar(select(Thread).where(Thread.id == thread_id, Thread.workspace_id == workspace_id))
     if not thread:
-        raise HTTPException(404, "Workspace/Thread mismatch")
+        raise HTTPException(404, "项目与任务不匹配")
     item = await db.scalar(select(TaskContract).where(TaskContract.thread_id == thread_id))
     if not item:
         item = TaskContract(thread_id=thread_id)
@@ -910,7 +910,7 @@ async def thread_details(
         select(Thread).where(Thread.id == thread_id, Thread.workspace_id == workspace_id)
     )
     if not thread:
-        raise HTTPException(404, "Workspace/Thread mismatch")
+        raise HTTPException(404, "项目与任务不匹配")
     changes = (
         await db.scalars(select(FileChange).where(FileChange.thread_id == thread_id))
     ).all()
@@ -965,7 +965,7 @@ async def decide_approval(
         )
     )
     if not thread or not approval:
-        raise HTTPException(404, "Pending approval not found")
+        raise HTTPException(404, "未找到待处理审批")
     approval.status = "APPROVED" if body.approved else "REJECTED"
     if body.approved and body.scope == "thread" and approval.action in {"edit_files", "remote_edit_files"}:
         scheduler.grant_for_thread(thread_id, approval.action)
@@ -1006,9 +1006,9 @@ async def list_workspaces(db: AsyncSession = Depends(get_session)):
 async def create_workspace(body: WorkspaceCreate, db: AsyncSession = Depends(get_session)):
     path = Path(body.path).expanduser().resolve(strict=True)
     if not path.is_dir():
-        raise HTTPException(400, "Workspace path must be a directory")
+        raise HTTPException(400, "项目路径必须是文件夹")
     if not (path / ".git").exists():
-        raise HTTPException(400, "Workspace must be a Git repository")
+        raise HTTPException(400, "项目必须是 Git 仓库")
     existing = await db.scalar(select(Workspace).where(Workspace.path == str(path)))
     if existing:
         return await db.scalar(_workspace_query().where(Workspace.id == existing.id))
@@ -1030,7 +1030,7 @@ async def _git_command(*arguments: str, cwd: Path | None = None) -> None:
     stdout, stderr = await process.communicate()
     if process.returncode != 0:
         detail = (stderr or stdout).decode("utf-8", errors="replace").strip()
-        raise HTTPException(400, detail or "Git command failed")
+        raise HTTPException(400, f"Git 命令执行失败：{detail}" if detail else "Git 命令执行失败")
 
 
 async def _git_has_head(repository: Path) -> bool:
@@ -1062,18 +1062,18 @@ async def _create_neutral_baseline(repository: Path, project_name: str) -> None:
 @router.post("/workspaces/provision", status_code=201, response_model=WorkspaceRead)
 async def provision_workspace(body: WorkspaceProvision, db: AsyncSession = Depends(get_session)):
     if any(char in body.remote_url for char in "\r\n\0"):
-        raise HTTPException(400, "Invalid remote URL")
+        raise HTTPException(400, "远程仓库 URL 无效")
     path = Path(body.path).expanduser().resolve()
     if path.parent == path:
-        raise HTTPException(400, "A drive root cannot be used as a workspace")
+        raise HTTPException(400, "不能将磁盘根目录用作项目目录")
     existing = await db.scalar(select(Workspace).where(Workspace.path == str(path)))
     if existing:
         return await db.scalar(_workspace_query().where(Workspace.id == existing.id))
     if path.exists() and (not path.is_dir() or any(path.iterdir())):
-        raise HTTPException(409, "Target directory must be empty")
+        raise HTTPException(409, "目标目录必须为空")
     if body.mode == "clone":
         if not body.remote_url.strip():
-            raise HTTPException(400, "Remote URL is required for clone")
+            raise HTTPException(400, "克隆项目时必须提供远程仓库 URL")
         path.parent.mkdir(parents=True, exist_ok=True)
         await _git_command("clone", "--", body.remote_url.strip(), str(path))
     else:
@@ -1095,7 +1095,7 @@ async def provision_workspace(body: WorkspaceProvision, db: AsyncSession = Depen
 async def remove_workspace(workspace_id: str, db: AsyncSession = Depends(get_session)):
     workspace = await db.get(Workspace, workspace_id)
     if not workspace:
-        raise HTTPException(404, "Workspace not found")
+        raise HTTPException(404, "未找到指定项目")
     thread_ids = list((await db.scalars(select(Thread.id).where(Thread.workspace_id == workspace_id))).all())
     if thread_ids:
         running = await db.scalar(select(Thread.id).where(Thread.id.in_(thread_ids), Thread.state.in_([
@@ -1103,7 +1103,7 @@ async def remove_workspace(workspace_id: str, db: AsyncSession = Depends(get_ses
             RunState.REVIEWING, RunState.FALLBACK_TO_CODEX,
         ])).limit(1))
         if running:
-            raise HTTPException(409, "Stop active tasks before removing this project")
+            raise HTTPException(409, "移除项目前请先停止正在运行的任务")
         for model in (ExecutionJob, AgentSession, AgentRun, Attachment, FileChange, TestRun, Approval, HandoffPackage, TaskContract, Message):
             column = model.thread_id
             await db.execute(delete(model).where(column.in_(thread_ids)))
@@ -1122,7 +1122,7 @@ async def create_thread(
     lock = _thread_create_locks.setdefault(workspace_id, asyncio.Lock())
     async with lock:
         if not await db.get(Workspace, workspace_id):
-            raise HTTPException(404, "Workspace not found")
+            raise HTTPException(404, "未找到指定项目")
         existing = await db.scalar(
             select(Thread).where(
                 Thread.workspace_id == workspace_id,
@@ -1150,10 +1150,10 @@ async def update_thread(
         select(Thread).where(Thread.id == thread_id, Thread.workspace_id == workspace_id)
     )
     if not thread:
-        raise HTTPException(404, "Workspace/Thread mismatch")
+        raise HTTPException(404, "项目与任务不匹配")
     title = body.title.strip()
     if not title:
-        raise HTTPException(422, "Thread title cannot be blank")
+        raise HTTPException(422, "任务标题不能为空")
     thread.title = title
     db.add(
         AuditLog(
@@ -1175,7 +1175,7 @@ async def remove_thread(
         select(Thread).where(Thread.id == thread_id, Thread.workspace_id == workspace_id)
     )
     if not thread:
-        raise HTTPException(404, "Workspace/Thread mismatch")
+        raise HTTPException(404, "项目与任务不匹配")
     if thread.state in {
         RunState.PLANNING,
         RunState.WAITING_APPROVAL,
@@ -1184,7 +1184,7 @@ async def remove_thread(
         RunState.REVIEWING,
         RunState.FALLBACK_TO_CODEX,
     }:
-        raise HTTPException(409, "Stop the active task before deleting it")
+        raise HTTPException(409, "删除任务前请先停止当前运行")
 
     for model in (
         ExecutionJob,
@@ -1220,7 +1220,7 @@ async def create_message(
         select(Thread).where(Thread.id == thread_id, Thread.workspace_id == workspace_id)
     )
     if not thread:
-        raise HTTPException(404, "Workspace/Thread mismatch")
+        raise HTTPException(404, "项目与任务不匹配")
     if thread.state in {RunState.COMPLETED, RunState.FAILED, RunState.CANCELLED}:
         thread.state = RunState.CREATED
     attachment_count = (
@@ -1239,7 +1239,7 @@ async def create_message(
         else 0
     )
     if attachment_count != len(body.attachment_ids):
-        raise HTTPException(400, "Attachment ownership mismatch")
+        raise HTTPException(400, "附件不属于当前项目或任务")
     message = Message(thread_id=thread_id, role="user", content=body.content)
     db.add(message)
     await db.flush()
@@ -1270,7 +1270,7 @@ async def create_message(
         agent_prompt = body.content.strip() or "请查看并分析所附图片。"
         run_id = await scheduler.start(thread_id, agent_prompt, body.mode, body.attachment_ids)
     except RuntimeError as exc:
-        raise HTTPException(409, str(exc)) from exc
+        raise HTTPException(409, f"无法撤销本轮修改：{exc}") from exc
     return {"message_id": message.id, "run_id": run_id, "attachments": [
         {"id": item.id, "name": item.name, "media_type": item.media_type, "size": item.size}
         for item in attached_items
@@ -1281,7 +1281,7 @@ async def create_message(
 async def cancel_run(thread_id: str, db: AsyncSession = Depends(get_session)):
     thread = await db.get(Thread, thread_id)
     if not thread:
-        raise HTTPException(404, "Thread not found")
+        raise HTTPException(404, "未找到指定任务")
     thread.state = RunState.CREATED
     active_runs = (await db.scalars(select(AgentRun).where(
         AgentRun.thread_id == thread_id,
@@ -1306,7 +1306,7 @@ async def request_run_undo(workspace_id: str, thread_id: str, run_id: str, db: A
     workspace = await db.get(Workspace, workspace_id)
     run = await db.scalar(select(AgentRun).where(AgentRun.id == run_id, AgentRun.thread_id == thread_id, AgentRun.agent == "codex"))
     if not workspace or not run or not run.after_diff or run.after_diff == run.before_diff:
-        raise HTTPException(404, "Undo checkpoint not found")
+        raise HTTPException(404, "未找到可撤销的检查点")
     approval = Approval(thread_id=thread_id, action="undo_codex_run", reason="恢复到本轮 Codex 开始前的工作区状态；仅在当前 Diff 未发生后续变化时执行")
     db.add(approval)
     await db.flush()
@@ -1359,9 +1359,9 @@ async def retry_message(workspace_id: str, thread_id: str, message_id: str, db: 
     thread = await db.scalar(select(Thread).where(Thread.id == thread_id, Thread.workspace_id == workspace_id))
     message = await db.scalar(select(Message).where(Message.id == message_id, Message.thread_id == thread_id, Message.role == "user"))
     if not thread or not message:
-        raise HTTPException(404, "User message not found")
+        raise HTTPException(404, "未找到用户消息")
     if thread.state in {RunState.PLANNING, RunState.WAITING_APPROVAL, RunState.IMPLEMENTING, RunState.TESTING, RunState.REVIEWING}:
-        raise HTTPException(409, "Stop the active task before retrying")
+        raise HTTPException(409, "重试前请先停止当前运行")
     attachment_ids = list((await db.scalars(select(Attachment.id).where(Attachment.message_id == message_id))).all())
     prompt = message.content.strip() or "请查看并分析所附图片。"
     run_id = await scheduler.start(thread_id, prompt, "codex", attachment_ids)
@@ -1381,12 +1381,12 @@ async def upload_attachment(
         select(Thread).where(Thread.id == thread_id, Thread.workspace_id == workspace_id)
     )
     if not thread:
-        raise HTTPException(404, "Workspace/Thread mismatch")
+        raise HTTPException(404, "项目与任务不匹配")
     if file.content_type not in settings.allowed_attachment_types:
-        raise HTTPException(415, "Unsupported attachment type")
+        raise HTTPException(415, "不支持此附件类型")
     content = await file.read(settings.max_attachment_bytes + 1)
     if len(content) > settings.max_attachment_bytes:
-        raise HTTPException(413, "Attachment too large")
+        raise HTTPException(413, "附件大小超过限制")
     if file.content_type in {"image/png", "image/jpeg", "image/webp"}:
         try:
             with Image.open(io.BytesIO(content)) as image:
@@ -1398,7 +1398,7 @@ async def upload_attachment(
                 image.save(output, format=format_name)
                 content = output.getvalue()
         except (OSError, ValueError) as exc:
-            raise HTTPException(400, "Invalid image attachment") from exc
+            raise HTTPException(400, "图片附件无效或已损坏") from exc
     attachment_suffix = {
         "image/png": ".png",
         "image/jpeg": ".jpg",
@@ -1436,11 +1436,11 @@ async def attachment_content(workspace_id: str, thread_id: str, attachment_id: s
         Attachment.id == attachment_id, Attachment.workspace_id == workspace_id, Attachment.thread_id == thread_id
     ))
     if not item:
-        raise HTTPException(404, "Attachment not found")
+        raise HTTPException(404, "未找到附件")
     root = (settings.data_dir / "attachments").resolve()
     target = (root / item.storage_key).resolve()
     if not target.is_relative_to(root) or not target.is_file():
-        raise HTTPException(404, "Attachment content not found")
+        raise HTTPException(404, "未找到附件内容")
     return FileResponse(target, media_type=item.media_type, filename=item.name)
 
 
