@@ -4,6 +4,36 @@ import * as api from "./api";
 import type { HandoffPackage } from "./types";
 import "./handoff.css";
 
+const handoffStatusLabel = { PREPARED: "待确认", SENT: "已发送" } as const;
+const contractStatusLabel: Record<string, string> = {
+  DRAFT: "草稿",
+  CLARIFYING: "澄清中",
+  READY: "可实施",
+  IMPLEMENTING: "实施中",
+  REVIEWING: "审查中",
+  CONDITIONAL_PASS: "有条件通过",
+  PASSED: "已通过",
+  BLOCKED: "已阻塞",
+};
+
+function stringList(value: unknown): string[] {
+  return Array.isArray(value) ? value.map(String).filter(Boolean) : [];
+}
+
+export function summarizeDiff(diff: string, fallbackFiles: string[]) {
+  const headers = diff.match(/^diff --git /gm)?.length ?? 0;
+  const lines = diff.split("\n");
+  return {
+    files: headers || fallbackFiles.length,
+    additions: lines.filter(
+      (line) => line.startsWith("+") && !line.startsWith("+++"),
+    ).length,
+    deletions: lines.filter(
+      (line) => line.startsWith("-") && !line.startsWith("---"),
+    ).length,
+  };
+}
+
 export function HandoffPanel({
   workspaceId,
   threadId,
@@ -66,6 +96,13 @@ export function HandoffPanel({
       setBusy(false);
     }
   };
+  const contract = selected?.payload.contract;
+  const diffSummary = selected
+    ? summarizeDiff(
+        selected.payload.diff,
+        selected.payload.repository.changed_files,
+      )
+    : undefined;
   return (
     <div className="handoff-panel">
       <header>
@@ -104,8 +141,10 @@ export function HandoffPanel({
                   ? "交给 Claude 独立审查"
                   : "交给 Codex 仓库验证"}
               </strong>
-              <span>
-                {selected.status === "SENT" ? "已发送" : "等待用户确认"}
+              <span
+                className={`handoff-status ${selected.status.toLowerCase()}`}
+              >
+                {handoffStatusLabel[selected.status]}
               </span>
             </div>
             {selected.status === "PREPARED" ? (
@@ -117,37 +156,90 @@ export function HandoffPanel({
               <Check size={16} />
             )}
           </header>
-          <dl>
-            <dt>目标</dt>
-            <dd>{String(selected.payload.contract.task_goal || "尚未定义")}</dd>
-            <dt>仓库</dt>
-            <dd>
-              {selected.payload.repository.branch || "未检测"} ·{" "}
-              {selected.payload.repository.head || "尚无提交"}
-            </dd>
-            <dt>修改文件</dt>
-            <dd>
-              {selected.payload.repository.changed_files.length
-                ? selected.payload.repository.changed_files.join("、")
-                : "无"}
-            </dd>
-            <dt>Diff</dt>
-            <dd>
-              {selected.payload.diff
-                ? `${selected.payload.diff.length} 字符`
-                : "无"}
-            </dd>
-            <dt>测试证据</dt>
-            <dd>
-              {selected.payload.tests.length
-                ? `${selected.payload.tests.length} 条`
-                : "无"}
-            </dd>
-          </dl>
-          <details>
-            <summary>查看交接内容</summary>
-            <pre>{JSON.stringify(selected.payload, null, 2)}</pre>
-          </details>
+          <section className="handoff-section">
+            <header>
+              <strong>契约摘要</strong>
+              <span className="handoff-status contract">
+                {contractStatusLabel[String(contract?.status)] || "未定义"}
+              </span>
+            </header>
+            <dl>
+              <dt>产品目标</dt>
+              <dd>{String(contract?.product_goal || "尚未定义")}</dd>
+              <dt>任务目标</dt>
+              <dd>{String(contract?.task_goal || "尚未定义")}</dd>
+              <dt>验收标准</dt>
+              <dd>
+                {stringList(contract?.acceptance).join("；") || "尚未定义"}
+              </dd>
+              <dt>已知风险</dt>
+              <dd>{stringList(contract?.known_risks).join("；") || "无"}</dd>
+            </dl>
+          </section>
+          <section className="handoff-section">
+            <header>
+              <strong>仓库基线</strong>
+            </header>
+            <dl>
+              <dt>分支 / HEAD</dt>
+              <dd>
+                {selected.payload.repository.branch || "未检测"} ·{" "}
+                {selected.payload.repository.head || "尚无提交"}
+              </dd>
+              <dt>上游</dt>
+              <dd>{selected.payload.repository.upstream || "未关联"}</dd>
+            </dl>
+          </section>
+          <section className="handoff-section">
+            <header>
+              <strong>修改内容</strong>
+              <span>
+                {diffSummary?.files ?? 0} 个文件、+{diffSummary?.additions ?? 0}
+                /-{diffSummary?.deletions ?? 0} 行
+              </span>
+            </header>
+            {selected.payload.repository.changed_files.length ? (
+              <ul className="handoff-files">
+                {selected.payload.repository.changed_files.map((file) => (
+                  <li key={file}>{file}</li>
+                ))}
+              </ul>
+            ) : (
+              <p className="handoff-empty">没有记录到修改文件</p>
+            )}
+            {selected.payload.diff && (
+              <details>
+                <summary>展开 Diff 预览</summary>
+                <pre>{selected.payload.diff}</pre>
+              </details>
+            )}
+          </section>
+          <section className="handoff-section">
+            <header>
+              <strong>测试证据</strong>
+              <span>{selected.payload.tests.length} 条</span>
+            </header>
+            {selected.payload.tests.length ? (
+              selected.payload.tests.map((test, index) => (
+                <details
+                  className="handoff-test"
+                  key={`${test.command}-${index}`}
+                >
+                  <summary>
+                    <span
+                      className={`test-result ${test.exit_code === 0 ? "passed" : "failed"}`}
+                    >
+                      {test.exit_code === 0 ? "通过" : "失败"}
+                    </span>
+                    {test.command}
+                  </summary>
+                  <pre>{test.output || "无输出"}</pre>
+                </details>
+              ))
+            ) : (
+              <p className="handoff-empty">尚无测试证据</p>
+            )}
+          </section>
         </section>
       ) : (
         <div className="panel-empty">
@@ -164,7 +256,7 @@ export function HandoffPanel({
               <span>
                 {item.recipient === "claude" ? "Claude 审查" : "Codex 验证"}
               </span>
-              <small>{item.status}</small>
+              <small>{handoffStatusLabel[item.status]}</small>
             </button>
           ))}
         </section>

@@ -5,6 +5,7 @@
 - P2-1 已完成：建立统一字号、弱文本与键盘焦点 token，移除小于 11px 的文本和裸焦点轮廓；TypeScript、前端 16 项、严格 ESLint 与 Prettier 通过。
 - P2-2 已完成：手写消息格式化器替换为禁用 raw HTML 的 `react-markdown + remark-gfm`，支持标题、链接、列表、代码块和表格；TypeScript、前端 18 项、严格 ESLint 与 Prettier 通过。
 - P2-3 已完成：真实 Git Diff 按文件拆分导航，Monaco 改为进入变更页后动态加载；初始 JS 降至 459kB，生产构建无 chunk 警告，TypeScript、前端 20 项、严格 ESLint 与 Prettier 通过。
+- P2-4 已完成：交接预览移除裸 JSON，按契约摘要、仓库基线、修改文件、可折叠 Diff 和测试证据结构化展示，并提供中文状态与文件/增删行统计；TypeScript、前端 20 项、严格 ESLint 与 Prettier 通过。
 
 ## 2026-07-13 Phase 1 前端高严重度交互整改
 

@@ -176,7 +176,8 @@ ESLint（0 error）、Prettier 与 Rust `cargo check` 全部通过。Phase 0 到
 
 ### P2-4 交接面板结构化呈现
 
-- [ ] `HandoffPanel.tsx:16`：去掉裸 `JSON.stringify` 预览，按 payload 结构分区展示（契约摘要 / 仓库基线 / 修改文件列表 / Diff 预览（可折叠、等宽） / 测试证据）；状态枚举翻译为中文徽标；"Diff n 字符"改为"n 个文件、+x/-y 行"（前端可从 diff 文本统计）。
+- [x] `HandoffPanel.tsx` 去掉裸 `JSON.stringify` 预览，按 payload 结构分区展示（契约摘要 / 仓库基线 / 修改文件列表 / Diff 预览（可折叠、等宽） / 测试证据）；状态枚举翻译为中文徽标；"Diff n 字符"改为"n 个文件、+x/-y 行"。
+- **验证结果（2026-07-13）**：交接包按契约、仓库、修改、Diff 与测试分区呈现，Diff 行数统计和测试结果均有明确状态；TypeScript、前端 20 项、严格 ESLint 与 Prettier 通过。
 
 ### P2-5 错误通知机制
 

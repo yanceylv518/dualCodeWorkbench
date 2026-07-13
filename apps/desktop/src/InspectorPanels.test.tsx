@@ -51,7 +51,14 @@ const handoff = {
       upstream: "origin/main",
       changed_files: ["src/App.tsx"],
     },
-    diff: "diff --git a/src/App.tsx b/src/App.tsx",
+    diff: [
+      "diff --git a/src/App.tsx b/src/App.tsx",
+      "--- a/src/App.tsx",
+      "+++ b/src/App.tsx",
+      "-old",
+      "+new",
+      "+test",
+    ].join("\n"),
     tests: [{ command: "pnpm test", exit_code: 0, output: "passed" }],
   },
 };
@@ -111,6 +118,9 @@ describe("inspector panels", () => {
       await screen.findByRole("button", { name: "准备 Claude 审查包" }),
     );
     expect(await screen.findByText("交给 Claude 独立审查")).toBeTruthy();
+    expect(screen.getByText("1 个文件、+2/-1 行")).toBeTruthy();
+    expect(screen.getByText("测试证据")).toBeTruthy();
+    expect(screen.queryByText(/"contract":/)).toBeNull();
     fireEvent.click(screen.getByRole("button", { name: "确认发送" }));
 
     await waitFor(() =>
