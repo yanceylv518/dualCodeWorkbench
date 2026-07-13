@@ -33,7 +33,7 @@ export interface Message {
 }
 export interface ActivityStep {
   id: string;
-  kind: "command" | "file" | "tool";
+  kind: "command" | "file" | "tool" | "reasoning";
   label: string;
   detail?: string;
   status: "running" | "completed" | "failed";

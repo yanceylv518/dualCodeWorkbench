@@ -141,8 +141,9 @@ const toolStep = (
   event: unknown,
 ): ActivityStep => {
   const reasoning = item.type === "reasoning";
-  const kind =
-    item.type === "command_execution" || item.type === "commandExecution"
+  const kind = reasoning
+    ? "reasoning"
+    : item.type === "command_execution" || item.type === "commandExecution"
       ? "command"
       : item.type === "file_change" || item.type === "fileChange"
         ? "file"
@@ -162,7 +163,7 @@ const toolStep = (
     id: String(item.id ?? `${kind}-${raw}`),
     kind,
     label: reasoning
-      ? "思考摘要"
+      ? "思考"
       : kind === "command"
         ? "执行命令"
         : kind === "file"
@@ -170,7 +171,8 @@ const toolStep = (
           : item.type === "web_search"
             ? "搜索资料"
             : "调用工具",
-    detail: raw.length > 180 ? `${raw.slice(0, 177)}…` : raw,
+    // 思考文本需要完整流式展示，不做单块截断；工具详情保持单行摘要。
+    detail: reasoning || raw.length <= 180 ? raw : `${raw.slice(0, 177)}…`,
     status: failed
       ? "failed"
       : String(event).includes("completed")
@@ -474,11 +476,16 @@ export const useStore = create<Store>((set, get) => ({
                                   )
                                     ? message.activity.steps.map((value) => {
                                         if (value.id !== step.id) return value;
-                                        if (payload.event === "delta")
+                                        if (payload.event === "delta") {
+                                          const merged = `${value.detail ?? ""}${step.detail ?? ""}`;
                                           return {
                                             ...step,
-                                            detail: `${value.detail ?? ""}${step.detail ?? ""}`,
+                                            detail:
+                                              merged.length > 6000
+                                                ? `…${merged.slice(-6000)}`
+                                                : merged,
                                           };
+                                        }
                                         return {
                                           ...step,
                                           detail:

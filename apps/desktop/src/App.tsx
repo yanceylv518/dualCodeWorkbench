@@ -972,9 +972,16 @@ function ActivityCard({
       : elapsed < 60_000
         ? `${Math.ceil(elapsed / 1000)} 秒`
         : `${Math.floor(elapsed / 60_000)} 分 ${Math.ceil((elapsed % 60_000) / 1000)} 秒`;
+  const latestStep = activity.steps.at(-1);
+  const thinkingLive =
+    activity.status === "running" &&
+    latestStep?.kind === "reasoning" &&
+    latestStep.status === "running";
   const statusText =
     activity.status === "running"
-      ? "处理中"
+      ? thinkingLive
+        ? "正在思考"
+        : "处理中"
       : activity.status === "completed"
         ? `已处理 ${duration}`
         : activity.status === "cancelled"
@@ -1001,23 +1008,42 @@ function ActivityCard({
         <ChevronDown size={13} />
       </summary>
       <div className="activity-steps">
-        {activity.steps.map((step) => (
-          <div className={`activity-step ${step.status}`} key={step.id}>
-            <span>
-              {step.status === "running" ? (
-                <LoaderCircle size={12} className="spin" />
-              ) : step.status === "completed" ? (
-                <Check size={12} />
-              ) : (
-                <X size={12} />
+        {activity.steps.map((step) =>
+          step.kind === "reasoning" ? (
+            step.detail &&
+            step.detail !== "reasoning" && (
+              <div
+                className={`thinking-block ${step.status}`}
+                key={step.id}
+                aria-label="思考过程"
+              >
+                <header>
+                  {step.status === "running" && (
+                    <LoaderCircle size={11} className="spin" />
+                  )}
+                  思考
+                </header>
+                <p>{step.detail}</p>
+              </div>
+            )
+          ) : (
+            <div className={`activity-step ${step.status}`} key={step.id}>
+              <span>
+                {step.status === "running" ? (
+                  <LoaderCircle size={12} className="spin" />
+                ) : step.status === "completed" ? (
+                  <Check size={12} />
+                ) : (
+                  <X size={12} />
+                )}
+              </span>
+              <strong>{step.label}</strong>
+              {step.detail && step.detail !== "reasoning" && (
+                <code title={step.detail}>{step.detail}</code>
               )}
-            </span>
-            <strong>{step.label}</strong>
-            {step.detail && step.detail !== "reasoning" && (
-              <code title={step.detail}>{step.detail}</code>
-            )}
-          </div>
-        ))}
+            </div>
+          ),
+        )}
       </div>
       {activity.error && (
         <div className="activity-error">
@@ -1096,7 +1122,11 @@ function MessageCard({
               })}
             </div>
           ) : null}
-          <MarkdownMessage text={text} />
+          {agent === "user" ? (
+            <p className="plain-text">{text}</p>
+          ) : (
+            <MarkdownMessage text={text} />
+          )}
         </div>
         {agent === "user" && (
           <div className="message-actions">

@@ -150,6 +150,52 @@ describe("workbench", () => {
     expect(send.disabled).toBe(false);
   });
 
+  it("renders streaming reasoning as a live thinking block", () => {
+    const base = singleTaskState("IMPLEMENTING");
+    useStore.setState({
+      ...base,
+      workspaces: [
+        {
+          ...base.workspaces[0],
+          threads: [
+            {
+              ...base.workspaces[0].threads[0],
+              messages: [
+                {
+                  id: "activity-run-1",
+                  agent: "system",
+                  text: "",
+                  time: "",
+                  activity: {
+                    runId: "run-1",
+                    agent: "codex",
+                    status: "running",
+                    startedAt: Date.now(),
+                    steps: [
+                      {
+                        id: "reasoning-1",
+                        kind: "reasoning",
+                        label: "思考",
+                        detail: "正在梳理仓库结构，准备定位需要修改的模块",
+                        status: "running",
+                      },
+                    ],
+                  },
+                },
+              ],
+            },
+          ],
+        },
+      ],
+    });
+
+    render(<App />);
+    expect(screen.getByText("正在思考")).toBeTruthy();
+    expect(
+      screen.getByText("正在梳理仓库结构，准备定位需要修改的模块"),
+    ).toBeTruthy();
+  });
+
   it("supports inline task rename and explicit delete confirmation", () => {
     useStore.setState({
       backend: "online",

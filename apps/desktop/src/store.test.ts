@@ -313,6 +313,35 @@ describe("thread realtime event merging", () => {
     });
   });
 
+  it("streams reasoning deltas into one untruncated thinking step", async () => {
+    const socket = await connectThread();
+    const first = "分".repeat(150);
+    const second = "析".repeat(150);
+    emitSocketEvent(socket, {
+      type: "agent.tool",
+      run_id: "run-5",
+      payload: {
+        agent: "codex",
+        event: "delta",
+        item: { id: "reasoning-1", type: "reasoning", text: first },
+      },
+    });
+    emitSocketEvent(socket, {
+      type: "agent.tool",
+      run_id: "run-5",
+      payload: {
+        agent: "codex",
+        event: "delta",
+        item: { id: "reasoning-1", type: "reasoning", text: second },
+      },
+    });
+
+    const step = selectedMessages()[0].activity?.steps[0];
+    expect(step?.kind).toBe("reasoning");
+    expect(step?.detail).toBe(`${first}${second}`);
+    expect(step?.detail?.length).toBe(300);
+  });
+
   it("settles running activity when an error arrives", async () => {
     const socket = await connectThread();
     emitSocketEvent(socket, {
