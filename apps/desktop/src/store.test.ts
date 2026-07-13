@@ -27,8 +27,52 @@ vi.mock("./api", () => ({
 afterEach(() => {
   vi.useRealTimers();
   vi.clearAllMocks();
-  useStore.setState({ notifications: [] });
+  useStore.setState({
+    notifications: [],
+    workspaces: [],
+    workspaceId: "",
+    threadId: "",
+    socket: undefined,
+    realtime: "disconnected",
+    error: undefined,
+    activeAgent: undefined,
+  });
 });
+
+const connectThread = async () => {
+  const socket = { close: vi.fn() } as Record<string, unknown>;
+  vi.mocked(api.threadSocket).mockResolvedValue(socket as unknown as WebSocket);
+  useStore.setState({
+    backend: "online",
+    workspaceId: "",
+    threadId: "",
+    workspaces: [
+      {
+        id: "workspace",
+        name: "Project",
+        path: "D:/Project",
+        threads: [
+          { id: "thread", title: "Task", state: "CREATED", messages: [] },
+        ],
+      },
+    ],
+  });
+  useStore.getState().setSelection("workspace", "thread");
+  await vi.waitFor(() => expect(socket.onmessage).toBeTypeOf("function"));
+  return socket;
+};
+
+const emitSocketEvent = (
+  socket: Record<string, unknown>,
+  value: Record<string, unknown>,
+) => {
+  const onmessage = socket.onmessage as
+    ((event: { data: string }) => void) | undefined;
+  onmessage?.({ data: JSON.stringify(value) });
+};
+
+const selectedMessages = () =>
+  useStore.getState().workspaces[0].threads[0].messages;
 
 describe("notifications", () => {
   it("stacks persistent errors and dismisses one explicitly", () => {
@@ -125,6 +169,118 @@ describe("activity terminal states", () => {
       "failed",
     ]);
     expect(result.completedAt).toBeTypeOf("number");
+  });
+});
+
+describe("thread realtime event merging", () => {
+  it("merges agent deltas into one streaming placeholder", async () => {
+    const socket = await connectThread();
+
+    emitSocketEvent(socket, {
+      type: "agent.delta",
+      run_id: "run-1",
+      payload: { agent: "codex", text: "第一段" },
+    });
+    emitSocketEvent(socket, {
+      type: "agent.delta",
+      run_id: "run-1",
+      payload: { agent: "codex", text: "第二段" },
+    });
+
+    expect(selectedMessages()).toMatchObject([
+      { id: "stream-run-1", agent: "codex", text: "第一段第二段" },
+    ]);
+  });
+
+  it("replaces the stream placeholder with the persisted message", async () => {
+    const socket = await connectThread();
+    emitSocketEvent(socket, {
+      type: "agent.delta",
+      run_id: "run-2",
+      payload: { agent: "codex", text: "草稿" },
+    });
+
+    emitSocketEvent(socket, {
+      type: "message.created",
+      run_id: "run-2",
+      payload: {
+        id: "message-final",
+        role: "codex",
+        content: "最终回答",
+        attachments: [],
+      },
+    });
+
+    expect(selectedMessages()).toHaveLength(1);
+    expect(selectedMessages()[0]).toMatchObject({
+      id: "message-final",
+      text: "最终回答",
+    });
+  });
+
+  it("merges tool progress into one activity timeline", async () => {
+    const socket = await connectThread();
+    emitSocketEvent(socket, {
+      type: "agent.tool",
+      run_id: "run-3",
+      payload: {
+        agent: "codex",
+        event: "item/started",
+        item: { id: "command-1", type: "command_execution", command: "pytest" },
+      },
+    });
+    emitSocketEvent(socket, {
+      type: "agent.tool",
+      run_id: "run-3",
+      payload: {
+        agent: "codex",
+        event: "item/completed",
+        item: {
+          id: "command-1",
+          type: "command_execution",
+          command: "pytest",
+          exit_code: 0,
+        },
+      },
+    });
+
+    const activity = selectedMessages()[0].activity;
+    expect(activity?.steps).toHaveLength(1);
+    expect(activity?.steps[0]).toMatchObject({
+      id: "command-1",
+      kind: "command",
+      status: "completed",
+    });
+  });
+
+  it("settles running activity when an error arrives", async () => {
+    const socket = await connectThread();
+    emitSocketEvent(socket, {
+      type: "run.state_changed",
+      run_id: "run-4",
+      payload: { state: "IMPLEMENTING", agent: "codex" },
+    });
+    emitSocketEvent(socket, {
+      type: "agent.tool",
+      run_id: "run-4",
+      payload: {
+        agent: "codex",
+        event: "item/started",
+        item: { id: "step-1", type: "reasoning", text: "处理中" },
+      },
+    });
+
+    emitSocketEvent(socket, {
+      type: "error",
+      run_id: "run-4",
+      payload: { message: "运行失败" },
+    });
+
+    const activity = selectedMessages().find((item) => item.activity)?.activity;
+    expect(useStore.getState().error).toBe("运行失败");
+    expect(activity?.status).toBe("failed");
+    expect(activity?.steps[0].status).toBe("failed");
+    expect(activity?.completedAt).toBeTypeOf("number");
   });
 });
 

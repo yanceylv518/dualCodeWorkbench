@@ -8,6 +8,7 @@
 - P3-2 已完成：原 1465 行单体 API 按执行任务、Agent 设置、协作治理、工作区会话和附件五个领域拆为独立 router，公共运行态与交接提示词独立封装；98 项后端测试、Ruff、桌面端类型检查及路由重复检查通过。
 - P3-3 已完成：Codex app-server 与 Claude stream-json 的协议解析下沉到各自 adapter，对调度器统一输出 `delta / tool_event / terminal / final` 事件；scheduler 仅做事件转发和结果聚合，协议与韧性测试迁移后后端 100 项通过。
 - P3-4 已完成：对话上下文改为按 60k 字符从新到旧流式装载，项目与任务契约使用独立 20k 字符预算；两者超限均插入明确截断标记，避免固定消息条数和无界契约挤占上下文。
+- P3-5 已完成：前端 store 新增 WebSocket 核心归并测试，覆盖 `agent.delta` 流式拼接、`message.created` 替换占位、`agent.tool` 活动时间线、错误终止运行态和断线重连；前端 37 项测试通过。Phase 3 全部完成，等待 Review 3。
 
 ## 2026-07-13 Phase 2 前端设计与信息架构
 

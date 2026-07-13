@@ -52,6 +52,7 @@ interface Store {
   activeAgent?: Mode;
   backend: "connecting" | "online" | "offline";
   realtime: "disconnected" | "connecting" | "connected" | "reconnecting";
+  error?: string;
   notifications: Notification[];
   socket?: WebSocket;
   pendingApproval?: Approval;
