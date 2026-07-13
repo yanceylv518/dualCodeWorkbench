@@ -10,7 +10,8 @@ dependencies = [
   "aiosqlite>=0.20,<1",
   "pydantic-settings>=2.7,<3",
   "python-multipart>=0.0.20,<1",
-  "asyncssh>=2.22,<3"
+  "asyncssh>=2.22,<3",
+  "pillow>=11,<12"
 ]
 
 [project.optional-dependencies]

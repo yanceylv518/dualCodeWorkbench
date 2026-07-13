@@ -245,3 +245,12 @@ ESLint（0 error）、Prettier 与 Rust `cargo check` 全部通过。Phase 0 到
 - N2：`api.ts` 的 `attachmentContentUrl` 同步读取 `cachedToken`，首次渲染存在空 token 竞态（当前被 initialize 先行掩盖）→ 并入 P2 附件相关条目。
 - N3：浏览器开发模式 token 在 Vite 启动时一次性注入，后端重启后需重启 Vite；属已知开发体验限制，记录即可。
 - N4：ESLint 现存 5 个 warning（exhaustive-deps ×4、no-explicit-any ×1）；建议 Phase 1 顺带清零后将 lint 提升为 `--max-warnings=0`，防止 warning 堆积。
+
+### Phase 0 返工记录（2026-07-13，Codex）
+
+- [x] R1：改用 `pnpm/action-setup@v4` 在 `setup-node` 前安装固定版本 pnpm，并为 pip cache
+  指定 `apps/backend/pyproject.toml`；后续前端步骤统一直接调用 pnpm。
+- [x] R2：后端正式依赖补充 `pillow>=11,<12`。
+- **本地验证**：全新虚拟环境执行 `pip install -e ".\apps\backend[dev]"` 后自动安装
+  Pillow 11.3.0 并可导入；后端 90 项、Ruff、前端 typecheck、ESLint（0 error）和 Vitest
+  7 项全部通过。推送后以 GitHub Actions Windows/Linux 全绿作为最终关闭证据。
