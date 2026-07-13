@@ -65,7 +65,7 @@ async def test_diagnostics_endpoint_is_safe_and_reports_runtime(
 
     assert response.status_code == 200
     payload = response.json()
-    assert payload["version"] == "0.1.5"
+    assert payload["version"] == "0.1.6"
     assert payload["storage"]["database_reachable"] is True
     assert payload["storage"]["data_directory_writable"] is True
     assert payload["configuration"] == {

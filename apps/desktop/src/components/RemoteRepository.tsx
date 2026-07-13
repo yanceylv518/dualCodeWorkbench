@@ -27,6 +27,16 @@ export function deriveRemoteFeedback(
     return { message: "正在刷新 VPS 仓库状态…", tone: "running" };
   if (busy === "provision" || busy === "repair_provision")
     return { message: "正在提交克隆任务…", tone: "running" };
+  // A verified repository is the current source of truth. Historical failed
+  // clone jobs remain auditable, but must not override a later successful
+  // status refresh or an empty repository that is ready for its first commit.
+  if (remote?.vps)
+    return {
+      message: remote.vps.head
+        ? "VPS 仓库已就绪，状态已刷新。"
+        : "VPS 空仓库已就绪，等待首次提交。",
+      tone: "ready",
+    };
   if (cloneJob?.status === "WAITING_APPROVAL")
     return {
       message: "等待确认清理无效残留目录；批准后将自动重新克隆。",
@@ -38,13 +48,6 @@ export function deriveRemoteFeedback(
     return {
       message: `克隆失败：${cloneJob.last_error || "请查看运行日志后重试"}`,
       tone: "failed",
-    };
-  if (remote?.vps)
-    return {
-      message: remote.vps.head
-        ? "VPS 仓库已就绪，状态已刷新。"
-        : "VPS 空仓库已就绪，等待首次提交。",
-      tone: "ready",
     };
   if (remote?.error)
     return { message: `当前检测失败：${remote.error}`, tone: "failed" };

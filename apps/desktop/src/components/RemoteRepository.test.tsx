@@ -3,7 +3,7 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 
 import { useStore } from "../store";
 import type { ExecutionJob, WorkspaceRemoteStatus } from "../types";
-import { RemoteRepository } from "./RemoteRepository";
+import { deriveRemoteFeedback, RemoteRepository } from "./RemoteRepository";
 
 afterEach(cleanup);
 
@@ -57,6 +57,27 @@ function renderRepository(status?: ExecutionJob["status"], lastError?: string) {
 }
 
 describe("RemoteRepository", () => {
+  it("prefers verified repository state over a stale failed clone job", () => {
+    const readyRemote: WorkspaceRemoteStatus = {
+      ...remote,
+      vps: {
+        branch: "main",
+        head: "",
+        remote: "git@github.com:owner/repo.git",
+      },
+    };
+
+    const feedback = deriveRemoteFeedback(
+      readyRemote,
+      job("FAILED", "VPS repository has not been cloned yet"),
+    );
+
+    expect(feedback).toEqual({
+      message: "VPS 空仓库已就绪，等待首次提交。",
+      tone: "ready",
+    });
+  });
+
   it("shows a single running state while cloning", () => {
     renderRepository("RUNNING");
     expect(screen.getByRole("status").textContent).toContain("正在克隆到 VPS");

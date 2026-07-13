@@ -1,6 +1,6 @@
 [package]
 name = "dualcode-workbench"
-version = "0.1.5"
+version = "0.1.6"
 description = "Local AI collaborative development workbench"
 authors = ["DualCode Contributors"]
 edition = "2021"
