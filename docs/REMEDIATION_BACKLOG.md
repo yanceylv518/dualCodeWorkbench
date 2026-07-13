@@ -387,7 +387,8 @@ chunk 为预期大小；随 Phase 3 顺带处理。
   「请求失败：」包装后直接展示给用户。删除/重命名/审批/附件等用户高频路径的 detail 改为中文
   （保留技术细节），并同步更新断言这些字符串的测试。
   - **验证结果（2026-07-13）**：`api.py` 全部 HTTPException 用户语义已中文化，动态底层错误统一增加中文外层；项目接入、任务重命名、审批与附件高频路径增加中文 detail 断言。Ruff 与后端全量 95 项通过。
-- **R6｜InputDialog 补 `isComposing` 守卫**：`components/dialogs.tsx` 的 Enter 提交未检查输入法
+- **R6｜InputDialog 补 `isComposing` 守卫（已完成）**：`components/dialogs.tsx` 的 Enter 提交未检查输入法
   组合态，P1-1 的同类缺陷在新组件中复发；一行守卫 + 一条组件测试。
+  - **验证结果（2026-07-13）**：InputDialog 在输入法组合态忽略 Enter，并增加组件防回归测试；TypeScript、严格 ESLint、Prettier 与前端全量 33 项通过。
 
 R5、R6 各自独立 commit，CI 绿后直接继续 Phase 3 条目（P3-1 → P3-5），完成后停下等待 review。

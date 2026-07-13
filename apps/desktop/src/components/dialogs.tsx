@@ -108,6 +108,7 @@ export function InputDialog({
           placeholder={placeholder}
           onChange={(event) => setValue(event.target.value)}
           onKeyDown={(event) => {
+            if (event.nativeEvent.isComposing) return;
             if (event.key === "Enter" && value.trim()) onSubmit(value.trim());
           }}
         />

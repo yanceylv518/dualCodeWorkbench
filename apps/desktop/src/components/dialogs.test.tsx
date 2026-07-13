@@ -1,6 +1,14 @@
-import { fireEvent, render, screen, waitFor } from "@testing-library/react";
-import { describe, expect, it, vi } from "vitest";
+import {
+  cleanup,
+  fireEvent,
+  render,
+  screen,
+  waitFor,
+} from "@testing-library/react";
+import { afterEach, describe, expect, it, vi } from "vitest";
 import { InputDialog } from "./dialogs";
+
+afterEach(cleanup);
 
 describe("application dialogs", () => {
   it("focuses the first field, traps Tab, and closes with Escape", async () => {
@@ -23,5 +31,22 @@ describe("application dialogs", () => {
     open.focus();
     fireEvent.keyDown(open, { key: "Tab" });
     expect(document.activeElement).toBe(input);
+  });
+
+  it("does not submit InputDialog while the input method is composing", () => {
+    const submit = vi.fn();
+    render(
+      <InputDialog
+        title="选择路径"
+        placeholder="绝对路径"
+        onSubmit={submit}
+        onClose={vi.fn()}
+      />,
+    );
+    const input = screen.getByPlaceholderText("绝对路径");
+    fireEvent.change(input, { target: { value: "中文路径" } });
+    fireEvent.keyDown(input, { key: "Enter", isComposing: true });
+
+    expect(submit).not.toHaveBeenCalled();
   });
 });
