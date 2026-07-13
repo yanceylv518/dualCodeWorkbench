@@ -29,7 +29,7 @@ corepack pnpm --filter @dualcode/desktop tauri build --no-bundle
 
 ## 关键实现约定
 
-- 后端端口：`127.0.0.1:8765`；前端开发端口：`127.0.0.1:1420`。
+- 后端端口：`127.0.0.1:8876`；前端开发端口：`127.0.0.1:1420`。
 - Windows 后台子进程必须使用 `subprocess.CREATE_NO_WINDOW`。
 - Agent 工具事件不得逐条刷入对话，应聚合为可折叠活动摘要；原始输出进入终端面板。
 - 附件二进制存应用数据目录，SQLite 只存元数据。

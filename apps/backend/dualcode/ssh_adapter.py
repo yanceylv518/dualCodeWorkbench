@@ -13,6 +13,10 @@ from .adapters import AgentAdapter, AgentCapabilities, AgentRequest, AgentRespon
 from .security import validate_project_file
 
 
+class RemoteRepositoryUnavailable(ValueError):
+    """The configured VPS project path does not contain a Git repository yet."""
+
+
 @dataclass(frozen=True)
 class ClaudeSshConfig:
     host: str
@@ -240,12 +244,19 @@ class ClaudeSshAdapter(AgentAdapter):
         quoted = shlex.quote(str(repository))
         try:
             script = (
-                f"git -C {quoted} rev-parse --is-inside-work-tree && "
-                f"git -C {quoted} branch --show-current && "
-                f"git -C {quoted} rev-parse HEAD && "
-                f"git -C {quoted} remote get-url origin"
+                f"if ! git -C {quoted} rev-parse --is-inside-work-tree >/dev/null 2>&1 "
+                f"|| ! git -C {quoted} remote get-url origin >/dev/null 2>&1; then "
+                "printf '__DUALCODE_REPOSITORY_NOT_READY__'; "
+                "else "
+                "printf 'true\\n'; "
+                f"branch=$(git -C {quoted} symbolic-ref --short -q HEAD || true); printf '%s\\n' \"$branch\"; "
+                f"head=$(git -C {quoted} rev-parse --verify HEAD 2>/dev/null || true); printf '%s\\n' \"$head\"; "
+                f"git -C {quoted} remote get-url origin; "
+                "fi"
             )
             result = await connection.run(script, check=True, timeout=15)
+            if result.stdout.strip() == "__DUALCODE_REPOSITORY_NOT_READY__":
+                raise RemoteRepositoryUnavailable("VPS repository has not been cloned yet")
             lines = result.stdout.splitlines()
             if len(lines) < 4 or lines[0].strip() != "true":
                 raise ValueError("VPS path is not a Git repository")
@@ -254,22 +265,40 @@ class ClaudeSshAdapter(AgentAdapter):
             connection.close()
             await connection.wait_closed()
 
-    async def repository_update(self, repository: PurePosixPath, action: str) -> str:
+    async def repository_update(self, repository: PurePosixPath, action: str, remote_url: str = "") -> str:
         if not repository.is_absolute() or ".." in repository.parts:
             raise ValueError("remote repository path must be absolute and normalized")
-        if action not in {"fetch", "pull"}:
+        if action not in {"provision", "repair_provision", "fetch", "pull"}:
             raise ValueError("unsupported remote Git action")
         connection = await self._connect()
         quoted = shlex.quote(str(repository))
         try:
-            if action == "fetch":
+            if action in {"provision", "repair_provision"}:
+                if not remote_url or any(char in remote_url for char in "\r\n\0"):
+                    raise ValueError("A valid remote URL is required to prepare the VPS repository")
+                parent = shlex.quote(str(repository.parent))
+                remote = shlex.quote(remote_url)
+                if action == "repair_provision":
+                    command = (
+                        f"if git -C {quoted} rev-parse --is-inside-work-tree >/dev/null 2>&1 "
+                        f"&& git -C {quoted} remote get-url origin >/dev/null 2>&1; then "
+                        "printf 'Refusing to replace an existing valid Git repository' >&2; exit 65; "
+                        f"fi; rm -rf -- {quoted} && mkdir -p -- {parent} && git clone -- {remote} {quoted}"
+                    )
+                else:
+                    command = f"mkdir -p -- {parent} && git clone -- {remote} {quoted}"
+            elif action == "fetch":
                 command = f"git -C {quoted} fetch --prune"
             else:
                 dirty = await connection.run(f"git -C {quoted} status --porcelain", check=True, timeout=15)
                 if dirty.stdout.strip():
                     raise ValueError("Remote pull refused: VPS workspace has uncommitted changes")
                 command = f"git -C {quoted} pull --ff-only"
-            result = await connection.run(command, check=True, timeout=120)
+            try:
+                result = await connection.run(command, check=True, timeout=120)
+            except asyncssh.ProcessError as exc:
+                detail = (exc.stderr or exc.stdout or str(exc)).strip()
+                raise ValueError(f"Remote Git {action} failed: {detail}") from exc
             return result.stdout.strip() or result.stderr.strip()
         finally:
             connection.close()

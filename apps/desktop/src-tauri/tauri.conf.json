@@ -12,7 +12,7 @@
   "app": {
     "windows": [{"title": "DualCode Workbench", "width": 1440, "height": 900, "minWidth": 1100, "minHeight": 700, "decorations": false, "shadow": true, "theme": "Dark"}],
     "security": {
-      "csp": "default-src 'self'; connect-src 'self' ws://127.0.0.1:8765 http://127.0.0.1:8765; img-src 'self' asset: data:; style-src 'self' 'unsafe-inline'; script-src 'self' 'unsafe-eval'"
+      "csp": "default-src 'self'; connect-src 'self' ws://127.0.0.1:8876 http://127.0.0.1:8876; img-src 'self' asset: data: http://127.0.0.1:8876; style-src 'self' 'unsafe-inline'; script-src 'self' 'unsafe-eval'"
     }
   },
   "bundle": {

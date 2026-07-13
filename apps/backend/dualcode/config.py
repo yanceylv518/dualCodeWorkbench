@@ -19,7 +19,7 @@ class Settings(BaseSettings):
     claude_ssh_port: int = 22
     claude_ssh_known_hosts: Path | None = None
     claude_ssh_client_key: Path | None = None
-    claude_ssh_remote_root: str = "/tmp/dualcode-workbench"
+    claude_ssh_remote_root: str = ""
 
     @property
     def database_url(self) -> str:

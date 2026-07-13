@@ -4,6 +4,8 @@ import re
 from dataclasses import dataclass
 from pathlib import Path
 
+from .security import validate_project_file
+
 
 class GitError(RuntimeError):
     pass
@@ -84,24 +86,65 @@ class GitService:
         return target, branch
 
     async def diff(self, worktree: Path) -> str:
+        head = await self.run(worktree, "rev-parse", "--verify", "HEAD", check=False)
+        args = ["diff", "--no-ext-diff", "--no-color", "--src-prefix=a/", "--dst-prefix=b/"]
+        if head.returncode == 0:
+            args.append("HEAD")
+        else:
+            args.append("--cached")
         result = await self.run(
             worktree,
-            "diff",
-            "--no-ext-diff",
-            "--no-color",
-            "--src-prefix=a/",
-            "--dst-prefix=b/",
+            *args,
         )
-        return result.stdout
+        sections = [result.stdout]
+        for relative in await self._untracked_files(worktree):
+            path = (worktree / relative).resolve()
+            try:
+                validate_project_file(path)
+                if path.is_file() and path.stat().st_size <= 512_000:
+                    content = path.read_text(encoding="utf-8")
+                    lines = content.splitlines()
+                    sections.append(
+                        f"diff --git a/{relative} b/{relative}\n"
+                        f"new file mode 100644\n--- /dev/null\n+++ b/{relative}\n"
+                        f"@@ -0,0 +1,{len(lines)} @@\n"
+                        + "\n".join(f"+{line}" for line in lines)
+                        + "\n"
+                    )
+            except (OSError, UnicodeError, PermissionError):
+                continue
+        return "".join(sections)
 
     async def changed_files(self, worktree: Path) -> list[str]:
-        result = await self.run(worktree, "diff", "--name-only", "--no-ext-diff", "-z")
-        return [path for path in result.stdout.split("\0") if path]
+        entries = await self.status(worktree)
+        paths: list[str] = []
+        for entry in entries:
+            path = entry[3:] if len(entry) > 3 else ""
+            if path and path not in paths:
+                paths.append(path)
+        return paths
+
+    async def apply_diff(self, repository: Path, patch: str, reverse: bool = False) -> None:
+        repository = repository.resolve(strict=True)
+        args = ["git", "-C", str(repository), "apply", "--whitespace=nowarn"]
+        if reverse:
+            args.append("--reverse")
+        process = await asyncio.create_subprocess_exec(
+            *args, stdin=asyncio.subprocess.PIPE, stdout=asyncio.subprocess.PIPE,
+            stderr=asyncio.subprocess.PIPE, creationflags=getattr(subprocess, "CREATE_NO_WINDOW", 0),
+        )
+        stdout, stderr = await process.communicate(patch.encode("utf-8"))
+        if process.returncode != 0:
+            raise GitError((stderr or stdout).decode("utf-8", errors="replace").strip() or "Unable to apply checkpoint")
+
+    async def _untracked_files(self, worktree: Path) -> list[str]:
+        return [entry[3:] for entry in await self.status(worktree) if entry.startswith("?? ")]
 
     async def repository_status(self, repository: Path) -> dict[str, object]:
         await self.ensure_repository(repository)
         branch = await self.current_branch(repository)
-        head = (await self.run(repository, "rev-parse", "--short=10", "HEAD")).stdout.strip()
+        head_result = await self.run(repository, "rev-parse", "--short=10", "HEAD", check=False)
+        head = head_result.stdout.strip() if head_result.returncode == 0 else ""
         remote_result = await self.run(repository, "remote", "get-url", "origin", check=False)
         remote = remote_result.stdout.strip() if remote_result.returncode == 0 else ""
         upstream_result = await self.run(
@@ -115,7 +158,7 @@ class GitService:
                 parts = counts.stdout.strip().split()
                 if len(parts) == 2:
                     behind, ahead = int(parts[0]), int(parts[1])
-        log = await self.run(repository, "log", "-5", "--pretty=format:%h%x09%an%x09%s%x09%cI")
+        log = await self.run(repository, "log", "-5", "--pretty=format:%h%x09%an%x09%s%x09%cI", check=False)
         commits = []
         for line in log.stdout.splitlines():
             parts = line.split("\t", 3)

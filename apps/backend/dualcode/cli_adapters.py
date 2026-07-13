@@ -145,6 +145,7 @@ class BaseCliAdapter(AgentAdapter):
         executable = self.resolve_executable()
         if not executable:
             return False
+        process: asyncio.subprocess.Process | None = None
         try:
             process = await asyncio.create_subprocess_exec(
                 executable,
@@ -156,6 +157,9 @@ class BaseCliAdapter(AgentAdapter):
             )
             return await asyncio.wait_for(process.wait(), timeout=5) == 0
         except (OSError, TimeoutError):
+            if process is not None and process.returncode is None:
+                process.kill()
+                await process.wait()
             return False
 
 

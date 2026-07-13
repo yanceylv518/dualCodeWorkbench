@@ -1,0 +1,17 @@
+.message-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 5px;
+  margin-top: 5px;
+  opacity: 0;
+  transition: opacity .15s;
+}
+.message-card.user:hover .message-actions { opacity: 1; }
+.message-actions button {
+  border: 0;
+  background: transparent;
+  padding: 3px 5px;
+  color: #7f8a95;
+  font-size: 9px;
+}
+.message-actions button:hover { color: #b9d6f5; }

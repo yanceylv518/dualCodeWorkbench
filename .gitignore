@@ -14,6 +14,7 @@ fixtures/worktrees/
 fixtures/agent-settings.json
 fixtures/dualcode.db
 apps/backend/.pytest-tmp*/
+apps/backend/.pytest-acceptance/
 apps/backend/build/
 apps/backend/*.egg-info/
 apps/desktop/src-tauri/binaries/
@@ -34,6 +35,7 @@ __pycache__/
 *.key
 .DS_Store
 target/
+apps/desktop/src-tauri/target-*/
 src-tauri/gen/
 data/attachments/
 playwright-report/
@@ -41,3 +43,6 @@ test-results/
 apps/desktop/vite.config.js
 apps/desktop/vite.config.d.ts
 apps/desktop/vitest.config.d.ts
+.test-tmp/
+.tmp/
+test-runtime*/

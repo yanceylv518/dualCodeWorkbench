@@ -1,7 +1,7 @@
 {
   "name": "dualcode-workbench",
   "private": true,
-  "version": "0.1.0",
+  "version": "0.1.5",
   "packageManager": "pnpm@11.7.0",
   "scripts": {
     "dev": "corepack pnpm --filter @dualcode/desktop dev",

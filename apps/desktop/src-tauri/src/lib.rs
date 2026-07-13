@@ -7,7 +7,7 @@ struct BackendProcess(Mutex<Option<CommandChild>>);
 
 #[tauri::command]
 fn backend_url() -> &'static str {
-    "http://127.0.0.1:8765"
+    "http://127.0.0.1:8876"
 }
 
 #[cfg_attr(mobile, tauri::mobile_entry_point)]

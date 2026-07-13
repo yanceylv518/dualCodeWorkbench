@@ -1,5 +1,6 @@
 import json
 import os
+import re
 from pathlib import Path, PurePosixPath
 
 from pydantic import BaseModel, field_validator
@@ -50,5 +51,28 @@ class WorkspaceRemoteStore:
         temporary.write_text(json.dumps(values, ensure_ascii=False, indent=2), encoding="utf-8")
         os.replace(temporary, self.path)
 
+    def remove(self, workspace_id: str) -> None:
+        values = self._load_all()
+        if workspace_id not in values:
+            return
+        del values[workspace_id]
+        temporary = self.path.with_suffix(".tmp")
+        temporary.write_text(json.dumps(values, ensure_ascii=False, indent=2), encoding="utf-8")
+        os.replace(temporary, self.path)
+
 
 workspace_remote_store = WorkspaceRemoteStore()
+
+
+def derived_repository_path(projects_root: str, remote_url: str, workspace_name: str) -> str:
+    """Build a stable project path from the configured root and repository identity."""
+    if not projects_root:
+        return ""
+    candidate = remote_url.rstrip("/").rsplit("/", 1)[-1].rsplit(":", 1)[-1]
+    if candidate.endswith(".git"):
+        candidate = candidate[:-4]
+    candidate = candidate or workspace_name
+    safe_name = re.sub(r"[^A-Za-z0-9._-]+", "-", candidate).strip(".-")
+    if not safe_name:
+        raise ValueError("Unable to derive a safe VPS project directory name")
+    return str(PurePosixPath(projects_root) / safe_name)

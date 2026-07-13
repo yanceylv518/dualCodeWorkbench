@@ -31,7 +31,7 @@ def main() -> None:
     args = parser.parse_args()
     if args.parent_pid:
         threading.Thread(target=monitor_parent, args=(args.parent_pid,), daemon=True).start()
-    uvicorn.run(app, host="127.0.0.1", port=8765, log_level="info")
+    uvicorn.run(app, host="127.0.0.1", port=8876, log_level="info")
 
 
 if __name__ == "__main__":

@@ -12,6 +12,7 @@ class AgentSettings(BaseModel):
     codex_executable: str = "codex"
     codex_model: str = ""
     codex_reasoning_effort: str = "medium"
+    codex_permission_mode: str = "safe"
     claude_executable: str = "claude"
     claude_model: str = "opus"
     claude_reasoning_effort: str = "medium"
@@ -21,7 +22,8 @@ class AgentSettings(BaseModel):
     claude_ssh_port: int = Field(default=22, ge=1, le=65535)
     claude_ssh_known_hosts: str = ""
     claude_ssh_client_key: str = ""
-    claude_ssh_remote_root: str = "/tmp/dualcode-workbench"
+    claude_ssh_remote_root: str = ""
+    claude_ssh_projects_root: str = ""
     claude_ssh_executable: str = "/usr/local/bin/claude"
     test_executable: str = ""
     test_arguments: list[str] = Field(default_factory=lambda: ["-m", "pytest", "-q"])
@@ -48,12 +50,44 @@ class AgentSettings(BaseModel):
             raise ValueError("unsupported reasoning effort")
         return value
 
-    @field_validator("claude_ssh_remote_root", "claude_ssh_executable")
+    @field_validator("codex_permission_mode")
+    @classmethod
+    def valid_codex_permission_mode(cls, value: str) -> str:
+        if value not in {"safe", "workspace_auto", "full_access"}:
+            raise ValueError("unsupported Codex permission mode")
+        return value
+
+    @field_validator("claude_ssh_executable")
     @classmethod
     def absolute_remote_root(cls, value: str) -> str:
         if not value.startswith("/") or ".." in value.split("/"):
             raise ValueError("remote root must be an absolute normalized path")
         return value
+
+    @field_validator("claude_ssh_remote_root")
+    @classmethod
+    def optional_absolute_remote_root(cls, value: str) -> str:
+        if value and (not value.startswith("/") or ".." in value.split("/")):
+            raise ValueError("remote root must be empty or an absolute normalized path")
+        return value.rstrip("/")
+
+    @field_validator("claude_ssh_projects_root")
+    @classmethod
+    def optional_absolute_projects_root(cls, value: str) -> str:
+        if value and (not value.startswith("/") or ".." in value.split("/")):
+            raise ValueError("projects root must be empty or an absolute normalized path")
+        return value.rstrip("/")
+
+    @property
+    def claude_remote_root(self) -> str:
+        """Resolve the private runtime root without mixing it with a project repository."""
+        if self.claude_ssh_remote_root:
+            return self.claude_ssh_remote_root
+        if self.claude_ssh_username == "root":
+            return "/root/.dualcode"
+        if self.claude_ssh_username:
+            return f"/home/{self.claude_ssh_username}/.dualcode"
+        return "/tmp/dualcode-workbench"
 
     def validate_local_paths(self) -> None:
         if (
@@ -89,7 +123,10 @@ class AgentSettingsStore:
                 claude_ssh_client_key=str(settings.claude_ssh_client_key or ""),
                 claude_ssh_remote_root=settings.claude_ssh_remote_root,
             )
-        return AgentSettings.model_validate_json(self.path.read_text(encoding="utf-8"))
+        loaded = AgentSettings.model_validate_json(self.path.read_text(encoding="utf-8"))
+        if loaded.claude_ssh_remote_root == "/tmp/dualcode-workbench":
+            loaded = loaded.model_copy(update={"claude_ssh_remote_root": ""})
+        return loaded
 
     def save(self, value: AgentSettings) -> None:
         value.validate_local_paths()

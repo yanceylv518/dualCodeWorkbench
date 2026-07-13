@@ -14,6 +14,12 @@ $env:CLAUDE_EXECUTABLE="C:\Users\your-name\.local\bin\claude.exe"
 
 ## Claude SSH/SFTP
 
+## Codex app-server
+
+`CodexAppServerAdapter` uses a persistent `codex app-server` JSON-RPC process. It starts or resumes a Codex thread, maps `item/agentMessage/delta` to real answer deltas, maps reasoning/tool/command events to the collapsible activity timeline, and interrupts the active turn on cancellation. It runs with `on-request` approval, workspace-write sandboxing and network disabled by default; native command, file-change and permission requests are routed into DualCode approvals. The legacy `CodexCliAdapter` remains only as a compatibility implementation and is no longer selected by the scheduler.
+
+The local settings expose three Codex permission modes: `safe` (native approvals), `workspace_auto` (automatic execution inside the workspace sandbox with network disabled), and `full_access` (`never` plus `dangerFullAccess`). `full_access` is an explicit high-risk user choice and is never the default.
+
 远程模式只在同时配置 host、username 和 known_hosts 后可用：
 
 ```powershell
