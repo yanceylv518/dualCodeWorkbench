@@ -16,7 +16,6 @@ import {
   LoaderCircle,
   MessageSquarePlus,
   MoreHorizontal,
-  Paperclip,
   Play,
   Plus,
   Search,
@@ -557,6 +556,7 @@ export default function App() {
                 upload={store.upload}
                 attachments={store.draftAttachments}
                 removeAttachment={store.removeAttachment}
+                notify={store.notify}
               />
             </>
           )}
@@ -1100,9 +1100,21 @@ function MessageCard({
     </article>
   );
 }
-function ImageAttachment({ url, name }: { url: string; name: string }) {
+export function ImageAttachment({ url, name }: { url: string; name: string }) {
   const [openPreview, setOpenPreview] = useState(false);
   const [scale, setScale] = useState(1);
+  const [position, setPosition] = useState({ x: 0, y: 0 });
+  const canvasRef = useRef<HTMLDivElement>(null);
+  const dragRef = useRef<
+    | {
+        pointerId: number;
+        x: number;
+        y: number;
+        originX: number;
+        originY: number;
+      }
+    | undefined
+  >(undefined);
   useEffect(() => {
     if (!openPreview) return;
     const close = (event: KeyboardEvent) => {
@@ -1112,13 +1124,32 @@ function ImageAttachment({ url, name }: { url: string; name: string }) {
     return () => window.removeEventListener("keydown", close);
   }, [openPreview]);
   const zoom = (next: number) => setScale(Math.min(4, Math.max(0.25, next)));
+  useEffect(() => {
+    const canvas = canvasRef.current;
+    if (!canvas || !openPreview) return;
+    const handleWheel = (event: WheelEvent) => {
+      event.preventDefault();
+      setScale((current) =>
+        Math.min(
+          4,
+          Math.max(0.25, current + (event.deltaY < 0 ? 0.15 : -0.15)),
+        ),
+      );
+    };
+    canvas.addEventListener("wheel", handleWheel, { passive: false });
+    return () => canvas.removeEventListener("wheel", handleWheel);
+  }, [openPreview]);
+  const resetView = () => {
+    setScale(1);
+    setPosition({ x: 0, y: 0 });
+  };
   return (
     <>
       <button
         className="message-image"
         type="button"
         onClick={() => {
-          setScale(1);
+          resetView();
           setOpenPreview(true);
         }}
         aria-label={`预览图片 ${name}`}
@@ -1141,7 +1172,7 @@ function ImageAttachment({ url, name }: { url: string; name: string }) {
             <strong title={name}>{name}</strong>
             <span>{Math.round(scale * 100)}%</span>
             <button onClick={() => zoom(scale - 0.25)}>缩小</button>
-            <button onClick={() => setScale(1)}>实际大小</button>
+            <button onClick={resetView}>实际大小</button>
             <button onClick={() => zoom(scale + 0.25)}>放大</button>
             <a href={url} target="_blank" rel="noreferrer">
               打开原图
@@ -1155,17 +1186,42 @@ function ImageAttachment({ url, name }: { url: string; name: string }) {
             </button>
           </div>
           <div
+            ref={canvasRef}
             className="image-preview-canvas"
             onMouseDown={(event) => event.stopPropagation()}
-            onWheel={(event) => {
-              event.preventDefault();
-              zoom(scale + (event.deltaY < 0 ? 0.15 : -0.15));
+            onPointerDown={(event) => {
+              event.stopPropagation();
+              event.currentTarget.setPointerCapture(event.pointerId);
+              dragRef.current = {
+                pointerId: event.pointerId,
+                x: event.clientX,
+                y: event.clientY,
+                originX: position.x,
+                originY: position.y,
+              };
+            }}
+            onPointerMove={(event) => {
+              const drag = dragRef.current;
+              if (!drag || drag.pointerId !== event.pointerId) return;
+              setPosition({
+                x: drag.originX + event.clientX - drag.x,
+                y: drag.originY + event.clientY - drag.y,
+              });
+            }}
+            onPointerUp={(event) => {
+              if (dragRef.current?.pointerId === event.pointerId) {
+                dragRef.current = undefined;
+                event.currentTarget.releasePointerCapture(event.pointerId);
+              }
             }}
           >
             <img
               src={url}
               alt={name}
-              style={{ transform: `scale(${scale})` }}
+              draggable={false}
+              style={{
+                transform: `translate(${position.x}px, ${position.y}px) scale(${scale})`,
+              }}
             />
           </div>
         </div>
@@ -1173,7 +1229,7 @@ function ImageAttachment({ url, name }: { url: string; name: string }) {
     </>
   );
 }
-function Composer({
+export function Composer({
   text,
   setText,
   mode,
@@ -1186,6 +1242,7 @@ function Composer({
   upload,
   attachments,
   removeAttachment,
+  notify,
 }: {
   text: string;
   setText: (value: string) => void;
@@ -1199,22 +1256,47 @@ function Composer({
   upload: (file: File) => Promise<void>;
   attachments: { id: string; name: string; media_type: string }[];
   removeAttachment: (id: string) => void;
+  notify: (level: "info" | "error", message: string) => void;
 }) {
   const unavailable = running || offline;
+  const [dragging, setDragging] = useState(false);
+  const textareaRef = useRef<HTMLTextAreaElement>(null);
+  useEffect(() => {
+    const textarea = textareaRef.current;
+    if (!textarea) return;
+    textarea.style.height = "auto";
+    const maxHeight = window.innerHeight * 0.4;
+    textarea.style.height = `${Math.min(textarea.scrollHeight, maxHeight)}px`;
+    textarea.style.overflowY =
+      textarea.scrollHeight > maxHeight ? "auto" : "hidden";
+  }, [text]);
+  const addFiles = (files: File[]) => {
+    if (offline || files.length === 0) return;
+    const remaining = Math.max(0, 8 - attachments.length);
+    if (files.length > remaining) notify("error", "每条消息最多添加 8 个附件");
+    for (const file of files.slice(0, remaining)) void upload(file);
+  };
   return (
     <div className="composer-wrap">
       <div
-        className="composer"
+        className={`composer ${dragging ? "dragging" : ""}`}
         onDrop={(event) => {
           event.preventDefault();
-          if (offline) return;
-          for (const file of Array.from(event.dataTransfer.files).slice(
-            0,
-            8 - attachments.length,
-          ))
-            void upload(file);
+          setDragging(false);
+          addFiles(Array.from(event.dataTransfer.files));
         }}
-        onDragOver={(event) => event.preventDefault()}
+        onDragEnter={(event) => {
+          event.preventDefault();
+          if (!offline) setDragging(true);
+        }}
+        onDragLeave={(event) => {
+          if (!event.currentTarget.contains(event.relatedTarget as Node))
+            setDragging(false);
+        }}
+        onDragOver={(event) => {
+          event.preventDefault();
+          event.dataTransfer.dropEffect = "copy";
+        }}
       >
         {attachments.length > 0 && (
           <div className="attachment-tray">
@@ -1230,14 +1312,14 @@ function Composer({
           </div>
         )}
         <textarea
+          ref={textareaRef}
           value={text}
           disabled={unavailable}
           onChange={(event) => setText(event.target.value)}
           onPaste={(event) => {
             if (offline) return;
             const files = Array.from(event.clipboardData.files);
-            for (const file of files.slice(0, 8 - attachments.length))
-              void upload(file);
+            addFiles(files);
           }}
           onKeyDown={(event) => {
             if (event.nativeEvent.isComposing) return;
@@ -1262,27 +1344,17 @@ function Composer({
             multiple
             hidden
             onChange={(event) => {
-              for (const file of Array.from(event.target.files ?? []).slice(
-                0,
-                8 - attachments.length,
-              ))
-                void upload(file);
+              addFiles(Array.from(event.target.files ?? []));
               event.target.value = "";
             }}
           />
           <button
             disabled={offline}
-            title="添加图片"
+            title="添加附件"
+            aria-label="添加附件"
             onClick={() => fileInput.current?.click()}
           >
             <ImagePlus size={15} />
-          </button>
-          <button
-            disabled={offline}
-            title="添加附件"
-            onClick={() => fileInput.current?.click()}
-          >
-            <Paperclip size={15} />
           </button>
           <span className="composer-hint">Enter 发送 · Shift+Enter 换行</span>
           <select

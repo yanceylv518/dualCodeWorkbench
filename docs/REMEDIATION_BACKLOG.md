@@ -209,9 +209,10 @@ ESLint（0 error）、Prettier 与 Rust `cargo check` 全部通过。Phase 0 到
 
 ### P2-9 Composer 与附件打磨
 
-- [ ] textarea 自动增高（上限约 40vh），保留 Shift+Enter 换行。
-- [ ] 合并重复的"添加图片/添加附件"两个按钮为一个；超过 8 个附件时给出明确提示（用 P2-5 通知）而非静默丢弃；拖放悬停时 composer 显示高亮态。
-- [ ] 图片灯箱：放大后支持拖拽平移；`onWheel` 的 `preventDefault` 改为在非 passive 原生监听上处理（ref + addEventListener）。
+- [x] textarea 自动增高（上限约 40vh），保留 Shift+Enter 换行。
+- [x] 合并重复的"添加图片/添加附件"两个按钮为一个；超过 8 个附件时给出明确提示（用 P2-5 通知）而非静默丢弃；拖放悬停时 composer 显示高亮态。
+- [x] 图片灯箱：放大后支持拖拽平移；`onWheel` 的 `preventDefault` 改为在非 passive 原生监听上处理（ref + addEventListener）。
+- **验证结果（2026-07-13）**：Composer 支持 40vh 内自动增高、单一附件入口、附件超限通知与拖放高亮；图片灯箱支持非 passive 滚轮缩放和指针拖拽平移。TypeScript、严格 ESLint、前端 29 项测试通过。
 
 ### P2-10 RemoteRepository 收敛为单一渲染路径
 
