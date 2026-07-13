@@ -15,6 +15,12 @@ import type {
 } from "./types";
 
 export type Mode = "codex" | "claude";
+export interface Notification {
+  id: string;
+  level: "error" | "info";
+  message: string;
+}
+let notificationSequence = 0;
 const activeStatesForStore = new Set<RunState>([
   "PLANNING",
   "WAITING_APPROVAL",
@@ -46,7 +52,7 @@ interface Store {
   activeAgent?: Mode;
   backend: "connecting" | "online" | "offline";
   realtime: "disconnected" | "connecting" | "connected" | "reconnecting";
-  error?: string;
+  notifications: Notification[];
   socket?: WebSocket;
   pendingApproval?: Approval;
   details?: ThreadDetails;
@@ -62,6 +68,12 @@ interface Store {
     size: number;
   }[];
   creatingThread: boolean;
+  notify: (
+    level: Notification["level"],
+    message: string,
+    timeoutMs?: number,
+  ) => void;
+  dismissNotification: (id: string) => void;
   runMeta?: { branch?: string; worktree?: string };
   initialize: () => Promise<void>;
   setSelection: (workspaceId: string, threadId: string) => void;
@@ -167,11 +179,24 @@ export const useStore = create<Store>((set, get) => ({
   backend: "connecting",
   realtime: "disconnected",
   terminal: [],
+  notifications: [],
   executionJobs: [],
   draftAttachments: [],
   creatingThread: false,
+  notify: (level, message, timeoutMs = level === "info" ? 5000 : undefined) => {
+    const id = `notification-${Date.now()}-${notificationSequence++}`;
+    set((state) => ({
+      notifications: [...state.notifications, { id, level, message }],
+    }));
+    if (timeoutMs)
+      window.setTimeout(() => get().dismissNotification(id), timeoutMs);
+  },
+  dismissNotification: (id) =>
+    set((state) => ({
+      notifications: state.notifications.filter((item) => item.id !== id),
+    })),
   initialize: async () => {
-    set({ backend: "connecting", error: undefined });
+    set({ backend: "connecting" });
     for (let attempt = 0; attempt < 60; attempt += 1) {
       try {
         const workspaces = await api.fetchWorkspaces();
@@ -182,7 +207,6 @@ export const useStore = create<Store>((set, get) => ({
           workspaceId,
           threadId,
           backend: "online",
-          error: undefined,
         });
         get().setSelection(workspaceId, threadId);
         return;
@@ -192,10 +216,8 @@ export const useStore = create<Store>((set, get) => ({
         );
       }
     }
-    set({
-      backend: "offline",
-      error: "本地后端启动超时，请重启应用或检查 8876 端口。",
-    });
+    set({ backend: "offline" });
+    get().notify("error", "本地后端启动超时，请重启应用或检查 8876 端口。");
   },
   setSelection: (workspaceId, threadId) => {
     get().socket?.close();
@@ -678,7 +700,7 @@ export const useStore = create<Store>((set, get) => ({
         }),
       }));
     } catch (error) {
-      set({ error: String(error) });
+      get().notify("error", String(error));
       throw error;
     }
   },
@@ -689,7 +711,7 @@ export const useStore = create<Store>((set, get) => ({
       state.setState("CREATED");
       set({ pendingApproval: undefined });
     } catch (error) {
-      set({ error: String(error) });
+      get().notify("error", String(error));
     }
   },
   retryMessage: async (messageId) => {
@@ -697,7 +719,7 @@ export const useStore = create<Store>((set, get) => ({
     try {
       await api.retryMessage(state.workspaceId, state.threadId, messageId);
     } catch (error) {
-      set({ error: String(error) });
+      get().notify("error", String(error));
     }
   },
   undoRun: async (runId) => {
@@ -705,7 +727,7 @@ export const useStore = create<Store>((set, get) => ({
     try {
       await api.undoRun(state.workspaceId, state.threadId, runId);
     } catch (error) {
-      set({ error: String(error) });
+      get().notify("error", String(error));
     }
   },
   upload: async (file) => {
@@ -720,7 +742,7 @@ export const useStore = create<Store>((set, get) => ({
         draftAttachments: [...current.draftAttachments, item].slice(-8),
       }));
     } catch (error) {
-      set({ error: String(error) });
+      get().notify("error", String(error));
     }
   },
   removeAttachment: (id) =>
@@ -742,7 +764,7 @@ export const useStore = create<Store>((set, get) => ({
       set({ workspaces });
       get().setSelection(state.workspaceId, item.id);
     } catch (error) {
-      set({ error: String(error) });
+      get().notify("error", String(error));
     } finally {
       set({ creatingThread: false });
     }
@@ -780,7 +802,7 @@ export const useStore = create<Store>((set, get) => ({
       });
       if (next) get().setSelection(next.id, next.threads[0]?.id ?? "");
     } catch (error) {
-      set({ error: String(error) });
+      get().notify("error", String(error));
       throw error;
     }
   },
@@ -799,13 +821,13 @@ export const useStore = create<Store>((set, get) => ({
       set({ pendingApproval: undefined });
       await get().refreshExecutionJobs();
     } catch (error) {
-      set({ error: String(error) });
+      get().notify("error", String(error));
     }
   },
   gitAction: async (action, message = "") => {
     const state = get();
     if (state.pendingApproval) {
-      set({ error: "请先处理当前待审批操作" });
+      get().notify("error", "请先处理当前待审批操作");
       return;
     }
     try {
@@ -816,7 +838,7 @@ export const useStore = create<Store>((set, get) => ({
         message,
       );
     } catch (error) {
-      set({ error: String(error) });
+      get().notify("error", String(error));
     }
   },
   saveRemote: async (remote_url, vps_repo_path) => {
@@ -828,7 +850,7 @@ export const useStore = create<Store>((set, get) => ({
       });
       set({ remoteStatus: await api.fetchWorkspaceRemote(state.workspaceId) });
     } catch (error) {
-      set({ error: String(error) });
+      get().notify("error", String(error));
       throw error;
     }
   },
@@ -838,10 +860,9 @@ export const useStore = create<Store>((set, get) => ({
     try {
       set({
         remoteStatus: await api.fetchWorkspaceRemote(workspaceId),
-        error: undefined,
       });
     } catch (error) {
-      set({ error: `VPS 状态刷新失败：${String(error)}` });
+      get().notify("info", `VPS 状态刷新失败：${String(error)}`);
       throw error;
     }
   },
@@ -852,7 +873,7 @@ export const useStore = create<Store>((set, get) => ({
       state.pendingApproval?.action === "remote_git_provision";
     if (state.pendingApproval && !replacesLegacyCloneApproval) {
       const error = new Error("请先处理当前待审批操作");
-      set({ error: error.message });
+      get().notify("error", error.message);
       throw error;
     }
     try {
@@ -870,20 +891,20 @@ export const useStore = create<Store>((set, get) => ({
         ...(replacesLegacyCloneApproval ? { pendingApproval: undefined } : {}),
       });
     } catch (error) {
-      set({ error: String(error) });
+      get().notify("error", String(error));
       throw error;
     }
   },
   runTests: async () => {
     const state = get();
     if (state.pendingApproval) {
-      set({ error: "请先处理当前待审批操作" });
+      get().notify("error", "请先处理当前待审批操作");
       return;
     }
     try {
       await api.requestTestRun(state.workspaceId, state.threadId);
     } catch (error) {
-      set({ error: String(error) });
+      get().notify("error", String(error));
     }
   },
   refreshExecutionJobs: async () => {
@@ -894,18 +915,18 @@ export const useStore = create<Store>((set, get) => ({
         executionJobs: await api.fetchExecutionJobs(workspaceId, threadId),
       });
     } catch (error) {
-      set({ error: `无法刷新恢复任务：${String(error)}` });
+      get().notify("info", `无法刷新恢复任务：${String(error)}`);
     }
   },
   retryExecutionJob: async (jobId) => {
     const { workspaceId, threadId, retryingJobId } = get();
     if (retryingJobId) return;
-    set({ retryingJobId: jobId, error: undefined });
+    set({ retryingJobId: jobId });
     try {
       await api.retryExecutionJob(workspaceId, threadId, jobId);
       await get().refreshExecutionJobs();
     } catch (error) {
-      set({ error: `重试任务失败：${String(error)}` });
+      get().notify("error", `重试任务失败：${String(error)}`);
     } finally {
       set({ retryingJobId: undefined });
     }

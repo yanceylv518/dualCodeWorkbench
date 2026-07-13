@@ -22,6 +22,32 @@ vi.mock("./api", () => ({
 afterEach(() => {
   vi.useRealTimers();
   vi.clearAllMocks();
+  useStore.setState({ notifications: [] });
+});
+
+describe("notifications", () => {
+  it("stacks persistent errors and dismisses one explicitly", () => {
+    const store = useStore.getState();
+    store.notify("error", "first");
+    store.notify("error", "second");
+
+    expect(
+      useStore.getState().notifications.map((item) => item.message),
+    ).toEqual(["first", "second"]);
+    store.dismissNotification(useStore.getState().notifications[0].id);
+    expect(
+      useStore.getState().notifications.map((item) => item.message),
+    ).toEqual(["second"]);
+  });
+
+  it("automatically dismisses informational notifications", () => {
+    vi.useFakeTimers();
+    useStore.getState().notify("info", "后台刷新失败");
+    expect(useStore.getState().notifications).toHaveLength(1);
+
+    vi.advanceTimersByTime(5000);
+    expect(useStore.getState().notifications).toHaveLength(0);
+  });
 });
 
 describe("activity terminal states", () => {

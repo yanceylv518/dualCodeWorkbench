@@ -681,15 +681,29 @@ export default function App() {
           审批与变更已审计
         </div>
       </footer>
-      {store.error && (
-        <button
-          className="error-toast"
-          onClick={() => useStore.setState({ error: undefined })}
-        >
-          <AlertTriangle size={14} />
-          {store.error}
-          <X size={13} />
-        </button>
+      {store.notifications.length > 0 && (
+        <div className="notification-stack" aria-live="polite">
+          {store.notifications.map((notification) => (
+            <div
+              className={`notification-toast ${notification.level}`}
+              key={notification.id}
+              role={notification.level === "error" ? "alert" : "status"}
+            >
+              {notification.level === "error" ? (
+                <AlertTriangle size={14} />
+              ) : (
+                <Circle size={11} />
+              )}
+              <span>{notification.message}</span>
+              <button
+                aria-label="关闭通知"
+                onClick={() => store.dismissNotification(notification.id)}
+              >
+                <X size={13} />
+              </button>
+            </div>
+          ))}
+        </div>
       )}
       {showSettings && (
         <SettingsDialog

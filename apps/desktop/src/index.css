@@ -1107,23 +1107,45 @@ button:disabled {
   margin-left: auto;
   font-size: var(--text-xs);
 }
-.error-toast {
+.notification-stack {
   position: fixed;
   z-index: 70;
-  left: 50%;
+  right: 18px;
   bottom: 45px;
-  transform: translateX(-50%);
+  display: flex;
+  width: min(420px, calc(100vw - 36px));
+  flex-direction: column;
+  gap: 8px;
+}
+.notification-toast {
   display: flex;
   align-items: center;
   gap: 8px;
-  max-width: 600px;
   border: 1px solid #693132;
   border-radius: 8px;
   background: #2b1214;
   padding: 9px 12px;
   color: #f2a1a5;
-  font-size: var(--text-xs);
+  font-size: var(--text-sm);
   box-shadow: 0 12px 30px #0008;
+}
+.notification-toast.info {
+  border-color: #31597d;
+  background: #142638;
+  color: #a8cbed;
+}
+.notification-toast span {
+  min-width: 0;
+  flex: 1;
+  overflow-wrap: anywhere;
+}
+.notification-toast button {
+  display: grid;
+  place-items: center;
+  border: 0;
+  background: transparent;
+  padding: 2px;
+  color: inherit;
 }
 .full-empty {
   height: 100%;
@@ -1833,9 +1855,6 @@ button:disabled {
 .activity-tasks button,
 .security-note {
   font-size: var(--text-xs);
-}
-.error-toast {
-  font-size: var(--text-sm);
 }
 .full-empty h2 {
   font-size: 19px;
