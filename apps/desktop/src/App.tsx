@@ -178,8 +178,10 @@ export default function App() {
   const selectedThreadId = thread?.id;
   useEffect(() => {
     if (!selectedThreadId || !followingLatest) return;
+    // 跟随滚动必须用即时定位：smooth 动画会被下一个 delta 重启（闪烁），
+    // 且动画途中 onScroll 读到 >80px 的距离会把跟随状态误判成 false。
     const frame = window.requestAnimationFrame(() =>
-      messageEnd.current?.scrollIntoView({ block: "end", behavior: "smooth" }),
+      messageEnd.current?.scrollIntoView({ block: "end", behavior: "auto" }),
     );
     return () => window.cancelAnimationFrame(frame);
   }, [
@@ -251,6 +253,8 @@ export default function App() {
     if (!text.trim() && store.draftAttachments.length === 0) return;
     void store.sendPrompt(text.trim());
     setText("");
+    // 发送即回到消息尾部并恢复跟随，确保能立刻看到本轮的处理过程。
+    scrollToLatest();
   };
   const resize = (
     side: "left" | "right",

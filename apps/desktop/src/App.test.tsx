@@ -274,6 +274,37 @@ describe("workbench", () => {
     expect(stop.disabled).toBe(false);
   });
 
+  it("re-enables follow-to-latest when sending a message", async () => {
+    Object.defineProperty(HTMLElement.prototype, "scrollIntoView", {
+      configurable: true,
+      value: vi.fn(),
+    });
+    const sendPrompt = vi.fn(async () => undefined);
+    useStore.setState({
+      ...singleTaskState("CREATED"),
+      sendPrompt,
+      drafts: { "thread-1": "继续下一步" },
+    });
+
+    const { container } = render(<App />);
+    const stream = container.querySelector(".message-stream")!;
+    Object.defineProperty(stream, "scrollHeight", {
+      configurable: true,
+      value: 1000,
+    });
+    Object.defineProperty(stream, "clientHeight", {
+      configurable: true,
+      value: 200,
+    });
+    stream.scrollTop = 0;
+    fireEvent.scroll(stream);
+    expect(screen.getByText("回到最新")).toBeTruthy();
+
+    fireEvent.click(screen.getByRole("button", { name: /发送/ }));
+    await vi.waitFor(() => expect(sendPrompt).toHaveBeenCalled());
+    expect(screen.queryByText("回到最新")).toBeNull();
+  });
+
   it("disables send until the draft has content", () => {
     useStore.setState(singleTaskState("CREATED"));
 
