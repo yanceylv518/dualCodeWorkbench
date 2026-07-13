@@ -1,5 +1,12 @@
 # DualCode Workbench 项目状态
 
+## 2026-07-14 U3 流式渲染策略
+
+- `stream-*` 占位消息在生成期间只渲染 `pre-wrap` 纯文本与尾部光标，不再随每个 delta 重跑 Markdown 解析和重排。
+- `message.created` 把占位 ID 替换为持久消息 ID 后，`MessageCard` 自动恢复 Markdown 渲染，不引入额外切换状态。
+- 未修改消息跟随逻辑；既有“接近底部才跟随、用户上翻不强制吸底”回归继续通过。
+- 验证：前端 57 项、TypeScript、严格 ESLint和生产构建通过，主 JS 543.58kB 且无新增 chunk 警告。后端未修改；本机 pytest 仍因已确认的 Windows 临时目录 ACL 问题得到 62 项通过、41 项环境错误，U2 review 已在 Linux 与 CI 补验后端 103 项全绿。
+
 ## 2026-07-14 U2 消息工具条与复制
 
 - Codex/Claude 消息新增右上角 hover/focus 工具条，可一键复制完整 Markdown 原文；用户消息的“编辑后重新发送”和“重试本轮”收敛到同一交互样式，原行为保持不变。

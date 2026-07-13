@@ -1067,6 +1067,7 @@ function MessageCard({
   retry: (id: string) => Promise<void>;
 }) {
   const { agent, time, text } = message;
+  const isStreaming = message.id.startsWith("stream-");
   const workspaceId = useStore((state) => state.workspaceId);
   const threadId = useStore((state) => state.threadId);
   const { copyState, copyText } = useCopyFeedback();
@@ -1153,7 +1154,11 @@ function MessageCard({
               })}
             </div>
           ) : null}
-          {agent === "user" ? (
+          {isStreaming ? (
+            <p className="streaming-message" aria-label="正在生成回复">
+              {text}
+            </p>
+          ) : agent === "user" ? (
             <p className="plain-text">{text}</p>
           ) : (
             <MarkdownMessage text={text} />

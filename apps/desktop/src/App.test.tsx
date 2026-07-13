@@ -40,6 +40,62 @@ const singleTaskState = (state: "CREATED" | "IMPLEMENTING") => ({
 });
 
 describe("workbench", () => {
+  it("renders stream placeholders as plain text and persisted messages as Markdown", () => {
+    Object.defineProperty(HTMLElement.prototype, "scrollIntoView", {
+      configurable: true,
+      value: vi.fn(),
+    });
+    const base = singleTaskState("IMPLEMENTING");
+    useStore.setState({
+      ...base,
+      workspaces: [
+        {
+          ...base.workspaces[0],
+          threads: [
+            {
+              ...base.workspaces[0].threads[0],
+              messages: [
+                {
+                  id: "stream-run-1",
+                  agent: "codex",
+                  text: "## 尚未完成\n\n- 流式内容",
+                  time: "",
+                },
+              ],
+            },
+          ],
+        },
+      ],
+    });
+
+    const { container } = render(<App />);
+    expect(screen.getByLabelText("正在生成回复").textContent).toContain(
+      "## 尚未完成",
+    );
+    expect(container.querySelector(".message-content h2")).toBeNull();
+    expect(container.querySelector(".streaming-message")).toBeTruthy();
+
+    act(() => {
+      useStore.setState((state) => ({
+        workspaces: state.workspaces.map((workspace) => ({
+          ...workspace,
+          threads: workspace.threads.map((thread) => ({
+            ...thread,
+            messages: thread.messages.map((message) => ({
+              ...message,
+              id: "message-final",
+            })),
+          })),
+        })),
+      }));
+    });
+
+    expect(
+      screen.getByRole("heading", { name: "尚未完成", level: 2 }),
+    ).toBeTruthy();
+    expect(container.querySelector(".streaming-message")).toBeNull();
+  });
+
   it("shows a focusable message toolbar and copies the exact agent Markdown", async () => {
     const writeText = vi.fn(async () => undefined);
     Object.defineProperty(HTMLElement.prototype, "scrollIntoView", {

@@ -84,6 +84,16 @@
   color: #7f9cc4;
   animation: thinking-caret 1s steps(2) infinite;
 }
+.streaming-message {
+  margin: 0;
+  white-space: pre-wrap;
+}
+.streaming-message::after {
+  content: "▍";
+  margin-left: 2px;
+  color: #7f9cc4;
+  animation: thinking-caret 1s steps(2) infinite;
+}
 @keyframes thinking-caret {
   50% {
     opacity: 0;
