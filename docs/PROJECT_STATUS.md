@@ -1,5 +1,11 @@
 # DualCode Workbench 项目状态
 
+## 2026-07-14 U1 代码块阅读与操作体验
+
+- Markdown 块级代码由独立 `CodeBlock` 接管，highlight.js 通过 core 按需注册 TypeScript、JavaScript、Python、Rust、Bash、JSON、Diff、CSS、HTML/XML、SQL、YAML 与 Markdown，不识别的语言安全回退纯文本。
+- 代码块提供语言标签、hover/focus 可见的复制按钮与 1.5 秒就地成功反馈；超过 400 行默认展示前 80 行，可显式展开全文。
+- 验证：前端 53 项、TypeScript、严格 ESLint、U1 改动文件 Prettier 与生产构建通过；主 JS 542.51kB，无新增 chunk 警告。
+
 ## 2026-07-14 对话消息垂直节奏修复
 
 - 用户、Codex 与 Claude 消息统一使用 24px 轮次间距；用户消息的编辑/重试操作栏改为绝对定位，不再因透明但占位造成相邻消息间距忽大忽小。

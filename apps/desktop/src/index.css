@@ -3391,22 +3391,101 @@ button:disabled {
 }
 .message-code {
   position: relative;
-  overflow: auto;
   margin: 12px 0;
   border: 1px solid #303943;
   border-radius: 8px;
   background: #090d12;
-  padding: 27px 13px 12px;
   color: #d2d9e2;
   font:
     11px/1.6 Consolas,
     monospace;
 }
-.message-code code {
+.message-code pre {
+  overflow: auto;
+  margin: 0;
+  padding: 27px 13px 12px;
+}
+.message-code pre code {
+  display: block;
   white-space: pre;
 }
-.message-code-content {
-  font: inherit;
+.message-code-language {
+  position: absolute;
+  top: 6px;
+  left: 13px;
+  color: #78879a;
+  font:
+    11px/1.4 Consolas,
+    monospace;
+  text-transform: lowercase;
+}
+.message-code-copy {
+  position: absolute;
+  top: 4px;
+  right: 6px;
+  z-index: 1;
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  border: 0;
+  border-radius: 5px;
+  background: #18212c;
+  padding: 3px 6px;
+  color: #aebccc;
+  opacity: 0;
+  transition:
+    opacity 150ms ease,
+    background 150ms ease;
+}
+.message-code:hover .message-code-copy,
+.message-code:focus-within .message-code-copy {
+  opacity: 1;
+}
+.message-code-copy:hover {
+  background: #243243;
+  color: #e7edf5;
+}
+.message-code-expand {
+  width: 100%;
+  border: 0;
+  border-top: 1px solid #26313d;
+  border-radius: 0 0 8px 8px;
+  background: #111923;
+  padding: 7px 12px;
+  color: #9bb9dc;
+  text-align: center;
+}
+.message-code-expand:hover {
+  background: #182433;
+}
+.message-code .hljs-keyword,
+.message-code .hljs-selector-tag,
+.message-code .hljs-literal {
+  color: #c792ea;
+}
+.message-code .hljs-string,
+.message-code .hljs-attr,
+.message-code .hljs-addition {
+  color: #a5d6a7;
+}
+.message-code .hljs-title,
+.message-code .hljs-function,
+.message-code .hljs-section {
+  color: #82aaff;
+}
+.message-code .hljs-number,
+.message-code .hljs-built_in,
+.message-code .hljs-type {
+  color: #f78c6c;
+}
+.message-code .hljs-comment,
+.message-code .hljs-quote,
+.message-code .hljs-meta {
+  color: #697b8c;
+  font-style: italic;
+}
+.message-code .hljs-deletion {
+  color: #ff869a;
 }
 .agent-activity {
   max-width: 758px;
