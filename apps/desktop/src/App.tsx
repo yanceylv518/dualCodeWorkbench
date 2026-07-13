@@ -37,6 +37,7 @@ import {
 } from "lucide-react";
 import { MarkdownMessage } from "./components/MarkdownMessage";
 import { DiffPanel } from "./components/DiffPanel";
+import { ConfirmDialog, InputDialog } from "./components/dialogs";
 import { SettingsDialog } from "./SettingsDialog";
 import { ProjectDialog } from "./ProjectDialog";
 import { ExecutionEvidence } from "./ExecutionEvidence";
@@ -98,6 +99,11 @@ export default function App() {
   );
   const [showSettings, setShowSettings] = useState(false);
   const [showProjectDialog, setShowProjectDialog] = useState(false);
+  const [showPathDialog, setShowPathDialog] = useState(false);
+  const [removeProject, setRemoveProject] = useState<{
+    id: string;
+    name: string;
+  }>();
   const [projectMenu, setProjectMenu] = useState<string>();
   const [settingsTarget, setSettingsTarget] = useState<"general" | "tests">(
     "general",
@@ -187,24 +193,25 @@ export default function App() {
   };
 
   const openWorkspace = useCallback(async () => {
-    const selected = isTauri()
-      ? await open({
-          directory: true,
-          multiple: false,
-          title: "选择本地 Git 仓库",
-        })
-      : window.prompt("输入本地 Git 仓库的绝对路径");
+    if (!isTauri()) {
+      setShowPathDialog(true);
+      return;
+    }
+    const selected = await open({
+      directory: true,
+      multiple: false,
+      title: "选择本地 Git 仓库",
+    });
     if (typeof selected === "string" && selected.trim())
       await openWorkspaceInStore(selected.trim());
   }, [openWorkspaceInStore]);
   const chooseDirectory = async () => {
-    const selected = isTauri()
-      ? await open({
-          directory: true,
-          multiple: false,
-          title: "选择本地空目录",
-        })
-      : window.prompt("输入本地空目录的绝对路径");
+    if (!isTauri()) return undefined;
+    const selected = await open({
+      directory: true,
+      multiple: false,
+      title: "选择本地空目录",
+    });
     return typeof selected === "string" ? selected : undefined;
   };
   useEffect(() => {
@@ -420,12 +427,7 @@ export default function App() {
                       <button
                         onClick={() => {
                           setProjectMenu(undefined);
-                          if (
-                            window.confirm(
-                              `从工作台移除“${item.name}”？\n\n本地文件不会被删除。`,
-                            )
-                          )
-                            void store.removeWorkspace(item.id);
+                          setRemoveProject({ id: item.id, name: item.name });
                         }}
                       >
                         从工作台移除<small>保留本地文件</small>
@@ -731,6 +733,31 @@ export default function App() {
           chooseDirectory={chooseDirectory}
           submit={store.provisionWorkspace}
           close={() => setShowProjectDialog(false)}
+        />
+      )}
+      {showPathDialog && (
+        <InputDialog
+          title="打开本地 Git 仓库"
+          placeholder="输入本地 Git 仓库的绝对路径"
+          onClose={() => setShowPathDialog(false)}
+          onSubmit={(path) => {
+            setShowPathDialog(false);
+            void openWorkspaceInStore(path);
+          }}
+        />
+      )}
+      {removeProject && (
+        <ConfirmDialog
+          title="从工作台移除项目"
+          message={`确认移除“${removeProject.name}”？本地仓库文件不会被删除。`}
+          confirmLabel="确认移除"
+          danger
+          onClose={() => setRemoveProject(undefined)}
+          onConfirm={() => {
+            const id = removeProject.id;
+            setRemoveProject(undefined);
+            void store.removeWorkspace(id);
+          }}
         />
       )}
     </div>

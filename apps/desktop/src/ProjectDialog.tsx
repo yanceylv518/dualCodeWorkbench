@@ -1,5 +1,6 @@
 import { useRef, useState } from "react";
 import { FolderGit2, GitFork, LoaderCircle, X } from "lucide-react";
+import { useDialogFocus } from "./components/dialogs";
 
 export function ProjectDialog({
   chooseDirectory,
@@ -21,6 +22,7 @@ export function ProjectDialog({
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
   const submitting = useRef(false);
+  const dialog = useDialogFocus<HTMLDivElement>(close);
   const run = async () => {
     if (
       submitting.current ||
@@ -43,13 +45,19 @@ export function ProjectDialog({
   };
   return (
     <div className="settings-backdrop">
-      <div className="project-dialog">
+      <div
+        ref={dialog}
+        className="project-dialog"
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby="project-dialog-title"
+      >
         <header>
           <div>
             <FolderGit2 size={18} />
           </div>
           <span>
-            <strong>创建或克隆项目</strong>
+            <strong id="project-dialog-title">创建或克隆项目</strong>
             <small>准备本地 Git 仓库并加入工作台</small>
           </span>
           <button onClick={close}>
@@ -80,6 +88,7 @@ export function ProjectDialog({
               {mode === "clone" ? "远程仓库 URL" : "远程仓库 URL（可选）"}
             </span>
             <input
+              autoFocus
               value={remote}
               onChange={(event) => setRemote(event.target.value)}
               placeholder="git@github.com:owner/repository.git"

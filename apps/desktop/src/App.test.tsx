@@ -264,11 +264,14 @@ describe("workbench", () => {
 
   it("opens a project with the Ctrl+O shortcut", async () => {
     const openWorkspace = vi.fn(async () => undefined);
-    vi.spyOn(window, "prompt").mockReturnValue("D:/Project");
     useStore.setState({ backend: "online", openWorkspace });
     render(<App />);
 
     fireEvent.keyDown(window, { key: "o", ctrlKey: true });
+    const path =
+      await screen.findByPlaceholderText("输入本地 Git 仓库的绝对路径");
+    fireEvent.change(path, { target: { value: "D:/Project" } });
+    fireEvent.click(screen.getByRole("button", { name: "打开" }));
 
     await vi.waitFor(() =>
       expect(openWorkspace).toHaveBeenCalledWith("D:/Project"),

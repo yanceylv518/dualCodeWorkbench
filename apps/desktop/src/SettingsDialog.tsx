@@ -10,6 +10,7 @@ import {
 } from "lucide-react";
 import * as api from "./api";
 import type { AgentModel, AgentModelCatalog, AgentSettings } from "./types";
+import { ConfirmDialog, useDialogFocus } from "./components/dialogs";
 
 const lines = (value: string) =>
   value
@@ -35,8 +36,10 @@ export function SettingsDialog({
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [saved, setSaved] = useState(false);
+  const [confirmFullAccess, setConfirmFullAccess] = useState(false);
   const [testArgumentsText, setTestArgumentsText] = useState("");
   const testSection = useRef<HTMLElement>(null);
+  const dialog = useDialogFocus<HTMLDivElement>(onClose);
   const load = async () => {
     setLoading(true);
     setError("");
@@ -191,15 +194,12 @@ export function SettingsDialog({
       </select>
     </label>
   );
-  const save = async () => {
+  const save = async (fullAccessConfirmed = false) => {
     if (!value) return;
-    if (
-      value.codex_permission_mode === "full_access" &&
-      !window.confirm(
-        "完全访问会让 Codex 无需审批即可访问当前 Windows 用户可访问的文件、执行命令和联网操作。确认启用吗？",
-      )
-    )
+    if (value.codex_permission_mode === "full_access" && !fullAccessConfirmed) {
+      setConfirmFullAccess(true);
       return;
+    }
     setSaving(true);
     setSaved(false);
     setError("");
@@ -230,13 +230,19 @@ export function SettingsDialog({
   };
   return (
     <div className="settings-backdrop">
-      <div className="settings-dialog">
+      <div
+        ref={dialog}
+        className="settings-dialog"
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby="settings-title"
+      >
         <header className="settings-header">
           <div className="settings-title-icon">
             <Bot size={18} />
           </div>
           <div>
-            <h2>Agent 与模型</h2>
+            <h2 id="settings-title">Agent 与模型</h2>
             <p>选择日常使用的模型，连接细节保持默认即可</p>
           </div>
           <button onClick={onClose}>
@@ -431,6 +437,19 @@ export function SettingsDialog({
           </button>
         </footer>
       </div>
+      {confirmFullAccess && (
+        <ConfirmDialog
+          title="启用完全访问"
+          message="完全访问会让 Codex 无需审批即可访问当前账户可访问的文件、执行命令和联网操作。仅在受控开发环境中启用。"
+          confirmLabel="确认启用"
+          danger
+          onClose={() => setConfirmFullAccess(false)}
+          onConfirm={() => {
+            setConfirmFullAccess(false);
+            void save(true);
+          }}
+        />
+      )}
     </div>
   );
 }

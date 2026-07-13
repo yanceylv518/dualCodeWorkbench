@@ -202,9 +202,10 @@ ESLint（0 error）、Prettier 与 Rust `cargo check` 全部通过。Phase 0 到
 
 ### P2-8 对话框行为统一
 
-- [ ] SettingsDialog、ProjectDialog：支持 Esc 关闭、初始 autoFocus、简单焦点圈定（Tab 不逃出对话框）；与图片灯箱行为对齐。
-- [ ] 替换全部 `window.confirm/prompt`（App.tsx:116 移除项目、SettingsDialog.tsx:23 完全访问确认、非 Tauri 的路径 prompt）为应用内确认对话框组件（新建一个通用 `ConfirmDialog`）。
-- [ ] 完全访问确认文案去掉硬编码"Windows 用户"，按平台中性描述。
+- [x] SettingsDialog、ProjectDialog：支持 Esc 关闭、初始 autoFocus、简单焦点圈定（Tab 不逃出对话框）；与图片灯箱行为对齐。
+- [x] 替换全部 `window.confirm/prompt`（移除项目、完全访问确认、非 Tauri 路径输入）为通用应用内对话框。
+- [x] 完全访问确认文案去掉硬编码平台用户描述，改为平台中性说明。
+- **验证结果（2026-07-13）**：建立通用确认/输入对话框和焦点圈定 Hook，设置、项目接入、完全访问及项目移除统一键盘行为；TypeScript、前端 26 项、严格 ESLint 与 Prettier 通过。
 
 ### P2-9 Composer 与附件打磨
 
