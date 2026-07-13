@@ -277,7 +277,11 @@ export default function App() {
             <Settings2 size={16} />
           </button>
         </div>
-        <BackendBadge status={store.backend} retry={store.initialize} />
+        <BackendBadge
+          status={store.backend}
+          realtime={store.realtime}
+          retry={store.initialize}
+        />
         {isTauri() && (
           <div className="window-controls">
             <button
@@ -643,16 +647,24 @@ export default function App() {
 
 function BackendBadge({
   status,
+  realtime,
   retry,
 }: {
   status: "connecting" | "online" | "offline";
+  realtime: ReturnType<typeof useStore.getState>["realtime"];
   retry: () => Promise<void>;
 }) {
   return (
     <div className={`backend-badge ${status}`}>
       <span />
       {status === "online" ? (
-        "后端在线"
+        realtime === "reconnecting" ? (
+          "实时连接重连中"
+        ) : realtime === "connecting" ? (
+          "实时连接中"
+        ) : (
+          "后端在线"
+        )
       ) : status === "connecting" ? (
         "后端启动中"
       ) : (

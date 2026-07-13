@@ -44,6 +44,7 @@ interface Store {
   threadId: string;
   mode: Mode;
   backend: "connecting" | "online" | "offline";
+  realtime: "disconnected" | "connecting" | "connected" | "reconnecting";
   error?: string;
   socket?: WebSocket;
   pendingApproval?: Approval;
@@ -163,6 +164,7 @@ export const useStore = create<Store>((set, get) => ({
   threadId: "",
   mode: "codex",
   backend: "connecting",
+  realtime: "disconnected",
   terminal: [],
   executionJobs: [],
   draftAttachments: [],
@@ -206,6 +208,8 @@ export const useStore = create<Store>((set, get) => ({
       executionJobs: [],
       terminal: [],
       runMeta: undefined,
+      socket: undefined,
+      realtime: threadId ? "connecting" : "disconnected",
     });
     if (get().backend !== "online" || !threadId) return;
     void api
@@ -227,11 +231,41 @@ export const useStore = create<Store>((set, get) => ({
       .then((remoteStatus) => set({ remoteStatus }))
       .catch(() => undefined);
     void get().refreshExecutionJobs();
-    void api
-      .threadSocket(threadId)
-      .then((socket) => {
+    let reconnectAttempt = 0;
+    let reconnectTimer: number | undefined;
+    const connect = () => {
+      if (
+        get().workspaceId !== workspaceId ||
+        get().threadId !== threadId ||
+        get().backend !== "online"
+      )
+        return;
+      set({ realtime: reconnectAttempt ? "reconnecting" : "connecting" });
+      void api
+        .threadSocket(threadId)
+        .then((socket) => {
+        if (get().workspaceId !== workspaceId || get().threadId !== threadId) {
+          socket.close();
+          return;
+        }
+        socket.onopen = () => {
+          reconnectAttempt = 0;
+          set({ socket, realtime: "connected" });
+          refreshDetails();
+          void api
+            .fetchApprovals(workspaceId, threadId)
+            .then((items) => set({ pendingApproval: items[0] }))
+            .catch(() => undefined);
+          void get().refreshExecutionJobs();
+        };
         socket.onmessage = (event) => {
-          const data = JSON.parse(event.data) as AgentEvent;
+          let data: AgentEvent;
+          try {
+            data = JSON.parse(event.data) as AgentEvent;
+          } catch (error) {
+            console.warn("忽略无法解析的实时消息", error);
+            return;
+          }
           const payload = data.payload;
           if (
             data.type === "agent.delta" &&
@@ -532,10 +566,32 @@ export const useStore = create<Store>((set, get) => ({
           if (data.type === "approval.decided")
             set({ pendingApproval: undefined });
         };
-        socket.onerror = () => set({ error: "实时连接已中断。" });
+        socket.onerror = () => set({ realtime: "reconnecting" });
+        socket.onclose = () => {
+          if (
+            get().workspaceId !== workspaceId ||
+            get().threadId !== threadId ||
+            get().backend !== "online"
+          )
+            return;
+          set({ socket: undefined, realtime: "reconnecting" });
+          const delay = Math.min(1000 * 2 ** reconnectAttempt, 30_000);
+          reconnectAttempt += 1;
+          if (reconnectTimer !== undefined) window.clearTimeout(reconnectTimer);
+          reconnectTimer = window.setTimeout(connect, delay);
+        };
         set({ socket });
       })
-      .catch(() => set({ error: "实时连接鉴权失败。" }));
+      .catch(() => {
+        if (get().workspaceId !== workspaceId || get().threadId !== threadId)
+          return;
+        set({ realtime: "reconnecting" });
+        const delay = Math.min(1000 * 2 ** reconnectAttempt, 30_000);
+        reconnectAttempt += 1;
+        reconnectTimer = window.setTimeout(connect, delay);
+      });
+    };
+    connect();
   },
   setMode: (mode) => set({ mode }),
   addMessage: (agent, text) =>

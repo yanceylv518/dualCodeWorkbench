@@ -112,9 +112,10 @@ ESLint（0 error）、Prettier 与 Rust `cargo check` 全部通过。Phase 0 到
 - **验证结果（2026-07-13）**：审批主操作已进入中央对话流；隐藏检查器后仍可见“允许一次”和审批原因。前端类型检查与 10 项组件测试通过。
 
 ### P1-4 WebSocket 断线重连
-- [ ] `store.ts:110-168`：为线程 socket 增加 `onclose` 处理与指数退避重连（上限约 30s），重连成功后调用现有的 `refreshDetails`/`fetchApprovals`/`refreshExecutionJobs` 补齐丢失事件；连接状态反映到 UI（复用 backend badge 或新增连接指示）。
-- [ ] `onmessage` 的 `JSON.parse` 包 try/catch，坏帧忽略并 console.warn。
-- [ ] 新增 store 测试：模拟 close 事件触发重连调度。
+- [x] `store.ts:110-168`：为线程 socket 增加 `onclose` 处理与指数退避重连（上限约 30s），重连成功后调用现有的 `refreshDetails`/`fetchApprovals`/`refreshExecutionJobs` 补齐丢失事件；连接状态反映到 UI（复用 backend badge 或新增连接指示）。
+- [x] `onmessage` 的 `JSON.parse` 包 try/catch，坏帧忽略并 console.warn。
+- [x] 新增 store 测试：模拟 close 事件触发重连调度。
+- **验证结果（2026-07-13）**：线程实时连接支持 1s 起步、30s 封顶的指数退避；重连成功补偿刷新详情、审批和执行作业，坏帧安全忽略，顶部状态显示连接/重连状态。前端类型检查与 11 项测试通过。
 
 ### P1-5 消息流滚动策略
 - [ ] `App.tsx:58-63`：改为「仅当用户位于底部附近（阈值 ~80px）时跟随滚动」；用户上翻后出现「回到最新」悬浮按钮，点击回底。
