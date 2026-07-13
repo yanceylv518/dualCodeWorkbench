@@ -393,3 +393,39 @@ chunk 为预期大小；随 Phase 3 顺带处理。
   - **验证结果（2026-07-13）**：InputDialog 在输入法组合态忽略 Enter，并增加组件防回归测试；TypeScript、严格 ESLint、Prettier 与前端全量 33 项通过。
 
 R5、R6 各自独立 commit，CI 绿后直接继续 Phase 3 条目（P3-1 → P3-5），完成后停下等待 review。
+
+### Phase 3 Review（2026-07-13，Claude）
+
+**结论：Phase 3 通过。整改清单（Phase 0–3 全部 28 个条目 + R1–R6）到此全部关闭。**
+
+Linux 独立复验：后端 103 项、前端 37 项、TypeScript、严格 ESLint、Ruff 全部通过；
+GitHub Actions run `29259062622` 双平台绿。本阶段提交编号与中文说明已恢复约定格式（W2 已纠正）。逐项核查：
+
+- R5：`api_*.py` 全部 `HTTPException` detail 已中文化（正则扫描零条非中文语义句）✓；
+  R6：InputDialog `isComposing` 守卫 + 防回归测试 ✓。
+- P3-1：真实 Alembic（baseline `0001` + 兼容迁移 `0002`），`main.py` lifespan 不再手写
+  PRAGMA/ALTER/create_all，全部委托 `upgrade_database`；对「全新库 / 手写补丁前的旧库 /
+  已建 schema 未打标的库」三种场景均有数据保全测试，pre-Alembic 库自动 stamp 后升级 ✓。
+- P3-2：`api.py` 收敛为 5 个领域 router 的聚合入口（workspaces / collaboration / jobs /
+  agents / attachments），交接 prompt 独立为 `handoff_prompt.py`；行为零变化由含 API 集成
+  在内的 103 项测试背书 ✓。
+- P3-3：新增 `AgentStreamEvent` 统一事件契约（DELTA / TOOL_EVENT / TERMINAL / FINAL），
+  Codex 与 Claude 的 JSON 协议解析分别下沉到 `codex_app_server.py` 与 `cli_adapters.py`，
+  scheduler 只消费类型化事件；韧性与协议测试随迁不减 ✓。
+- P3-4：`context_budget.py` 按 60k/20k 字符预算从新到旧装载，截断标记齐全，边界（零预算、
+  超长首条）有测试 ✓。
+- P3-5：store 测试补齐 delta 合并、占位替换、工具时间线、error settle 四类归并 + 通知与
+  重连共 9 项 ✓。
+
+**遗留（唯一开放项）**：N6（`chunkSizeWarningLimit: 5000`）未随 Phase 3 处理，继续开放——
+建议降到 ~600kB 并注释说明 Monaco editor.api chunk 为预期大小，任何后续提交顺带完成即可。
+
+### 整改清单收官（2026-07-13，Claude）
+
+四个 Phase 共 34 项（28 条目 + 6 返工/前置项）全部完成并验收。相对整改前的基线，仓库现在具备：
+双平台 CI 门禁（pytest + Ruff + tsc + 严格 ESLint + vitest）、本地 API token 鉴权、Alembic
+迁移、领域化路由、统一 Agent 流事件契约、上下文预算、以及 103/37/1（后端/前端/E2E）的测试规模。
+
+本清单不覆盖的后续事项（见「明确不做」与 PROJECT_STATUS）：真实双 Agent 第二轮人工验收、
+故障注入验收、Windows 安装包全新机器验收、多线程实时状态推送、i18n 框架。新工作请另立文档，
+不要在本清单追加条目。
