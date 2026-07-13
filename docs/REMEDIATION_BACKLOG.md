@@ -216,9 +216,10 @@ ESLint（0 error）、Prettier 与 Rust `cargo check` 全部通过。Phase 0 到
 
 ### P2-10 RemoteRepository 收敛为单一渲染路径
 
-- [ ] `App.tsx:227-263`：合并"已配置只读摘要"与"编辑中"两条分支中重复的 VPS 状态区；删除编辑分支残留的旧「VPS 获取/VPS 拉取」按钮（与已确认的交互规范冲突）；`head.slice(0,10)` 前判空。
-- [ ] feedback 文案改为单一来源（由 job/remote 状态派生的纯函数），移除 useEffect 与手动 setFeedback 的竞争（App.tsx:237-247）。
-- [ ] 该组件从 App.tsx 拆出独立文件并补组件测试（克隆运行中、失败重试、就绪三态）。
+- [x] `App.tsx:227-263`：合并"已配置只读摘要"与"编辑中"两条分支中重复的 VPS 状态区；删除编辑分支残留的旧「VPS 获取/VPS 拉取」按钮（与已确认的交互规范冲突）；`head.slice(0,10)` 前判空。
+- [x] feedback 文案改为单一来源（由 job/remote 状态派生的纯函数），移除 useEffect 与手动 setFeedback 的竞争（App.tsx:237-247）。
+- [x] 该组件从 App.tsx 拆出独立文件并补组件测试（克隆运行中、失败重试、就绪三态）。
+- **验证结果（2026-07-13）**：VPS 仓库配置和状态统一为单一路径，反馈由 `deriveRemoteFeedback` 纯函数派生，旧 fetch/pull 分支删除且空 HEAD 安全展示；组件已独立并覆盖克隆运行、残留目录修复重试和就绪三态。TypeScript、严格 ESLint、前端 32 项测试通过。
 
 ### P2-11 文案统一为中文
 
