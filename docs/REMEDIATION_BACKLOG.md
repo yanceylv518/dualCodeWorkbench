@@ -93,9 +93,10 @@ ESLint（0 error）、Prettier 与 Rust `cargo check` 全部通过。Phase 0 到
 ## Phase 1：前端高严重度交互缺陷（P1）
 
 ### P1-1 中文输入法 Enter 误发送
-- [ ] `App.tsx` Composer 的 `onKeyDown`：`event.nativeEvent.isComposing` 为 true 时不发送。
-- [ ] 新增组件测试：模拟 composing 状态下 Enter 不触发 `run`。
+- [x] `App.tsx` Composer 的 `onKeyDown`：`event.nativeEvent.isComposing` 为 true 时不发送。
+- [x] 新增组件测试：模拟 composing 状态下 Enter 不触发 `run`。
 - **验收**：拼音候选态按 Enter 不再发出消息。
+- **验证结果（2026-07-13）**：前端类型检查通过；组件测试 8 项通过，覆盖中文输入法候选态 Enter 不发送。
 
 ### P1-2 列表输入框无法换行
 - [ ] `ContractPanel.tsx:7,17` 与 `SettingsDialog.tsx:35`：受控 textarea 不得在 `onChange` 里做 `split/filter/join` 回写。改为：textarea 持有原始字符串 state，仅在保存（或 blur）时解析为行数组。

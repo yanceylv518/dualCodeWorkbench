@@ -1,5 +1,5 @@
-import { cleanup, render, screen } from "@testing-library/react";
-import { afterEach, describe, expect, it } from "vitest";
+import { cleanup, fireEvent, render, screen } from "@testing-library/react";
+import { afterEach, describe, expect, it, vi } from "vitest";
 
 import App from "./App";
 import { useStore } from "./store";
@@ -61,5 +61,34 @@ describe("workbench", () => {
     expect(
       screen.getAllByRole("button", { name: /重试/ }).length,
     ).toBeGreaterThan(0);
+  });
+
+  it("does not send while the Chinese input method is composing", () => {
+    const sendPrompt = vi.fn(async () => undefined);
+    useStore.setState({
+      backend: "online",
+      workspaceId: "workspace-1",
+      threadId: "thread-1",
+      sendPrompt,
+      workspaces: [
+        {
+          id: "workspace-1",
+          name: "Project",
+          path: "D:/Project",
+          threads: [
+            { id: "thread-1", title: "Task", state: "CREATED", messages: [] },
+          ],
+        },
+      ],
+    });
+
+    render(<App />);
+    const composer = screen.getByPlaceholderText(
+      "输入消息；可以拖入文件或粘贴截图…",
+    );
+    fireEvent.change(composer, { target: { value: "中文" } });
+    fireEvent.keyDown(composer, { key: "Enter", isComposing: true });
+
+    expect(sendPrompt).not.toHaveBeenCalled();
   });
 });

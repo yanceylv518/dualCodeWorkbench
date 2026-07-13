@@ -1094,6 +1094,7 @@ function Composer({
               void upload(file);
           }}
           onKeyDown={(event) => {
+            if (event.nativeEvent.isComposing) return;
             if (event.key === "Enter" && !event.shiftKey) {
               event.preventDefault();
               run();
