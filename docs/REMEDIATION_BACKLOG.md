@@ -257,3 +257,5 @@ ESLint（0 error）、Prettier 与 Rust `cargo check` 全部通过。Phase 0 到
 - **首次推送复验**：CI #3 已能完成 pnpm 初始化，但 pnpm 11 发现仓库中自动生成的
   `allowBuilds.esbuild` 占位值，按 `strictDepBuilds` 在双平台拒绝安装。已明确只允许 Vite/Vitest
   所需的 `esbuild` 构建脚本，未启用 `dangerouslyAllowAllBuilds`，继续等待双平台复验。
+- **最终验收**：GitHub Actions CI #4（run `29244288260`）完成，`ubuntu-latest` 与
+  `windows-latest` 两个矩阵作业均成功；Claude 提出的 R1、R2 已关闭，Phase 0 返工完成。
