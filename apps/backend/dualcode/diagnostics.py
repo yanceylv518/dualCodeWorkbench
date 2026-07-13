@@ -16,6 +16,7 @@ from .codex_app_server import CodexAppServerAdapter
 from .config import settings
 from .models import AuditLog, ExecutionJob
 from .runtime_settings import AgentSettings, agent_settings_store
+from .scheduler import scheduler
 from .ssh_adapter import ClaudeSshAdapter, ClaudeSshConfig
 
 
@@ -146,6 +147,11 @@ async def build_diagnostic_snapshot(
         "storage": {"database_reachable": database_ok, "data_directory_writable": writable},
         "configuration": configuration,
         "agents": agents,
+        # 存活 app-server 适配器收到但未映射的协议方法名（仅名称与计数，
+        # 不含参数），用于排查「事件没有出现在界面上」类问题。
+        "codex_protocol": {
+            "unhandled_methods": scheduler.codex_protocol_diagnostics()
+        },
         "jobs": {"counts": job_counts, "recovered_on_startup": recovered_jobs},
         "audit": {"record_count": audit_count if database_ok else None},
         "process": {

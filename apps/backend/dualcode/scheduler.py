@@ -79,6 +79,10 @@ class RunScheduler:
         self._git = GitService(settings.data_dir / "worktrees")
         self._tests = TestExecutor()
 
+    def codex_protocol_diagnostics(self) -> dict[str, int]:
+        """Method names the live app-server adapter received but did not map."""
+        return dict(getattr(self._codex, "unhandled_methods", {}) or {})
+
     def has_active_runs(self) -> bool:
         return any(not task.done() for task in self._tasks.values())
 

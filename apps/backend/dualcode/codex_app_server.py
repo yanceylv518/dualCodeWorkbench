@@ -57,6 +57,9 @@ class CodexAppServerAdapter(BaseCliAdapter):
         self._request_id = 0
         self._start_lock = asyncio.Lock()
         self._stderr_lines: deque[str] = deque(maxlen=20)
+        # 真实 CLI 协议随版本演进；记录未被映射的通知方法名，供诊断接口排查
+        # 「事件为什么没出现在界面上」这类问题。仅存方法名，不存参数。
+        self.unhandled_methods: dict[str, int] = {}
 
     def command_args(self, request: AgentRequest) -> list[str]:
         return ["app-server"]
@@ -183,17 +186,44 @@ class CodexAppServerAdapter(BaseCliAdapter):
         turn = result.get("turn")
         return str(turn.get("id")) if isinstance(turn, dict) else str(result.get("turnId") or result.get("id") or "")
 
+    @staticmethod
+    def _reasoning_text(item: dict) -> str:
+        """Extract reasoning text across protocol dialects (text / summary / content)."""
+        direct = item.get("text")
+        if isinstance(direct, str) and direct:
+            return direct
+        for field in ("summary", "content"):
+            value = item.get(field)
+            if isinstance(value, str) and value:
+                return value
+            if isinstance(value, list):
+                parts = [
+                    part if isinstance(part, str) else str(part.get("text") or "")
+                    for part in value
+                    if isinstance(part, (str, dict))
+                ]
+                joined = "\n".join(part for part in parts if part)
+                if joined:
+                    return joined
+        return ""
+
     def _normalize(self, event: dict, thread_id: str) -> dict | None:
         method = event.get("method")
         params = event.get("params") if isinstance(event.get("params"), dict) else {}
         if method == "item/agentMessage/delta":
             return {"type": "agent_message.delta", "thread_id": thread_id, "text": str(params.get("delta") or "")}
-        if method in {"item/reasoning/summaryTextDelta", "item/reasoning/textDelta"}:
+        # 推理增量：方法名随 CLI 版本变化（summaryTextDelta / textDelta / delta …），
+        # 只要属于 item/reasoning/* 且携带 delta 参数就按思考增量处理。
+        if isinstance(method, str) and method.startswith("item/reasoning/") and "delta" in params:
             return {"type": "activity.delta", "thread_id": thread_id, "item": {"id": params.get("itemId", "reasoning"), "type": "reasoning", "text": params.get("delta", "")}}
-        if method in {"item/started", "item/completed"}:
+        if method in {"item/started", "item/updated", "item/completed"}:
             item = params.get("item") if isinstance(params.get("item"), dict) else {}
             if item.get("type") in {"userMessage", "agentMessage", "user_message", "agent_message"}:
                 return None
+            if item.get("type") == "reasoning":
+                text = self._reasoning_text(item)
+                if text:
+                    item = {**item, "text": text}
             return {"type": "activity.event", "thread_id": thread_id, "event": method, "item": item}
         if method == "item/commandExecution/outputDelta":
             return {"type": "terminal.delta", "thread_id": thread_id, "text": str(params.get("delta") or "")}
@@ -208,6 +238,11 @@ class CodexAppServerAdapter(BaseCliAdapter):
             return {"type": "turn.completed", "thread_id": thread_id, "turn": turn}
         if method == "transport/error":
             raise AppServerProtocolError(str(params.get("message")))
+        if isinstance(method, str) and method not in self._APPROVAL_METHODS:
+            if len(self.unhandled_methods) < 50 or method in self.unhandled_methods:
+                self.unhandled_methods[method] = (
+                    self.unhandled_methods.get(method, 0) + 1
+                )
         return None
 
     async def stream(self, request: AgentRequest) -> AsyncIterator[str]:

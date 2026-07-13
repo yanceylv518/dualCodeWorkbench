@@ -187,3 +187,70 @@ def test_failed_turn_is_not_reported_as_success():
             "method": "turn/completed",
             "params": {"turn": {"id": "turn-1", "status": "failed", "error": {"message": "model unavailable"}}},
         }, "thread-1")
+
+
+def test_reasoning_delta_matches_any_item_reasoning_method_variant():
+    adapter = CodexAppServerAdapter("fake")
+
+    for method in (
+        "item/reasoning/summaryTextDelta",
+        "item/reasoning/textDelta",
+        "item/reasoning/delta",
+        "item/reasoning/summaryDelta",
+    ):
+        event = adapter._normalize(
+            {"method": method, "params": {"itemId": "r-1", "delta": "思考片段"}},
+            "thread-1",
+        )
+        assert event == {
+            "type": "activity.delta",
+            "thread_id": "thread-1",
+            "item": {"id": "r-1", "type": "reasoning", "text": "思考片段"},
+        }
+
+
+def test_reasoning_item_text_is_extracted_from_summary_and_content():
+    adapter = CodexAppServerAdapter("fake")
+
+    event = adapter._normalize(
+        {
+            "method": "item/updated",
+            "params": {
+                "item": {
+                    "id": "r-2",
+                    "type": "reasoning",
+                    "summary": [{"text": "第一段"}, {"text": "第二段"}],
+                }
+            },
+        },
+        "thread-1",
+    )
+    assert event is not None
+    assert event["item"]["text"] == "第一段\n第二段"
+
+    event = adapter._normalize(
+        {
+            "method": "item/completed",
+            "params": {
+                "item": {"id": "r-3", "type": "reasoning", "content": "整段思考"}
+            },
+        },
+        "thread-1",
+    )
+    assert event is not None
+    assert event["item"]["text"] == "整段思考"
+
+
+def test_unmapped_notification_methods_are_recorded_for_diagnostics():
+    adapter = CodexAppServerAdapter("fake")
+
+    assert adapter._normalize({"method": "turn/started", "params": {}}, "t") is None
+    assert adapter._normalize({"method": "turn/started", "params": {}}, "t") is None
+    assert (
+        adapter._normalize(
+            {"method": "item/commandExecution/requestApproval", "params": {}}, "t"
+        )
+        is None
+    )
+
+    assert adapter.unhandled_methods == {"turn/started": 2}
