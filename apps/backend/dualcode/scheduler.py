@@ -17,6 +17,7 @@ from .approvals import approval_gate
 from .cli_adapters import ClaudeCliAdapter
 from .codex_app_server import CodexAppServerAdapter
 from .connections import manager
+from .context_budget import build_recent_transcript, truncate_contract
 from .database import SessionLocal
 from .events import AgentEvent, EventType
 from .git_service import GitService
@@ -196,10 +197,10 @@ class RunScheduler:
                     await db.commit()
                     await emit(EventType.RUN_STATE_CHANGED, {"state": RunState.CREATED.value})
                     return
-                recent = (await db.scalars(
-                    select(Message).where(Message.thread_id == thread_id).order_by(Message.created_at.desc()).limit(20)
-                )).all()
-                transcript = "\n".join(f"{item.role}: {item.content}" for item in reversed(recent))
+                recent = await db.stream_scalars(
+                    select(Message).where(Message.thread_id == thread_id).order_by(Message.created_at.desc())
+                )
+                transcript = await build_recent_transcript(recent)
                 governance = await db.scalar(select(ProjectGovernance).where(ProjectGovernance.workspace_id == workspace.id))
                 task_contract = await db.scalar(select(TaskContract).where(TaskContract.thread_id == thread_id))
                 governance_context = {
@@ -213,6 +214,7 @@ class RunScheduler:
                     "constraints": json.loads(task_contract.constraints) if task_contract else [],
                     "known_risks": json.loads(task_contract.risks) if task_contract else [],
                 }
+                contract_text = truncate_contract(json.dumps(governance_context, ensure_ascii=False))
                 request_prompt = (
                     "Continue this development conversation. Respond only as the selected agent. "
                     "Do not hand off to another agent or automatically advance a workflow. "
@@ -220,7 +222,7 @@ class RunScheduler:
                     "This is production product development, not a demo. Do not use temporary, simulated, hard-coded, bypass, or unsustainable architecture merely to complete the current feature. "
                     "Identify requirements not covered by the implementation, potential problems, regression risks, and missing evidence. "
                     "If the existing architecture is insufficient, propose a formal architectural change instead of disguising a temporary patch as complete.\n\n"
-                    f"PROJECT AND TASK CONTRACT:\n{json.dumps(governance_context, ensure_ascii=False)}\n\n"
+                    f"PROJECT AND TASK CONTRACT:\n{contract_text}\n\n"
                     f"RECENT CONVERSATION:\n{transcript}\n\nCURRENT REQUEST:\n{prompt}"
                 )
                 context = {"workspace_path": workspace.path}
