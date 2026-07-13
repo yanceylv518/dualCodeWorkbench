@@ -30,6 +30,27 @@ function renderComposer(
 }
 
 describe("Composer", () => {
+  it("previews image attachments as thumbnails in the tray", () => {
+    renderComposer({
+      attachments: [
+        { id: "img-1", name: "screen.png", media_type: "image/png" },
+        { id: "txt-1", name: "note.txt", media_type: "text/plain" },
+      ],
+    });
+
+    const thumb = document.querySelector(
+      ".attachment-thumb",
+    ) as HTMLImageElement;
+    expect(thumb).toBeTruthy();
+    expect(thumb.alt).toBe("screen.png");
+    expect(
+      document.querySelectorAll(".attachment-chip .attachment-thumb"),
+    ).toHaveLength(1);
+    expect(
+      screen.getByRole("button", { name: "移除附件 note.txt" }),
+    ).toBeTruthy();
+  });
+
   it("uses one attachment action and reports files beyond the limit", () => {
     const upload = vi.fn(async () => undefined);
     const notify = vi.fn();

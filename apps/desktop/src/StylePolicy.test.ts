@@ -28,6 +28,13 @@ describe("desktop visual policy", () => {
     expect(index).toContain("var(--focus-ring)");
   });
 
+  it("reveals message timestamps on hover while touch stays visible", () => {
+    expect(index).toContain(".message-card:hover .message-body header time");
+    expect(index).toContain(
+      ".message-card:focus-within .message-body header time",
+    );
+  });
+
   it("defines the U5 surface, radius and motion tokens", () => {
     expect(index).toContain("--text-reading: 15px");
     expect(index).toContain("--surface-1:");

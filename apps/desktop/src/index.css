@@ -3805,3 +3805,25 @@ button:disabled {
 .message-actions button {
   border-radius: var(--radius-sm);
 }
+
+/* U6：附件缩略图与时间戳 hover 显现 */
+.attachment-thumb {
+  width: 26px;
+  height: 26px;
+  object-fit: cover;
+  border-radius: var(--radius-sm);
+  flex: none;
+}
+.message-body header time {
+  opacity: 0;
+  transition: opacity var(--transition-fast);
+}
+.message-card:hover .message-body header time,
+.message-card:focus-within .message-body header time {
+  opacity: 1;
+}
+@media (hover: none) {
+  .message-body header time {
+    opacity: 1;
+  }
+}

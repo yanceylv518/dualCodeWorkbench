@@ -290,6 +290,51 @@ describe("workbench", () => {
     expect(screen.queryByText("回到最新")).toBeNull();
   });
 
+  it("counts messages that arrive while the user has scrolled up", async () => {
+    Object.defineProperty(HTMLElement.prototype, "scrollIntoView", {
+      configurable: true,
+      value: vi.fn(),
+    });
+    useStore.setState(singleTaskState("IMPLEMENTING"));
+
+    const { container } = render(<App />);
+    const stream = container.querySelector(".message-stream")!;
+    Object.defineProperty(stream, "scrollHeight", {
+      configurable: true,
+      value: 1000,
+    });
+    Object.defineProperty(stream, "clientHeight", {
+      configurable: true,
+      value: 200,
+    });
+    stream.scrollTop = 0;
+    fireEvent.scroll(stream);
+
+    act(() => {
+      useStore.setState((state) => ({
+        workspaces: state.workspaces.map((workspace) => ({
+          ...workspace,
+          threads: workspace.threads.map((thread) => ({
+            ...thread,
+            messages: [
+              ...thread.messages,
+              { id: "new-1", agent: "codex" as const, text: "新回复", time: "" },
+            ],
+          })),
+        })),
+      }));
+    });
+
+    const backButton = screen.getByRole("button", {
+      name: /回到最新 · 1 条新消息/,
+    });
+    expect(backButton).toBeTruthy();
+    fireEvent.click(backButton);
+    expect(
+      screen.queryByRole("button", { name: /条新消息/ }),
+    ).toBeNull();
+  });
+
   it("disables send until the draft has content", () => {
     useStore.setState(singleTaskState("CREATED"));
 

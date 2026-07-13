@@ -190,6 +190,24 @@ export default function App() {
     followingLatest,
   ]);
   useEffect(() => setFollowingLatest(true), [selectedThreadId]);
+  const [missedMessages, setMissedMessages] = useState(0);
+  const seenMessageCount = useRef(0);
+  const currentMessageCount = thread?.messages.length ?? 0;
+  useEffect(() => {
+    // 先取差值再改写 ref：函数式更新的执行晚于下一行的 ref 赋值。
+    const delta = currentMessageCount - seenMessageCount.current;
+    if (!followingLatest && delta > 0)
+      setMissedMessages((count) => count + delta);
+    seenMessageCount.current = currentMessageCount;
+  }, [currentMessageCount, followingLatest]);
+  useEffect(() => {
+    if (followingLatest) setMissedMessages(0);
+  }, [followingLatest]);
+  useEffect(() => {
+    setMissedMessages(0);
+    seenMessageCount.current = thread?.messages.length ?? 0;
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- 仅在切换任务时重置
+  }, [selectedThreadId]);
   const scrollToLatest = () => {
     setFollowingLatest(true);
     messageEnd.current?.scrollIntoView({ block: "end", behavior: "smooth" });
@@ -546,6 +564,7 @@ export default function App() {
                 {!followingLatest && (
                   <button className="back-to-latest" onClick={scrollToLatest}>
                     回到最新
+                    {missedMessages > 0 && ` · ${missedMessages} 条新消息`}
                   </button>
                 )}
               </div>
@@ -1333,6 +1352,8 @@ export function Composer({
   notify: (level: "info" | "error", message: string) => void;
 }) {
   const emptyDraft = !text.trim() && attachments.length === 0;
+  const composerWorkspaceId = useStore((state) => state.workspaceId);
+  const composerThreadId = useStore((state) => state.threadId);
   const [dragging, setDragging] = useState(false);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
   useEffect(() => {
@@ -1376,9 +1397,24 @@ export function Composer({
           <div className="attachment-tray">
             {attachments.map((item) => (
               <div className="attachment-chip" key={item.id}>
-                <ImagePlus size={13} />
+                {item.media_type.startsWith("image/") ? (
+                  <img
+                    className="attachment-thumb"
+                    src={api.attachmentContentUrl(
+                      composerWorkspaceId,
+                      composerThreadId,
+                      item.id,
+                    )}
+                    alt={item.name}
+                  />
+                ) : (
+                  <ImagePlus size={13} />
+                )}
                 <span>{item.name}</span>
-                <button onClick={() => removeAttachment(item.id)}>
+                <button
+                  aria-label={`移除附件 ${item.name}`}
+                  onClick={() => removeAttachment(item.id)}
+                >
                   <X size={12} />
                 </button>
               </div>
