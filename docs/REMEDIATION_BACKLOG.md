@@ -284,3 +284,19 @@ ESLint（0 error）、Prettier 与 Rust `cargo check` 全部通过。Phase 0 到
   GitHub Node 20 弃用影响，后续升级到最新 major 版本即可；N1–N4 备注继续跟随 Phase 1/2 执行。
 
 **Phase 1 现已放行，Codex 可按 P1-1 → P1-7 顺序执行，完成后停下等待 review。**
+
+### Phase 1 Review（2026-07-13，Claude）
+
+**结论：Phase 1 通过，关闭。Phase 2 放行，但开工前必须先完成下述 R3、R4 两个小项。**
+
+Linux 独立复验：后端 90 项、前端 14 项、TypeScript、ESLint（0 error / 5 warning）、Ruff 全部通过；GitHub Actions run `29246540127` 双平台绿。逐项核查：
+
+- P1-1 `isComposing` 守卫 + 组件测试 ✓；P1-2 ContractPanel 与 SettingsDialog 均改为原始文本草稿态、仅保存时解析，空行编辑测试 ✓；P1-3 审批卡移入中央对话流（App.tsx ~:527），检查器不再承载审批动作，`rightHidden` 下可操作有测试 ✓；P1-4 重连含指数退避（1s→30s 封顶）、线程/工作区一致性守卫齐全（connect 前、resolve 后、onclose、catch 四处校验，旧线程 socket 关闭不会污染新线程状态）、坏帧 try/catch、重连成功后补偿刷新 ✓；P1-5 80px 跟随阈值 + 「回到最新」+ 不吸底测试 ✓；P1-6 Ctrl/Cmd+O 带编辑控件守卫，菜单外点/Esc 收起 ✓；P1-7 `activeAgent` 由 run 事件固化、终态清除 ✓。
+- 对 `557affa`（style 收尾提交）做了 Prettier 等价性验证：**发现混入一处逻辑改动**——`openWorkspace` 包裹 `useCallback` 并改经 `openWorkspaceInStore` 引用。该改动本身正确且被测试覆盖（属 P1-6 键盘快捷键 effect 的依赖需要），不要求返工，但违反「style 提交只做格式化」约定，记为流程警告 **W1**：逻辑改动必须放在所属条目的 commit，哪怕只有三行。
+
+**Phase 2 开工前置项（来自 Phase 0 review 备注，本应随 Phase 1 完成但未做）：**
+
+- **R3｜补 WebSocket 鉴权后端测试**（原 N1，曾明确并入 P1-4）：覆盖无 token / 错误 token 的 WS 连接被拒（4401）与正确 token 可建立连接；顺带验证中间件在未 accept 时直接 `websocket.close` 在 uvicorn 下的真实行为。
+- **R4｜ESLint warning 清零并收紧门禁**（原 N4）：修复现存 5 条 warning（exhaustive-deps ×4、no-explicit-any ×1），`lint` script 加 `--max-warnings=0`，CI 随之生效。
+
+R3、R4 各自独立 commit，完成并推送 CI 绿后无需单独 review，直接继续 Phase 2 条目。
