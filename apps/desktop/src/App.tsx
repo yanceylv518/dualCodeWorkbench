@@ -993,9 +993,18 @@ function ActivityCard({
   activity: NonNullable<Message["activity"]>;
 }) {
   const element = useRef<HTMLDetailsElement>(null);
+  const latestStep = activity.steps.at(-1);
+  const hasReasoning = activity.steps.some(
+    (step) =>
+      step.kind === "reasoning" &&
+      Boolean(step.detail) &&
+      step.detail !== "reasoning",
+  );
   useEffect(() => {
-    if (element.current) element.current.open = activity.status === "running";
-  }, [activity.status]);
+    if (element.current) {
+      element.current.open = activity.status === "running" || hasReasoning;
+    }
+  }, [activity.status, hasReasoning]);
   const elapsed = Math.max(
     0,
     (activity.completedAt ?? Date.now()) - (activity.startedAt ?? Date.now()),
@@ -1006,7 +1015,6 @@ function ActivityCard({
       : elapsed < 60_000
         ? `${Math.ceil(elapsed / 1000)} 秒`
         : `${Math.floor(elapsed / 60_000)} 分 ${Math.ceil((elapsed % 60_000) / 1000)} 秒`;
-  const latestStep = activity.steps.at(-1);
   const thinkingLive =
     activity.status === "running" &&
     latestStep?.kind === "reasoning" &&
@@ -1053,15 +1061,15 @@ function ActivityCard({
                 aria-label="思考过程"
               >
                 <header>
-                  <LoaderCircle size={11} className="spin" />
-                  思考
+                  <span className="thinking-pulse" aria-hidden="true" />
+                  正在思考…
                 </header>
                 <p>{step.detail}</p>
               </div>
             ) : (
               <details className="thought-pill" key={step.id}>
                 <summary>
-                  已思考{thoughtDuration(step)}
+                  <span>已思考{thoughtDuration(step)}</span>
                   <ChevronDown size={12} />
                 </summary>
                 <p>{step.detail}</p>

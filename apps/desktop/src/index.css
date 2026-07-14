@@ -57,8 +57,7 @@
 }
 .thinking-block {
   margin: 6px 0 8px 10px;
-  padding: 4px 12px 4px 12px;
-  border-left: 2px solid #39435a;
+  padding: 4px 10px;
   color: #93a0b4;
   font-size: var(--text-sm);
 }
@@ -70,19 +69,27 @@
   color: #6f7d92;
   font-size: var(--text-xs);
   font-weight: 550;
-  letter-spacing: 0.04em;
 }
 .thinking-block p {
   margin: 0;
   white-space: pre-wrap;
-  font-style: italic;
   line-height: 1.6;
 }
-.thinking-block.running p::after {
-  content: "▍";
-  margin-left: 2px;
-  color: #7f9cc4;
-  animation: thinking-caret 1s steps(2) infinite;
+.thinking-pulse {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: currentColor;
+  box-shadow: 0 0 0 0 rgb(111 125 146 / 45%);
+  animation: thinking-pulse 1.4s ease-out infinite;
+}
+@keyframes thinking-pulse {
+  70% {
+    box-shadow: 0 0 0 6px rgb(111 125 146 / 0%);
+  }
+  100% {
+    box-shadow: 0 0 0 0 rgb(111 125 146 / 0%);
+  }
 }
 .streaming-message {
   margin: 0;
@@ -103,40 +110,48 @@
   margin: 4px 0 6px 10px;
 }
 .thought-pill > summary {
-  display: inline-flex;
+  display: flex;
+  width: 100%;
   align-items: center;
-  gap: 5px;
-  padding: 3px 10px;
-  border: 1px solid #333d4e;
-  border-radius: 999px;
-  background: #141a23;
+  gap: 8px;
+  padding: 6px 10px;
   cursor: pointer;
   list-style: none;
   color: #8592a6;
   font-size: var(--text-xs);
+  transition: color 150ms ease;
 }
 .thought-pill > summary::-webkit-details-marker {
   display: none;
 }
 .thought-pill > summary:hover {
   color: #aebacd;
-  border-color: #40506a;
 }
 .thought-pill > summary svg {
-  transition: transform 0.15s;
+  margin-left: auto;
+  transition: transform 150ms ease;
 }
 .thought-pill[open] > summary svg {
   transform: rotate(180deg);
 }
 .thought-pill > p {
-  margin: 6px 0 4px 4px;
-  padding: 4px 12px;
-  border-left: 2px solid #39435a;
+  margin: 2px 0 4px;
+  padding: 4px 10px 8px;
   color: #93a0b4;
   white-space: pre-wrap;
   font-size: var(--text-sm);
-  font-style: italic;
   line-height: 1.6;
+  animation: thought-reveal 150ms ease;
+}
+@keyframes thought-reveal {
+  from {
+    opacity: 0;
+    transform: translateY(-2px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
 }
 .agent-activity .activity-step {
   border-bottom: 0;
@@ -3735,7 +3750,9 @@ button:disabled {
 @media (prefers-reduced-motion: reduce) {
   .message-card,
   .system-event,
-  .agent-activity {
+  .agent-activity,
+  .thinking-pulse,
+  .thought-pill > p {
     animation: none;
   }
 }

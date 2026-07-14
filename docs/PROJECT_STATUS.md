@@ -278,3 +278,10 @@
 - 对话列统一为 760px，回合间距使用 28px token；助手回复移除头像列并保持通栏纯文本，用户消息为右对齐 75% 最大宽度圆角气泡。
 - 用户消息编辑改为气泡内 textarea，支持取消和“保存并重发”；保存会持久化编辑内容、复用原附件、触发该轮重发并记录审计事件。
 - 前端 66 项、TypeScript、严格 ESLint、Ruff 与后端 113 项全量测试通过；Windows pytest 通过显式 `--basetemp` 避开系统临时目录的已知 ACL 故障。
+
+## 2026-07-14 Claude App 对齐 A2
+
+- 运行中思考改为「正在思考…」脉动标签与默认展开的次级色正文，去除斜体、左侧竖线和思考光标。
+- 完成后自动收起为「已思考 X 秒」通栏行内条目，可通过右侧 chevron 展开回看，展开过渡为 150ms 并支持 reduced-motion。
+- 验证通过：前端 67 项、TypeScript、严格 ESLint、A2 改动文件 Prettier、Vite 生产构建、Ruff、后端 113 项、
+  Windows sidecar 与 Tauri release `--no-bundle` 构建。

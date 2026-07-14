@@ -55,4 +55,15 @@ describe("desktop visual policy", () => {
     expect(actions).toContain(".message-card:focus-within .message-actions");
     expect(actions).toContain("@media (hover: none)");
   });
+
+  it("renders thinking as indented text and a full-width inline disclosure", () => {
+    expect(index).toContain(".thinking-pulse");
+    expect(index).not.toContain(".thinking-block.running p::after");
+    expect(index).toMatch(
+      /\.thought-pill > summary \{[\s\S]*?display: flex;[\s\S]*?width: 100%;/,
+    );
+    expect(index).toMatch(
+      /\.thought-pill > p \{[\s\S]*?animation: thought-reveal 150ms ease;/,
+    );
+  });
 });

@@ -164,9 +164,7 @@ describe("workbench", () => {
     fireEvent.change(editor, { target: { value: "取消这次修改" } });
     fireEvent.click(screen.getByRole("button", { name: "取消" }));
     await vi.waitFor(() =>
-      expect(
-        screen.queryByRole("textbox", { name: "编辑消息" }),
-      ).toBeNull(),
+      expect(screen.queryByRole("textbox", { name: "编辑消息" })).toBeNull(),
     );
 
     fireEvent.click(screen.getByRole("button", { name: "编辑" }));
@@ -178,9 +176,7 @@ describe("workbench", () => {
       expect(retryMessage).toHaveBeenCalledWith("user-message", "保存新的需求"),
     );
     await vi.waitFor(() =>
-      expect(
-        screen.queryByRole("textbox", { name: "编辑消息" }),
-      ).toBeNull(),
+      expect(screen.queryByRole("textbox", { name: "编辑消息" })).toBeNull(),
     );
 
     fireEvent.click(screen.getByRole("button", { name: "重试本轮" }));
@@ -418,13 +414,14 @@ describe("workbench", () => {
     });
 
     render(<App />);
-    expect(screen.getByText("正在思考")).toBeTruthy();
+    expect(screen.getByText("正在思考…")).toBeTruthy();
+    expect(document.querySelector(".thinking-pulse")).toBeTruthy();
     expect(
       screen.getByText("正在梳理仓库结构，准备定位需要修改的模块"),
     ).toBeTruthy();
   });
 
-  it("collapses finished reasoning into an expandable thought pill", () => {
+  it("collapses finished reasoning into an inline row and expands it on demand", () => {
     const base = singleTaskState("CREATED");
     useStore.setState({
       ...base,
@@ -471,9 +468,12 @@ describe("workbench", () => {
     expect(pill?.querySelector("summary")?.textContent).toContain(
       "已思考 3 秒",
     );
+    expect(pill?.hasAttribute("open")).toBe(false);
     expect(pill?.querySelector("p")?.textContent).toBe(
       "先梳理调用链，再定位修改点",
     );
+    fireEvent.click(pill?.querySelector("summary") as HTMLElement);
+    expect(pill?.hasAttribute("open")).toBe(true);
   });
 
   it("supports inline task rename and explicit delete confirmation", () => {
