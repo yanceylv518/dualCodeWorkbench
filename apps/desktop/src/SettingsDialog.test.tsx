@@ -49,9 +49,7 @@ afterEach(() => {
 const renderLoaded = async (onClose: () => void) => {
   vi.mocked(api.fetchAgentSettings).mockResolvedValue(settings);
   render(<SettingsDialog onClose={onClose} />);
-  await waitFor(() =>
-    expect(screen.getByDisplayValue("codex")).toBeTruthy(),
-  );
+  await waitFor(() => expect(screen.getByDisplayValue("codex")).toBeTruthy());
 };
 
 describe("settings dialog", () => {

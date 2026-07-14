@@ -118,9 +118,7 @@ describe("repository status", () => {
     );
     await connectThread();
 
-    await vi.waitFor(() =>
-      expect(useStore.getState().gitStatus).toBeNull(),
-    );
+    await vi.waitFor(() => expect(useStore.getState().gitStatus).toBeNull());
   });
 });
 
@@ -330,9 +328,9 @@ describe("thread realtime event merging", () => {
     );
     expect(finals).toHaveLength(1);
     expect(finals[0].text).toBe("最终回答");
-    expect(
-      selectedMessages().some((item) => item.id === "stream-run-2"),
-    ).toBe(false);
+    expect(selectedMessages().some((item) => item.id === "stream-run-2")).toBe(
+      false,
+    );
   });
 
   it("merges tool progress into one activity timeline", async () => {

@@ -32,4 +32,5 @@ jobs:
       - run: python -m pytest apps/backend/tests -q
       - run: pnpm --filter @dualcode/desktop typecheck
       - run: pnpm --filter @dualcode/desktop lint
+      - run: pnpm --filter @dualcode/desktop exec prettier --check "src/**/*.{ts,tsx,css}"
       - run: pnpm --filter @dualcode/desktop test
