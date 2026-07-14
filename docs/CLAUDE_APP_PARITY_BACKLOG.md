@@ -240,3 +240,19 @@
   （约定第 1 条，第二次漂移，请后续条目恢复格式）。
 - 验证：前端 70 项（新旧测试净替换）、后端 113 项、TypeScript、严格 ESLint、
   全量 Prettier、Ruff 全绿；CI run `29305676316` 双平台绿。「不遮挡」的最终目验留给用户。
+
+### A5 Review（2026-07-14，Claude）
+
+**结论：A5 通过，继续 A6、A8。**
+
+- 形态核查逐条吻合：容器 radius 18px ✓；附件入口改「+」（30px 无边框方钮）✓；
+  Agent 选择器移到左侧、无边框小号、hover/focus 显 surface 底色 ✓；主操作为 34px
+  圆形按钮（`margin-left:auto` 右对齐、50% 圆角、禁用 0.42 透明度），空闲上箭头/
+  运行中停止方块 ✓；常驻快捷键提示文案移除，改 textarea tooltip ✓。
+- 行为保全核查：diff 仅重排底栏与样式，IME 守卫、拖放高亮、粘贴、草稿、离线禁用、
+  停止链路的逻辑代码未触碰 ✓；按钮均补 aria-label。
+- 测试：新增圆形按钮双态（arrow-up/square + stop class）与提示文案移除断言，
+  Composer 既有测试全数保留。
+- commit message 已恢复「编号 + 中文」约定格式（A4 备注生效）。
+- 验证：前端 71 项、后端 113 项、TypeScript、严格 ESLint、全量 Prettier、Ruff 全绿；
+  CI run `29306915238` 双平台绿。
