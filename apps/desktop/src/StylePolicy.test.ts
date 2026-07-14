@@ -66,4 +66,14 @@ describe("desktop visual policy", () => {
       /\.thought-pill > p \{[\s\S]*?animation: thought-reveal 150ms ease;/,
     );
   });
+
+  it("renders tools as independent borderless rows without an outer card", () => {
+    expect(index).toMatch(
+      /\.agent-activity \{[\s\S]*?gap: 8px;[\s\S]*?border: 0 !important;[\s\S]*?background: transparent !important;/,
+    );
+    expect(index).toMatch(
+      /\.tool-activity-row \{[\s\S]*?border: 0;[\s\S]*?border-radius: var\(--radius-md\);/,
+    );
+    expect(index).toContain(".tool-activity-row.failed .tool-activity-status");
+  });
 });

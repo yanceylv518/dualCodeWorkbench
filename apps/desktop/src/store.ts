@@ -173,8 +173,8 @@ const toolStep = (
           : item.type === "web_search"
             ? "搜索资料"
             : "调用工具",
-    // 思考文本需要完整流式展示，不做单块截断；工具详情保持单行摘要。
-    detail: reasoning || raw.length <= 180 ? raw : `${raw.slice(0, 177)}…`,
+    // 思考与工具输入都保留完整原文；工具行收起时只展示动作摘要。
+    detail: raw,
     status: failed
       ? "failed"
       : String(event).includes("completed")

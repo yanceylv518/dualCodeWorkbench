@@ -368,6 +368,22 @@ describe("thread realtime event merging", () => {
     });
   });
 
+  it("preserves complete command input for the expandable tool row", async () => {
+    const socket = await connectThread();
+    const command = `powershell -Command ${"Get-ChildItem ".repeat(20)}`;
+    emitSocketEvent(socket, {
+      type: "agent.tool",
+      run_id: "run-long-command",
+      payload: {
+        agent: "codex",
+        event: "item/started",
+        item: { id: "command-long", type: "command_execution", command },
+      },
+    });
+
+    expect(selectedMessages()[0].activity?.steps[0].detail).toBe(command);
+  });
+
   it("streams reasoning deltas into one untruncated thinking step", async () => {
     const socket = await connectThread();
     const first = "分".repeat(150);

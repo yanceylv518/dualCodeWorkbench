@@ -285,3 +285,11 @@
 - 完成后自动收起为「已思考 X 秒」通栏行内条目，可通过右侧 chevron 展开回看，展开过渡为 150ms 并支持 reduced-motion。
 - 验证通过：前端 67 项、TypeScript、严格 ESLint、A2 改动文件 Prettier、Vite 生产构建、Ruff、后端 113 项、
   Windows sidecar 与 Tauri release `--no-bundle` 构建。
+
+## 2026-07-14 Claude App 对齐 A3
+
+- 工具与命令活动移除「已处理 N 秒」外层折叠卡，改为按原顺序直接内联在消息流中的独立无边框圆角行。
+- 每行显示工具类型图标、动作摘要和运行/完成/失败状态；展开后以等宽文本显示未截断的完整命令或输入。
+- 失败摘要收敛到最后一条失败行，不再生成独立错误区；终端协议暂无调用 ID，因此通过「查看运行日志」安全降级到右侧日志页。
+- 验证通过：前端 70 项、TypeScript、严格 ESLint、A3 改动文件 Prettier、Vite 生产构建、Ruff、后端 113 项、
+  Windows sidecar 与 Tauri release `--no-bundle` 构建。

@@ -476,6 +476,78 @@ describe("workbench", () => {
     expect(pill?.hasAttribute("open")).toBe(true);
   });
 
+  it("renders ordered tool rows with running, completed, failed, and expanded states", () => {
+    const base = singleTaskState("CREATED");
+    useStore.setState({
+      ...base,
+      workspaces: [
+        {
+          ...base.workspaces[0],
+          threads: [
+            {
+              ...base.workspaces[0].threads[0],
+              messages: [
+                {
+                  id: "activity-tools",
+                  agent: "system",
+                  text: "",
+                  time: "",
+                  activity: {
+                    runId: "run-tools",
+                    agent: "codex",
+                    status: "failed",
+                    error: "Command exited with status 1",
+                    steps: [
+                      {
+                        id: "command-running",
+                        kind: "command",
+                        label: "执行命令",
+                        detail: "pnpm test --filter desktop",
+                        status: "running",
+                      },
+                      {
+                        id: "file-completed",
+                        kind: "file",
+                        label: "修改文件",
+                        detail: "src/App.tsx",
+                        status: "completed",
+                      },
+                      {
+                        id: "tool-failed",
+                        kind: "tool",
+                        label: "调用工具",
+                        detail: "build",
+                        status: "failed",
+                      },
+                    ],
+                  },
+                },
+              ],
+            },
+          ],
+        },
+      ],
+    });
+
+    const { container } = render(<App />);
+    const rows = [...container.querySelectorAll(".tool-activity-row")];
+    expect(rows.map((row) => row.querySelector("strong")?.textContent)).toEqual(
+      ["执行命令", "修改文件", "调用工具"],
+    );
+    expect(rows[0].querySelector('[aria-label="running"]')).toBeTruthy();
+    expect(rows[1].querySelector('[aria-label="completed"]')).toBeTruthy();
+    expect(rows[2].querySelector('[aria-label="failed"]')).toBeTruthy();
+    expect(rows[2].textContent).toContain("Command exited with status 1");
+
+    fireEvent.click(rows[0].querySelector("summary") as HTMLElement);
+    expect(rows[0].hasAttribute("open")).toBe(true);
+    expect(rows[0].querySelector("pre")?.textContent).toBe(
+      "pnpm test --filter desktop",
+    );
+    fireEvent.click(rows[0].querySelector("button") as HTMLButtonElement);
+    expect(screen.getByText("终端等待中")).toBeTruthy();
+  });
+
   it("supports inline task rename and explicit delete confirmation", () => {
     useStore.setState({
       backend: "online",

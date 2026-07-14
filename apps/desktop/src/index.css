@@ -11,50 +11,6 @@
   height: 14px;
   scroll-margin-bottom: 14px;
 }
-.agent-activity {
-  border: 0 !important;
-  background: transparent !important;
-}
-.agent-activity > summary {
-  display: flex;
-  align-items: center;
-  gap: 7px;
-  padding: 8px 2px;
-  border-bottom: 1px solid #2b3035;
-  cursor: pointer;
-  list-style: none;
-  color: #9da5ad;
-}
-.agent-activity > summary::-webkit-details-marker {
-  display: none;
-}
-.agent-activity > summary > span {
-  display: grid;
-  place-items: center;
-}
-.agent-activity > summary strong {
-  font-size: var(--text-xs);
-  font-weight: 550;
-}
-.agent-activity > summary small {
-  color: #707981;
-  font-size: var(--text-xs);
-}
-.agent-activity > summary > svg:last-child {
-  margin-left: auto;
-  transition: transform 0.15s;
-}
-.agent-activity[open] > summary > svg:last-child {
-  transform: rotate(180deg);
-}
-.agent-activity.failed > summary {
-  color: #d18a8d;
-}
-.agent-activity .activity-steps {
-  margin-left: 8px;
-  border-left: 1px solid #2d3338;
-  border-top: 0;
-}
 .thinking-block {
   margin: 6px 0 8px 10px;
   padding: 4px 10px;
@@ -153,22 +109,6 @@
     transform: translateY(0);
   }
 }
-.agent-activity .activity-step {
-  border-bottom: 0;
-  padding: 6px 10px;
-}
-.agent-activity .activity-error {
-  margin: 6px 0 0 8px;
-  border: 0;
-  border-left: 2px solid #774044;
-  border-radius: 0;
-  background: #261719;
-  padding: 8px 10px;
-}
-.agent-activity .activity-error small {
-  display: none;
-}
-
 :root {
   --text-xs: 11px;
   --text-sm: 12px;
@@ -2634,111 +2574,6 @@ button:disabled {
   cursor: not-allowed;
   opacity: 0.65;
 }
-.agent-activity {
-  max-width: 900px;
-  margin: 0 auto 14px;
-  border: 1px solid #343a40;
-  border-radius: 9px;
-  background: #1c1f22;
-  color: #c6cbd0;
-  overflow: hidden;
-}
-.agent-activity > header {
-  display: flex;
-  align-items: center;
-  gap: 9px;
-  padding: 9px 11px;
-}
-.agent-activity > header > span {
-  display: grid;
-  place-items: center;
-  color: #8d99a5;
-}
-.agent-activity > header > div {
-  display: flex;
-  align-items: baseline;
-  gap: 8px;
-}
-.agent-activity > header strong {
-  font-size: var(--text-sm);
-}
-.agent-activity > header small {
-  font-size: var(--text-xs);
-  color: #8d949b;
-}
-.agent-activity.completed > header > span {
-  color: #69c493;
-}
-.agent-activity.failed {
-  border-color: #633638;
-  background: #24191a;
-}
-.agent-activity.failed > header > span {
-  color: #ed8589;
-}
-.activity-steps {
-  border-top: 1px solid #303438;
-}
-.activity-step {
-  display: grid;
-  grid-template-columns: 18px auto minmax(0, 1fr);
-  align-items: center;
-  gap: 6px;
-  padding: 7px 11px;
-  border-bottom: 1px solid #2b2f32;
-  font-size: var(--text-xs);
-}
-.activity-step:last-child {
-  border-bottom: 0;
-}
-.activity-step > span {
-  display: grid;
-  place-items: center;
-  color: #7c8791;
-}
-.activity-step.completed > span {
-  color: #67b489;
-}
-.activity-step.failed > span {
-  color: #e3797d;
-}
-.activity-step strong {
-  color: #c9cdd1;
-  font-weight: 550;
-  white-space: nowrap;
-}
-.activity-step code {
-  min-width: 0;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-  color: #9da5ad;
-  font:
-    var(--text-xs) "Cascadia Code",
-    Consolas,
-    monospace;
-}
-.activity-error {
-  display: flex;
-  flex-direction: column;
-  gap: 4px;
-  padding: 10px 12px;
-  border-top: 1px solid #633638;
-  background: #2a191b;
-}
-.activity-error strong {
-  color: #f09b9e;
-  font-size: var(--text-xs);
-}
-.activity-error span {
-  color: #dfc2c4;
-  font-size: var(--text-xs);
-  line-height: 1.5;
-}
-.activity-error small {
-  color: #9f8183;
-  font-size: var(--text-xs);
-}
 .settings-backdrop {
   position: fixed;
   inset: 0;
@@ -3556,10 +3391,6 @@ button:disabled {
 .message-code .hljs-deletion {
   color: #ff869a;
 }
-.agent-activity {
-  max-width: 758px;
-  margin: 0 auto 22px;
-}
 .approval-card > div:last-child {
   display: flex;
   gap: 7px;
@@ -3753,6 +3584,122 @@ button:disabled {
   .agent-activity,
   .thinking-pulse,
   .thought-pill > p {
+    animation: none;
+  }
+}
+
+/* A3 工具活动：每次调用独立成行，不再包裹外层折叠卡。 */
+.agent-activity {
+  display: flex;
+  width: min(100%, var(--conversation-content-width));
+  max-width: var(--conversation-content-width);
+  flex-direction: column;
+  gap: 8px;
+  margin: 0 auto var(--conversation-turn-gap);
+  overflow: visible;
+  border: 0 !important;
+  background: transparent !important;
+}
+.tool-activity-row {
+  overflow: hidden;
+  border: 0;
+  border-radius: var(--radius-md);
+  background: var(--surface-1);
+  color: #c6cbd0;
+}
+.tool-activity-row > summary {
+  display: grid;
+  grid-template-columns: 22px minmax(0, 1fr) auto 16px;
+  align-items: center;
+  gap: 8px;
+  min-height: 42px;
+  padding: 7px 11px;
+  cursor: pointer;
+  list-style: none;
+}
+.tool-activity-row > summary::-webkit-details-marker {
+  display: none;
+}
+.tool-activity-icon,
+.tool-activity-status {
+  display: grid;
+  place-items: center;
+  color: #89949e;
+}
+.tool-activity-title {
+  display: flex;
+  min-width: 0;
+  flex-direction: column;
+  gap: 2px;
+}
+.tool-activity-title strong {
+  color: #cbd1d6;
+  font-size: var(--text-sm);
+  font-weight: 550;
+}
+.tool-activity-title small {
+  overflow: hidden;
+  color: #d78387;
+  font-size: var(--text-xs);
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.tool-activity-row.completed .tool-activity-status {
+  color: #69bd8e;
+}
+.tool-activity-row.failed .tool-activity-status {
+  color: #d78387;
+}
+.tool-activity-chevron {
+  color: #75808a;
+  transition: transform var(--transition-fast);
+}
+.tool-activity-row[open] .tool-activity-chevron {
+  transform: rotate(180deg);
+}
+.tool-activity-detail {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding: 0 11px 10px 41px;
+  animation: thought-reveal 150ms ease;
+}
+.tool-activity-detail small {
+  color: #7f8992;
+  font-size: var(--text-xs);
+}
+.tool-activity-detail pre {
+  max-height: 240px;
+  overflow: auto;
+  margin: 3px 0 0;
+  padding: 9px 10px;
+  border-radius: 7px;
+  background: #111519;
+  color: #bac2c9;
+  font:
+    var(--text-xs) "Cascadia Code",
+    Consolas,
+    monospace;
+  line-height: 1.55;
+  white-space: pre-wrap;
+  word-break: break-word;
+}
+.tool-activity-detail button {
+  display: inline-flex;
+  width: fit-content;
+  align-items: center;
+  gap: 6px;
+  padding: 4px 0;
+  border: 0;
+  background: transparent;
+  color: #84909a;
+  font-size: var(--text-xs);
+}
+.tool-activity-detail button:hover {
+  color: #c6ced5;
+}
+@media (prefers-reduced-motion: reduce) {
+  .tool-activity-detail {
     animation: none;
   }
 }
