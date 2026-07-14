@@ -264,3 +264,9 @@
 - VPS Claude 与本地 Claude CLI 统一使用 `ClaudeStreamParser` 解析 `stream-json`。
 - `system/init` 与限流元数据不再进入聊天正文；assistant 文本保持流式输出，工具事件进入活动摘要，非 JSON 诊断进入终端。
 - 增加协议解析和 SSH 适配器回归测试，避免初始化 JSON 再次泄漏到消息区。
+
+## 2026-07-14 消息区文档式样式修复
+
+- 会话滚动容器仅允许纵向滚动；宽表格和长文本不再撑开整个消息区或产生底部横向滚动条。
+- Codex 与 Claude 返回结果改为无背景、无边框、无左侧竖线的文档式正文，保留 Agent 身份和内容层级。
+- 前端 66 项组件测试与 TypeScript 类型检查通过。

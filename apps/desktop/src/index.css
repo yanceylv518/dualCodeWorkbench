@@ -3807,6 +3807,40 @@ button:disabled {
 }
 
 /* U6：附件缩略图与时间戳 hover 显现 */
+.conversation-pane,
+.message-stream,
+.message-card,
+.message-body,
+.message-content {
+  min-width: 0;
+}
+.message-stream {
+  overflow-x: hidden;
+  overflow-y: auto;
+}
+.message-card {
+  width: min(100%, 800px);
+  box-sizing: border-box;
+}
+.message-body,
+.message-content {
+  max-width: 100%;
+  box-sizing: border-box;
+}
+.message-content {
+  overflow-wrap: anywhere;
+}
+.message-card.codex .message-content,
+.message-card.claude .message-content {
+  border: 0;
+  border-radius: 0;
+  background: transparent;
+  padding: 8px 0 12px;
+  box-shadow: none;
+}
+.message-content table {
+  min-width: 0;
+}
 .attachment-thumb {
   width: 26px;
   height: 26px;
