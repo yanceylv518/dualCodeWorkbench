@@ -293,3 +293,12 @@
 - 失败摘要收敛到最后一条失败行，不再生成独立错误区；终端协议暂无调用 ID，因此通过「查看运行日志」安全降级到右侧日志页。
 - 验证通过：前端 70 项、TypeScript、严格 ESLint、A3 改动文件 Prettier、Vite 生产构建、Ruff、后端 113 项、
   Windows sidecar 与 Tauri release `--no-bundle` 构建。
+
+## 2026-07-14 Claude App 对齐 A4
+
+- Codex/Claude 助手消息正文末尾新增常驻的低对比度图标操作行，提供复制 Markdown 原文与重试本轮；操作行进入正常文档流，
+  不悬浮、不遮挡正文，复制成功后短暂显示对勾反馈。
+- 助手消息的重试会关联其前方最近一条用户消息，继续复用既有后端重试、附件和审计语义，避免把助手消息 ID 传给只接受
+  用户消息的接口。
+- 验证通过：前端 70 项、TypeScript、严格 ESLint、A4 改动文件 Prettier、Ruff、后端 113 项全量测试、
+  Vite 生产构建、Windows sidecar 与 Tauri release `--no-bundle` 构建。

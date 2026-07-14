@@ -4,6 +4,7 @@ import {
   fireEvent,
   render,
   screen,
+  within,
 } from "@testing-library/react";
 import { afterEach, describe, expect, it, vi } from "vitest";
 
@@ -96,7 +97,13 @@ describe("workbench", () => {
     expect(container.querySelector(".streaming-message")).toBeNull();
   });
 
-  it("does not show a copy toolbar on agent messages", () => {
+  it("shows bottom actions on agent messages and copies the Markdown source", async () => {
+    const writeText = vi.fn(async () => undefined);
+    const retryMessage = vi.fn(async () => undefined);
+    Object.defineProperty(navigator, "clipboard", {
+      configurable: true,
+      value: { writeText },
+    });
     Object.defineProperty(HTMLElement.prototype, "scrollIntoView", {
       configurable: true,
       value: vi.fn(),
@@ -104,6 +111,7 @@ describe("workbench", () => {
     const base = singleTaskState("CREATED");
     useStore.setState({
       ...base,
+      retryMessage,
       workspaces: [
         {
           ...base.workspaces[0],
@@ -111,6 +119,12 @@ describe("workbench", () => {
             {
               ...base.workspaces[0].threads[0],
               messages: [
+                {
+                  id: "user-message-before-agent",
+                  agent: "user",
+                  text: "给出结论",
+                  time: "09:59",
+                },
                 {
                   id: "agent-message",
                   agent: "codex",
@@ -125,8 +139,21 @@ describe("workbench", () => {
     });
 
     render(<App />);
-    expect(screen.queryByRole("toolbar", { name: "消息操作" })).toBeNull();
-    expect(screen.queryByRole("button", { name: "复制" })).toBeNull();
+    const toolbar = screen.getByRole("toolbar", { name: "助手消息操作" });
+    fireEvent.click(within(toolbar).getByRole("button", { name: "复制消息" }));
+    await vi.waitFor(() =>
+      expect(writeText).toHaveBeenCalledWith("## 结论\n\n- 保留 **Markdown**"),
+    );
+    expect(
+      await within(toolbar).findByRole("button", { name: "消息已复制" }),
+    ).toBeTruthy();
+    expect(
+      within(toolbar).getByRole("button", { name: "重试本轮" }),
+    ).toBeTruthy();
+    fireEvent.click(within(toolbar).getByRole("button", { name: "重试本轮" }));
+    await vi.waitFor(() =>
+      expect(retryMessage).toHaveBeenCalledWith("user-message-before-agent"),
+    );
   });
 
   it("edits a user message in place with cancel, save, and retry actions", async () => {

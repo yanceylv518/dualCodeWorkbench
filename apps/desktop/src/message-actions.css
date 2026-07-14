@@ -45,6 +45,44 @@
   color: #b9d6f5;
 }
 
+.assistant-message-actions {
+  display: flex;
+  align-items: center;
+  gap: 2px;
+  margin-top: 6px;
+  color: var(--text-muted);
+}
+
+.assistant-message-actions button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 28px;
+  height: 28px;
+  border: 0;
+  border-radius: 6px;
+  background: transparent;
+  padding: 0;
+  color: inherit;
+  opacity: 0.62;
+  transition:
+    color 150ms ease,
+    opacity 150ms ease,
+    background 150ms ease;
+}
+
+.assistant-message-actions button:hover,
+.assistant-message-actions button:focus-visible {
+  background: var(--surface-2);
+  color: var(--text-primary);
+  opacity: 1;
+}
+
+.assistant-message-actions button:disabled {
+  cursor: default;
+  opacity: 0.25;
+}
+
 @media (hover: none) {
   .message-actions {
     position: static;

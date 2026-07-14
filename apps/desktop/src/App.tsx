@@ -6,6 +6,7 @@ import {
   AlertTriangle,
   Bot,
   Check,
+  Copy,
   ChevronDown,
   Circle,
   Code2,
@@ -45,6 +46,7 @@ import { HandoffPanel } from "./HandoffPanel";
 import { RemoteRepository } from "./components/RemoteRepository";
 import "./recovery.css";
 import "./message-actions.css";
+import { useCopyFeedback } from "./hooks/useCopyFeedback";
 import { useStore, type Mode } from "./store";
 import * as api from "./api";
 import type {
@@ -529,10 +531,14 @@ export default function App() {
                 }}
               >
                 {thread.messages.length ? (
-                  thread.messages.map((message) => (
+                  thread.messages.map((message, messageIndex) => (
                     <MessageCard
                       key={message.id}
                       message={message}
+                      retryMessageId={findPreviousUserMessageId(
+                        thread.messages,
+                        messageIndex,
+                      )}
                       retry={store.retryMessage}
                       openRunLogs={() => {
                         setRightHidden(false);
@@ -1098,10 +1104,12 @@ function ActivityCard({
 }
 function MessageCard({
   message,
+  retryMessageId,
   retry,
   openRunLogs,
 }: {
   message: Message;
+  retryMessageId?: string;
   retry: (id: string, content?: string) => Promise<void>;
   openRunLogs: () => void;
 }) {
@@ -1109,6 +1117,7 @@ function MessageCard({
   const [editing, setEditing] = useState(false);
   const [editText, setEditText] = useState(text);
   const [savingEdit, setSavingEdit] = useState(false);
+  const { copyState, copyText } = useCopyFeedback();
   const isStreaming = message.id.startsWith("stream-");
   const workspaceId = useStore((state) => state.workspaceId);
   const threadId = useStore((state) => state.threadId);
@@ -1246,9 +1255,51 @@ function MessageCard({
             <MarkdownMessage text={text} />
           )}
         </div>
+        {agent !== "user" && !isStreaming && (
+          <div
+            className="assistant-message-actions"
+            role="toolbar"
+            aria-label="助手消息操作"
+          >
+            <button
+              type="button"
+              aria-label={
+                copyState === "copied"
+                  ? "消息已复制"
+                  : copyState === "failed"
+                    ? "复制消息失败"
+                    : "复制消息"
+              }
+              title={copyState === "failed" ? "复制失败" : "复制 Markdown 原文"}
+              onClick={() => void copyText(text)}
+            >
+              {copyState === "copied" ? (
+                <Check size={16} />
+              ) : (
+                <Copy size={16} />
+              )}
+            </button>
+            <button
+              type="button"
+              aria-label="重试本轮"
+              title="重试本轮"
+              disabled={!retryMessageId}
+              onClick={() => retryMessageId && void retry(retryMessageId)}
+            >
+              <RotateCcw size={16} />
+            </button>
+          </div>
+        )}
       </div>
     </article>
   );
+}
+
+function findPreviousUserMessageId(messages: Message[], fromIndex: number) {
+  for (let index = fromIndex - 1; index >= 0; index -= 1) {
+    if (messages[index].agent === "user") return messages[index].id;
+  }
+  return undefined;
 }
 export function ImageAttachment({ url, name }: { url: string; name: string }) {
   const [openPreview, setOpenPreview] = useState(false);
