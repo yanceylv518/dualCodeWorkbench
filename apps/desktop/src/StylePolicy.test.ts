@@ -59,8 +59,8 @@ describe("desktop visual policy", () => {
   });
 
   it("defines the U5 surface, radius and motion tokens", () => {
-    expect(index).toContain("--text-reading: 16px");
-    expect(index).toContain("--reading-leading: 1.7");
+    expect(index).toContain("--text-reading: 14px");
+    expect(index).toContain("--reading-leading: 1.65");
     expect(index).toContain("--surface-1:");
     expect(index).toContain("--radius-md: 10px");
     expect(index).toContain("--transition-fast: 150ms ease");

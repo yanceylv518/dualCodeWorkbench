@@ -114,8 +114,8 @@
   --text-sm: 12px;
   --text-base: 13px;
   --text-lg: 14px;
-  --text-reading: 16px;
-  --reading-leading: 1.7;
+  --text-reading: 14px;
+  --reading-leading: 1.65;
   --text-muted: #778595;
   --focus-ring: #63a8ff;
   --surface-0: #0a0e13;
@@ -3605,7 +3605,24 @@ button:disabled {
 /* 正文阅读字号与行距 */
 .message-card .message-content {
   font-size: var(--text-reading);
+  font-family:
+    "Segoe UI", "Microsoft YaHei UI", "Microsoft YaHei", system-ui, sans-serif;
+  font-weight: 400;
   line-height: var(--reading-leading);
+  letter-spacing: 0;
+}
+.message-card .message-content p {
+  margin-bottom: 0.78em;
+}
+.message-card .message-content :is(ul, ol) {
+  margin: 0.35em 0 0.78em;
+  padding-left: 1.45em;
+}
+.message-card .message-content li {
+  margin: 0.18em 0;
+}
+.message-card .message-content strong {
+  font-weight: 600;
 }
 
 /* 消息浮现动效 */
