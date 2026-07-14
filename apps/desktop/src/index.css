@@ -114,7 +114,8 @@
   --text-sm: 12px;
   --text-base: 13px;
   --text-lg: 14px;
-  --text-reading: 15px;
+  --text-reading: 16px;
+  --reading-leading: 1.7;
   --text-muted: #778595;
   --focus-ring: #63a8ff;
   --surface-0: #0a0e13;
@@ -124,7 +125,15 @@
   --radius-md: 10px;
   --radius-lg: 14px;
   --transition-fast: 150ms ease;
-  font-family: Inter, "Segoe UI", ui-sans-serif, system-ui, sans-serif;
+  font-family:
+    "Segoe UI Variable Text",
+    "Segoe UI",
+    system-ui,
+    -apple-system,
+    "PingFang SC",
+    "Microsoft YaHei",
+    "Noto Sans CJK SC",
+    sans-serif;
   color: #e6eaf0;
   background: #090c10;
   font-synthesis: none;
@@ -3227,8 +3236,9 @@ button:disabled {
   padding: 8px 0 12px;
   box-shadow: none;
 }
+/* 阅读排版按 Claude App 校准：1em 级块间距、层级化标题、宽松行距。 */
 .message-content p {
-  margin: 0 0 9px;
+  margin: 0 0 1.05em;
   white-space: pre-wrap;
 }
 .message-content p:last-child,
@@ -3240,19 +3250,47 @@ button:disabled {
   white-space: pre-wrap;
 }
 .message-content :is(h1, h2, h3, h4) {
-  margin: 16px 0 8px;
   color: #f2f6fb;
-  line-height: 1.35;
+  line-height: 1.4;
+}
+.message-content h1 {
+  margin: 1.5em 0 0.6em;
+  font-size: 1.35em;
+  font-weight: 700;
+}
+.message-content h2 {
+  margin: 1.4em 0 0.55em;
+  font-size: 1.2em;
+  font-weight: 650;
+}
+.message-content h3 {
+  margin: 1.25em 0 0.5em;
+  font-size: 1.08em;
+  font-weight: 650;
+}
+.message-content h4 {
+  margin: 1.1em 0 0.45em;
+  font-size: 1em;
+  font-weight: 650;
 }
 .message-content :is(h1, h2, h3, h4):first-child {
   margin-top: 0;
 }
 .message-content :is(ul, ol) {
-  margin: 8px 0 12px;
-  padding-left: 24px;
+  margin: 0.5em 0 1.05em;
+  padding-left: 1.55em;
 }
 .message-content li {
-  margin: 4px 0;
+  margin: 0.35em 0;
+}
+.message-content li > p {
+  margin: 0 0 0.35em;
+}
+.message-content blockquote {
+  margin: 0.9em 0 1.05em;
+  padding: 0.15em 1em;
+  border-left: 3px solid #3d4656;
+  color: #aeb8c8;
 }
 .message-content a {
   color: #72aef2;
@@ -3287,21 +3325,20 @@ button:disabled {
   border: 1px solid #34404c;
   border-radius: 4px;
   background: #090f16;
-  padding: 1px 4px;
+  padding: 1px 5px;
   color: #b9d5f5;
-  font:
-    11px Consolas,
-    monospace;
+  font-family: Consolas, monospace;
+  font-size: 0.88em;
 }
 .message-code {
   position: relative;
-  margin: 12px 0;
+  margin: 0.9em 0 1.05em;
   border: 1px solid #303943;
   border-radius: 8px;
   background: #090d12;
   color: #d2d9e2;
   font:
-    11px/1.6 Consolas,
+    13px/1.65 Consolas,
     monospace;
 }
 .message-code pre {
@@ -3557,9 +3594,10 @@ button:disabled {
 /* 不要在上方历史区块继续叠加覆盖）。                                    */
 /* ===================================================================== */
 
-/* 正文阅读字号 */
+/* 正文阅读字号与行距 */
 .message-card .message-content {
   font-size: var(--text-reading);
+  line-height: var(--reading-leading);
 }
 
 /* 消息浮现动效 */
@@ -3776,7 +3814,7 @@ button:disabled {
   min-width: 0;
 }
 .conversation-pane {
-  --conversation-content-width: 760px;
+  --conversation-content-width: 768px;
   --conversation-turn-gap: 28px;
 }
 .message-stream {

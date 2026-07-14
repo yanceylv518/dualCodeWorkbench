@@ -128,6 +128,17 @@
 - 右侧检查器、VPS 面板、恢复中心等无对应物界面的改动。
 - Light 主题（维持既有范围外决定）。
 
+## 中期目验反馈（2026-07-14，用户 → Claude 直接实施）
+
+用户反馈整体字号/字体/输出排版/列宽与 Claude App 仍有差距。Claude 按参照记忆直接校准：
+
+- 阅读字号 15→16px，行距 1.62→1.7（`--text-reading` / 新增 `--reading-leading`）；
+- 字体链去 Inter，改 `Segoe UI Variable Text → Segoe UI → system-ui → PingFang SC → 微软雅黑`；
+- Markdown 排版全面放宽到 1em 级块间距：段落 1.05em、列表 0.5em/1.05em + 0.35em 行间、
+  标题按层级差异化（h1 1.35em/700 … h4 1em/650）、新增 blockquote 样式；
+- 行内代码改 0.88em 相对字号（随正文缩放），代码块 11→13px/1.65；
+- 列宽 760→768px（对齐 48rem 惯例），输入框与消息列宽已统一。
+
 ## 执行中新发现
 
 - A3：现有 `terminal.output` 事件只包含线程级文本，没有 tool/call ID，无法可靠切分为某条命令的专属输出。

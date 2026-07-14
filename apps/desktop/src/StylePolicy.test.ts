@@ -36,7 +36,8 @@ describe("desktop visual policy", () => {
   });
 
   it("defines the U5 surface, radius and motion tokens", () => {
-    expect(index).toContain("--text-reading: 15px");
+    expect(index).toContain("--text-reading: 16px");
+    expect(index).toContain("--reading-leading: 1.7");
     expect(index).toContain("--surface-1:");
     expect(index).toContain("--radius-md: 10px");
     expect(index).toContain("--transition-fast: 150ms ease");
@@ -45,7 +46,7 @@ describe("desktop visual policy", () => {
 
   it("keeps message spacing uniform without hidden actions taking layout space", () => {
     expect(index).toContain("margin: 0 auto 24px");
-    expect(index).toContain("--conversation-content-width: 760px");
+    expect(index).toContain("--conversation-content-width: 768px");
     expect(index).toContain("--conversation-turn-gap: 28px");
     expect(index).toContain("max-width: 75%");
     expect(index).toContain("background: transparent !important");
