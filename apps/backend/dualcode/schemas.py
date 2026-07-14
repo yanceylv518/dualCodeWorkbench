@@ -14,6 +14,16 @@ class MessageCreate(BaseModel):
         return self
 
 
+class MessageRetry(BaseModel):
+    content: str | None = Field(default=None, max_length=50_000)
+
+    @model_validator(mode="after")
+    def reject_blank_override(self):
+        if self.content is not None and not self.content.strip():
+            raise ValueError("Edited message text is required")
+        return self
+
+
 class GovernanceUpdate(BaseModel):
     product_goal: str = Field(default="", max_length=20_000)
     product_boundary: str = Field(default="", max_length=20_000)

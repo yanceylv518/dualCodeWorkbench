@@ -15,7 +15,7 @@ os.environ["DATA_DIR"] = tempfile.mkdtemp(prefix="dualcode-api-integration-")
 from dualcode.database import get_session
 from dualcode.config import sidecar_token
 from dualcode.main import app
-from dualcode.models import AuditLog, Base, ExecutionJob, FileChange, TestRun as PersistedTestRun
+from dualcode.models import AuditLog, Base, ExecutionJob, FileChange, Message, TestRun as PersistedTestRun
 from sqlalchemy import select
 
 
@@ -96,6 +96,49 @@ async def test_workspace_and_thread_lifecycle_persists(api_client: httpx.AsyncCl
     listed = (await api_client.get("/api/workspaces")).json()
     assert len(listed) == 1
     assert len(listed[0]["threads"]) == 1
+
+
+@pytest.mark.asyncio
+async def test_editing_a_user_message_resends_and_persists_the_new_content(
+    api_client: httpx.AsyncClient, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+):
+    workspace, thread = await _workspace(api_client, tmp_path)
+    sessions = api_client._dualcode_test_sessions  # type: ignore[attr-defined]
+    message = Message(thread_id=thread["id"], role="user", content="original request")
+    async with sessions() as db:
+        db.add(message)
+        await db.commit()
+        await db.refresh(message)
+        message_id = message.id
+
+    started: list[tuple[str, str, str, list[str]]] = []
+
+    async def fake_start(thread_id: str, prompt: str, mode: str, attachment_ids: list[str]):
+        started.append((thread_id, prompt, mode, attachment_ids))
+        return "edited-run"
+
+    from dualcode import api_workspaces
+
+    monkeypatch.setattr(api_workspaces.scheduler, "start", fake_start)
+    response = await api_client.post(
+        f"/api/workspaces/{workspace['id']}/threads/{thread['id']}/messages/{message_id}/retry",
+        json={"content": "edited request"},
+    )
+
+    assert response.status_code == 202
+    assert response.json() == {"run_id": "edited-run"}
+    assert started == [(thread["id"], "edited request", "codex", [])]
+    async with sessions() as db:
+        persisted = await db.get(Message, message_id)
+        event = await db.scalar(
+            select(AuditLog.event).where(
+                AuditLog.thread_id == thread["id"],
+                AuditLog.event == "message.edited_and_retried",
+            )
+        )
+    assert persisted is not None
+    assert persisted.content == "edited request"
+    assert event == "message.edited_and_retried"
 
 
 @pytest.mark.asyncio

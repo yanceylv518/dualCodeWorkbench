@@ -90,7 +90,7 @@ interface Store {
   setState: (state: RunState) => void;
   sendPrompt: (text: string) => Promise<void>;
   cancelRun: () => Promise<void>;
-  retryMessage: (messageId: string) => Promise<void>;
+  retryMessage: (messageId: string, content?: string) => Promise<void>;
   undoRun: (runId: string) => Promise<void>;
   upload: (file: File) => Promise<void>;
   removeAttachment: (id: string) => void;
@@ -825,12 +825,41 @@ export const useStore = create<Store>((set, get) => ({
       get().notify("error", String(error));
     }
   },
-  retryMessage: async (messageId) => {
+  retryMessage: async (messageId, content) => {
     const state = get();
     try {
-      await api.retryMessage(state.workspaceId, state.threadId, messageId);
+      await api.retryMessage(
+        state.workspaceId,
+        state.threadId,
+        messageId,
+        content,
+      );
+      if (content !== undefined) {
+        set((current) => ({
+          workspaces: current.workspaces.map((workspace) =>
+            workspace.id !== state.workspaceId
+              ? workspace
+              : {
+                  ...workspace,
+                  threads: workspace.threads.map((thread) =>
+                    thread.id !== state.threadId
+                      ? thread
+                      : {
+                          ...thread,
+                          messages: thread.messages.map((message) =>
+                            message.id === messageId
+                              ? { ...message, text: content }
+                              : message,
+                          ),
+                        },
+                  ),
+                },
+          ),
+        }));
+      }
     } catch (error) {
       get().notify("error", String(error));
+      throw error;
     }
   },
   undoRun: async (runId) => {

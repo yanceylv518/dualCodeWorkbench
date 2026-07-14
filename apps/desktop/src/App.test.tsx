@@ -129,7 +129,7 @@ describe("workbench", () => {
     expect(screen.queryByRole("button", { name: "复制" })).toBeNull();
   });
 
-  it("keeps the user edit and retry actions in the message toolbar", async () => {
+  it("edits a user message in place with cancel, save, and retry actions", async () => {
     const retryMessage = vi.fn(async () => undefined);
     const base = singleTaskState("CREATED");
     useStore.setState({
@@ -156,8 +156,33 @@ describe("workbench", () => {
     });
 
     render(<App />);
-    fireEvent.click(screen.getByRole("button", { name: "编辑后重新发送" }));
-    expect(useStore.getState().drafts["thread-1"]).toBe("需要继续完善交互");
+    fireEvent.click(screen.getByRole("button", { name: "编辑" }));
+    const editor = screen.getByRole<HTMLTextAreaElement>("textbox", {
+      name: "编辑消息",
+    });
+    expect(editor.value).toBe("需要继续完善交互");
+    fireEvent.change(editor, { target: { value: "取消这次修改" } });
+    fireEvent.click(screen.getByRole("button", { name: "取消" }));
+    await vi.waitFor(() =>
+      expect(
+        screen.queryByRole("textbox", { name: "编辑消息" }),
+      ).toBeNull(),
+    );
+
+    fireEvent.click(screen.getByRole("button", { name: "编辑" }));
+    fireEvent.change(screen.getByRole("textbox", { name: "编辑消息" }), {
+      target: { value: "保存新的需求" },
+    });
+    fireEvent.click(screen.getByRole("button", { name: "保存并重发" }));
+    await vi.waitFor(() =>
+      expect(retryMessage).toHaveBeenCalledWith("user-message", "保存新的需求"),
+    );
+    await vi.waitFor(() =>
+      expect(
+        screen.queryByRole("textbox", { name: "编辑消息" }),
+      ).toBeNull(),
+    );
+
     fireEvent.click(screen.getByRole("button", { name: "重试本轮" }));
     await vi.waitFor(() =>
       expect(retryMessage).toHaveBeenCalledWith("user-message"),
@@ -318,7 +343,12 @@ describe("workbench", () => {
             ...thread,
             messages: [
               ...thread.messages,
-              { id: "new-1", agent: "codex" as const, text: "新回复", time: "" },
+              {
+                id: "new-1",
+                agent: "codex" as const,
+                text: "新回复",
+                time: "",
+              },
             ],
           })),
         })),
@@ -330,9 +360,7 @@ describe("workbench", () => {
     });
     expect(backButton).toBeTruthy();
     fireEvent.click(backButton);
-    expect(
-      screen.queryByRole("button", { name: /条新消息/ }),
-    ).toBeNull();
+    expect(screen.queryByRole("button", { name: /条新消息/ })).toBeNull();
   });
 
   it("disables send until the draft has content", () => {

@@ -3812,7 +3812,8 @@ button:disabled {
   min-width: 0;
 }
 .conversation-pane {
-  --conversation-content-width: 900px;
+  --conversation-content-width: 760px;
+  --conversation-turn-gap: 28px;
 }
 .message-stream {
   overflow-x: hidden;
@@ -3821,6 +3822,12 @@ button:disabled {
 .message-card {
   width: min(100%, var(--conversation-content-width));
   box-sizing: border-box;
+  margin-bottom: var(--conversation-turn-gap);
+}
+.message-card.user,
+.message-card.codex,
+.message-card.claude {
+  margin: 0 auto var(--conversation-turn-gap);
 }
 .composer {
   width: min(100%, var(--conversation-content-width));
@@ -3837,14 +3844,65 @@ button:disabled {
 }
 .message-card.codex .message-content,
 .message-card.claude .message-content {
-  width: calc(100% + 42px);
+  width: 100%;
   max-width: none;
-  margin-left: -42px;
+  margin-left: 0;
   border: 0 !important;
   border-radius: 0;
   background: transparent !important;
   padding: 8px 0 12px;
   box-shadow: none !important;
+}
+.message-card.codex .message-avatar,
+.message-card.claude .message-avatar {
+  display: none;
+}
+.message-card.codex,
+.message-card.claude {
+  display: block;
+}
+.message-card.user .message-body {
+  max-width: 75%;
+}
+.message-card.user .message-content {
+  border: 0;
+  border-radius: 14px;
+  background: var(--surface-2);
+  padding: 11px 14px;
+  box-shadow: none;
+}
+.message-inline-edit textarea {
+  display: block;
+  width: min(520px, 62vw);
+  min-height: 76px;
+  resize: vertical;
+  border: 0;
+  outline: 0;
+  background: transparent;
+  color: inherit;
+  font: inherit;
+  line-height: inherit;
+}
+.message-inline-edit-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 6px;
+  margin-top: 8px;
+}
+.message-inline-edit-actions button {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  border: 0;
+  border-radius: 7px;
+  background: #242c36;
+  padding: 5px 8px;
+  color: var(--text-muted);
+  font-size: var(--text-xs);
+}
+.message-inline-edit-actions button:last-child {
+  background: #2765bf;
+  color: #fff;
 }
 .message-content table {
   min-width: 0;

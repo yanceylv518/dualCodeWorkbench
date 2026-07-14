@@ -533,7 +533,6 @@ export default function App() {
                     <MessageCard
                       key={message.id}
                       message={message}
-                      edit={setText}
                       retry={store.retryMessage}
                     />
                   ))
@@ -1098,14 +1097,15 @@ function ActivityCard({
 }
 function MessageCard({
   message,
-  edit,
   retry,
 }: {
   message: Message;
-  edit: (value: string) => void;
-  retry: (id: string) => Promise<void>;
+  retry: (id: string, content?: string) => Promise<void>;
 }) {
   const { agent, time, text } = message;
+  const [editing, setEditing] = useState(false);
+  const [editText, setEditText] = useState(text);
+  const [savingEdit, setSavingEdit] = useState(false);
   const isStreaming = message.id.startsWith("stream-");
   const workspaceId = useStore((state) => state.workspaceId);
   const threadId = useStore((state) => state.threadId);
@@ -1142,9 +1142,15 @@ function MessageCard({
         {agent === "user" && (
           <div className="message-actions" role="toolbar" aria-label="消息操作">
             <>
-              <button type="button" onClick={() => edit(text)}>
+              <button
+                type="button"
+                onClick={() => {
+                  setEditText(text);
+                  setEditing(true);
+                }}
+              >
                 <Pencil size={13} />
-                编辑后重新发送
+                编辑
               </button>
               <button type="button" onClick={() => void retry(message.id)}>
                 <RotateCcw size={13} />
@@ -1179,7 +1185,53 @@ function MessageCard({
               })}
             </div>
           ) : null}
-          {isStreaming ? (
+          {agent === "user" && editing ? (
+            <div className="message-inline-edit">
+              <textarea
+                aria-label="编辑消息"
+                autoFocus
+                value={editText}
+                onChange={(event) => setEditText(event.target.value)}
+                onKeyDown={(event) => {
+                  if (event.key === "Escape") {
+                    setEditText(text);
+                    setEditing(false);
+                  }
+                }}
+              />
+              <div className="message-inline-edit-actions">
+                <button
+                  type="button"
+                  disabled={savingEdit}
+                  onClick={() => {
+                    setEditText(text);
+                    setEditing(false);
+                  }}
+                >
+                  <X size={13} />
+                  取消
+                </button>
+                <button
+                  type="button"
+                  disabled={savingEdit || !editText.trim()}
+                  onClick={() => {
+                    setSavingEdit(true);
+                    void retry(message.id, editText.trim())
+                      .then(() => setEditing(false))
+                      .catch(() => undefined)
+                      .finally(() => setSavingEdit(false));
+                  }}
+                >
+                  {savingEdit ? (
+                    <LoaderCircle className="spin" size={13} />
+                  ) : (
+                    <Check size={13} />
+                  )}
+                  {savingEdit ? "保存中" : "保存并重发"}
+                </button>
+              </div>
+            </div>
+          ) : isStreaming ? (
             <p className="streaming-message" aria-label="正在生成回复">
               {text}
             </p>

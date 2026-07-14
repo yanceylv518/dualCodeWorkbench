@@ -34,7 +34,7 @@ from .models import (
     Workspace,
 )
 from .scheduler import scheduler
-from .schemas import MessageCreate, ThreadCreate, ThreadUpdate, WorkspaceCreate, WorkspaceProvision, WorkspaceRead
+from .schemas import MessageCreate, MessageRetry, ThreadCreate, ThreadUpdate, WorkspaceCreate, WorkspaceProvision, WorkspaceRead
 from .workspace_remote import WorkspaceRemoteSettings, workspace_remote_store
 
 from .api_runtime import git_tasks as _git_tasks
@@ -406,18 +406,27 @@ async def request_run_undo(workspace_id: str, thread_id: str, run_id: str, db: A
 
 
 @router.post("/workspaces/{workspace_id}/threads/{thread_id}/messages/{message_id}/retry", status_code=202)
-async def retry_message(workspace_id: str, thread_id: str, message_id: str, db: AsyncSession = Depends(get_session)):
+async def retry_message(
+    workspace_id: str,
+    thread_id: str,
+    message_id: str,
+    body: MessageRetry | None = None,
+    db: AsyncSession = Depends(get_session),
+):
     thread = await db.scalar(select(Thread).where(Thread.id == thread_id, Thread.workspace_id == workspace_id))
     message = await db.scalar(select(Message).where(Message.id == message_id, Message.thread_id == thread_id, Message.role == "user"))
     if not thread or not message:
         raise HTTPException(404, "未找到用户消息")
     if thread.state in {RunState.PLANNING, RunState.WAITING_APPROVAL, RunState.IMPLEMENTING, RunState.TESTING, RunState.REVIEWING}:
         raise HTTPException(409, "重试前请先停止当前运行")
+    edited_content = body.content.strip() if body and body.content is not None else None
+    if edited_content is not None:
+        message.content = edited_content
     attachment_ids = list((await db.scalars(select(Attachment.id).where(Attachment.message_id == message_id))).all())
     prompt = message.content.strip() or "请查看并分析所附图片。"
     run_id = await scheduler.start(thread_id, prompt, "codex", attachment_ids)
-    db.add(AuditLog(workspace_id=workspace_id, thread_id=thread_id, event="message.retried", detail=f"message={message_id};run={run_id}"))
+    event = "message.edited_and_retried" if edited_content is not None else "message.retried"
+    db.add(AuditLog(workspace_id=workspace_id, thread_id=thread_id, event=event, detail=f"message={message_id};run={run_id}"))
     await db.commit()
     return {"run_id": run_id}
-
 

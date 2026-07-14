@@ -45,8 +45,9 @@ describe("desktop visual policy", () => {
 
   it("keeps message spacing uniform without hidden actions taking layout space", () => {
     expect(index).toContain("margin: 0 auto 24px");
-    expect(index).toContain("--conversation-content-width: 900px");
-    expect(index).toContain("width: calc(100% + 42px)");
+    expect(index).toContain("--conversation-content-width: 760px");
+    expect(index).toContain("--conversation-turn-gap: 28px");
+    expect(index).toContain("max-width: 75%");
     expect(index).toContain("background: transparent !important");
     const actions = css("./message-actions.css");
     expect(actions).toContain("position: absolute");

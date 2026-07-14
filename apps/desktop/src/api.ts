@@ -186,10 +186,15 @@ export async function retryMessage(
   workspaceId: string,
   threadId: string,
   messageId: string,
+  content?: string,
 ) {
   const r = await fetch(
     `${API}/workspaces/${workspaceId}/threads/${threadId}/messages/${messageId}/retry`,
-    { method: "POST" },
+    {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(content === undefined ? {} : { content }),
+    },
   );
   if (!r.ok) throw await responseError(r);
   return r.json();
