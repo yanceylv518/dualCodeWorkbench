@@ -1,8 +1,8 @@
 .contract-panel {
   height: 100%;
   overflow: auto;
-  background: #191d20;
-  color: #d7dce1;
+  background: var(--surface-0);
+  color: var(--text-primary);
 }
 .contract-panel > header {
   position: sticky;
@@ -11,8 +11,8 @@
   display: flex;
   align-items: center;
   gap: 12px;
-  border-bottom: 1px solid #343a40;
-  background: #1b2024f2;
+  border-bottom: 1px solid var(--border-subtle);
+  background: var(--surface-1);
   padding: 14px;
 }
 .contract-panel > header div {
@@ -25,25 +25,25 @@
 }
 .contract-panel > header span {
   margin-top: 4px;
-  color: #87919a;
+  color: var(--text-muted);
   font-size: var(--text-xs);
 }
 .contract-panel button {
   display: flex;
   align-items: center;
   gap: 5px;
-  border: 1px solid #3d6faa;
+  border: 1px solid var(--accent);
   border-radius: 6px;
-  background: #285f9f;
+  background: var(--accent);
   padding: 7px 9px;
-  color: #fff;
+  color: var(--accent-contrast);
   font-size: var(--text-xs);
 }
 .contract-panel section {
   margin: 12px;
-  border: 1px solid #343b42;
+  border: 1px solid var(--border-subtle);
   border-radius: 8px;
-  background: #1d2226;
+  background: var(--surface-1);
   padding: 12px;
 }
 .contract-panel h3 {
@@ -57,18 +57,18 @@
 .contract-panel label > span {
   display: block;
   margin-bottom: 5px;
-  color: #9ca6af;
+  color: var(--text-muted);
   font-size: var(--text-xs);
 }
 .contract-panel textarea,
 .contract-panel select {
   box-sizing: border-box;
   width: 100%;
-  border: 1px solid #3a4249;
+  border: 1px solid var(--border-subtle);
   border-radius: 6px;
-  background: #15191c;
+  background: var(--surface-0);
   padding: 8px;
-  color: #dce1e5;
+  color: var(--text-primary);
   font: 11px/1.5 sans-serif;
 }
 .contract-panel textarea {
@@ -88,7 +88,7 @@
 }
 .contract-gate span {
   margin-top: 4px;
-  color: #9ca6af;
+  color: var(--text-muted);
   font-size: var(--text-xs);
   line-height: 1.45;
 }

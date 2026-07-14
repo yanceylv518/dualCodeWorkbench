@@ -13,6 +13,29 @@ const styles = [
   css("./recovery.css"),
 ].join("\n");
 
+const token = (name: string) => {
+  const matches = [
+    ...index.matchAll(new RegExp(`${name}:\\s*(#[0-9a-f]{6})`, "gi")),
+  ];
+  return matches.at(-1)?.[1] ?? "";
+};
+
+const contrast = (foreground: string, background: string) => {
+  const luminance = (hex: string) => {
+    const channels = hex
+      .slice(1)
+      .match(/.{2}/g)!
+      .map((value) => Number.parseInt(value, 16) / 255)
+      .map((value) =>
+        value <= 0.04045 ? value / 12.92 : ((value + 0.055) / 1.055) ** 2.4,
+      );
+    return channels[0] * 0.2126 + channels[1] * 0.7152 + channels[2] * 0.0722;
+  };
+  const lighter = Math.max(luminance(foreground), luminance(background));
+  const darker = Math.min(luminance(foreground), luminance(background));
+  return (lighter + 0.05) / (darker + 0.05);
+};
+
 describe("desktop visual policy", () => {
   it("does not use text smaller than 11px", () => {
     expect(styles).not.toMatch(/font-size:\s*(?:[0-9]|10)px/);
@@ -85,5 +108,24 @@ describe("desktop visual policy", () => {
     expect(index).toMatch(
       /\.system-event \{[\s\S]*?padding: 0;[\s\S]*?border: 0;[\s\S]*?background: transparent;/,
     );
+  });
+
+  it("defines a warm neutral A7 palette with accessible contrast", () => {
+    expect(token("--surface-0")).toBe("#1f1e1b");
+    expect(token("--surface-1")).toBe("#262521");
+    expect(token("--text-primary")).toBe("#f5f4ef");
+    expect(token("--accent")).toBe("#d97757");
+    expect(
+      contrast(token("--text-primary"), token("--surface-0")),
+    ).toBeGreaterThanOrEqual(7);
+    expect(
+      contrast(token("--text-muted"), token("--surface-0")),
+    ).toBeGreaterThanOrEqual(4.5);
+    expect(
+      contrast(token("--accent-contrast"), token("--accent")),
+    ).toBeGreaterThanOrEqual(4.5);
+    expect(index).toContain("--codex-identity: #d6a57f");
+    expect(index).toContain("--claude-identity: #b8a6c7");
+    expect(index).toMatch(/\.terminal-panel,[\s\S]*?background: #111315;/);
   });
 });

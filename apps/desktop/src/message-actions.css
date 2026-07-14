@@ -35,14 +35,14 @@
   gap: 4px;
   padding: 4px 6px;
   border-radius: 5px;
-  color: #aab4bf;
+  color: var(--text-muted);
   font-size: var(--text-xs);
   white-space: nowrap;
 }
 .message-actions button:hover,
 .message-actions button:focus-visible {
-  background: #2b333c;
-  color: #b9d6f5;
+  background: var(--surface-2);
+  color: var(--text-primary);
 }
 
 .assistant-message-actions {

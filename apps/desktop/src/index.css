@@ -3979,3 +3979,202 @@ button:disabled {
 .composer .run-button:disabled {
   opacity: 0.42;
 }
+
+/* A7：暖中性主题。代码块与终端在本层末尾显式锁定为中性深灰。 */
+:root {
+  --surface-0: #1f1e1b;
+  --surface-1: #262521;
+  --surface-2: #302e29;
+  --surface-3: #3a3731;
+  --text-primary: #f5f4ef;
+  --text-secondary: #cbc5bb;
+  --text-muted: #a49e94;
+  --accent: #d97757;
+  --accent-hover: #e18666;
+  --accent-pressed: #c86648;
+  --accent-contrast: #211b18;
+  --border-subtle: #3a3833;
+  --codex-identity: #d6a57f;
+  --claude-identity: #b8a6c7;
+  --focus-ring: #e69a7d;
+  color: var(--text-primary);
+  background: var(--surface-0);
+}
+
+body,
+.workbench-shell,
+.conversation-pane,
+.message-stream {
+  background: var(--surface-0);
+  color: var(--text-primary);
+}
+.titlebar,
+.task-header,
+.activity-bar {
+  border-color: var(--border-subtle);
+  background: var(--surface-1);
+}
+.project-rail,
+.inspector-pane {
+  border-color: var(--border-subtle);
+  background: #23221f;
+}
+.open-project,
+.search-box,
+.rail-footer,
+.backend-badge,
+.inspector-section,
+.test-command,
+.test-result,
+.remote-config-summary,
+.derived-vps-path {
+  border-color: var(--border-subtle);
+  background: var(--surface-1);
+  color: var(--text-secondary);
+}
+.open-project:hover,
+.icon-button:hover,
+.thread-button:hover,
+.inspector-subtabs button:hover,
+.composer select:hover,
+.composer select:focus-visible {
+  border-color: #514d46;
+  background: var(--surface-2);
+  color: var(--text-primary);
+}
+.thread-button,
+.thread-button small,
+.project-heading,
+.project-heading small,
+.title-context,
+.task-title-row small,
+.inspector-tabs button,
+.inspector-section > header,
+.panel-empty,
+.settings-section-help {
+  color: var(--text-muted);
+}
+.project-heading strong,
+.task-title-row h1,
+.inspector-tabs button.active,
+.panel-empty strong {
+  color: var(--text-primary);
+}
+.thread-button.active {
+  background: var(--surface-3);
+  color: var(--text-primary);
+  box-shadow: inset 2px 0 var(--accent);
+}
+.brand-mark {
+  background: linear-gradient(145deg, var(--accent), var(--accent-pressed));
+  box-shadow: 0 0 20px rgb(217 119 87 / 18%);
+  color: var(--accent-contrast);
+}
+.inspector-tabs,
+.inspector-subtabs {
+  border-color: var(--border-subtle);
+  background: transparent;
+}
+.inspector-tabs button.active::after {
+  background: var(--accent);
+}
+.inspector-subtabs button.active {
+  background: var(--surface-2);
+  color: var(--text-primary);
+}
+.composer,
+.settings-dialog,
+.confirm-dialog,
+.project-dialog {
+  border-color: var(--border-subtle);
+  background: var(--surface-1);
+  color: var(--text-primary);
+}
+.composer textarea,
+.composer select,
+.settings-dialog input,
+.settings-dialog textarea,
+.settings-dialog select,
+.confirm-dialog input,
+.project-dialog input {
+  color: var(--text-primary);
+}
+.message-card.user .message-content,
+.tool-activity-row,
+.approval-card,
+.attachment-chip {
+  background: var(--surface-2);
+  color: var(--text-primary);
+}
+.message-card.codex .message-body > header strong {
+  color: var(--codex-identity);
+}
+.message-card.claude .message-body > header strong {
+  color: var(--claude-identity);
+}
+.new-task-empty strong {
+  color: var(--text-primary);
+}
+.new-task-empty span,
+.system-event,
+.thinking-block,
+.thought-pill > p,
+.thought-pill > summary {
+  color: var(--text-muted);
+}
+.thinking-pulse,
+.streaming-message::after {
+  color: var(--accent);
+}
+.run-button:not(.stop),
+.approval-card button.approve,
+.settings-footer button.primary,
+.project-dialog > footer button.primary,
+.confirm-dialog button.primary,
+.full-empty button,
+.create-project,
+.remote-repo-form button,
+.test-actions button,
+.message-inline-edit-actions button:last-child {
+  border-color: var(--accent);
+  background: var(--accent);
+  color: var(--accent-contrast);
+}
+.run-button:not(.stop):hover,
+.approval-card button.approve:hover,
+.settings-footer button.primary:hover:not(:disabled),
+.project-dialog > footer button.primary:hover:not(:disabled),
+.confirm-dialog button.primary:hover:not(:disabled),
+.full-empty button:hover:not(:disabled),
+.create-project:hover:not(:disabled),
+.remote-repo-form button:hover:not(:disabled),
+.test-actions button:hover:not(:disabled),
+.message-inline-edit-actions button:last-child:hover:not(:disabled) {
+  border-color: var(--accent-hover);
+  background: var(--accent-hover);
+  color: var(--accent-contrast);
+}
+.run-button:not(.stop):active,
+.approval-card button.approve:active,
+.settings-footer button.primary:active:not(:disabled),
+.project-dialog > footer button.primary:active:not(:disabled),
+.confirm-dialog button.primary:active:not(:disabled) {
+  background: var(--accent-pressed);
+}
+
+/* 阅读型代码与原始终端不跟随暖色主题，保持中性深灰。 */
+.message-code,
+.message-code pre,
+.tool-activity-detail pre,
+.approval-card pre,
+.test-result pre,
+.terminal-panel,
+.terminal-panel pre {
+  background: #111315;
+  color: #d7dadd;
+}
+.terminal-toolbar button {
+  border-color: #34383c;
+  background: #1b1e21;
+  color: #c4c9ce;
+}

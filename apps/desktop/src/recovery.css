@@ -20,7 +20,7 @@
   align-items: flex-start;
   gap: 10px;
   padding: 17px 16px;
-  border-bottom: 1px solid #34383b;
+  border-bottom: 1px solid var(--border-subtle);
 }
 .recovery-heading > div {
   min-width: 0;
@@ -31,12 +31,12 @@
   display: block;
 }
 .recovery-heading strong {
-  color: #f0f1f2;
+  color: var(--text-primary);
   font-size: var(--text-base);
 }
 .recovery-heading span {
   margin-top: 5px;
-  color: #989fa7;
+  color: var(--text-muted);
   font-size: var(--text-xs);
   line-height: 1.45;
 }
@@ -45,10 +45,10 @@
   place-items: center;
   width: 29px;
   height: 29px;
-  border: 1px solid #3b4147;
+  border: 1px solid var(--border-subtle);
   border-radius: 7px;
-  background: #23272a;
-  color: #bcc2c8;
+  background: var(--surface-2);
+  color: var(--text-secondary);
 }
 .recovery-list {
   padding: 12px;
@@ -120,11 +120,11 @@
   display: flex;
   align-items: center;
   gap: 5px;
-  border: 1px solid #3c6da9;
+  border: 1px solid var(--accent);
   border-radius: 6px;
-  background: #265f9f;
+  background: var(--accent);
   padding: 6px 9px;
-  color: #fff;
+  color: var(--accent-contrast);
   font-size: var(--text-xs);
 }
 .recovery-meta button:disabled {

@@ -1,14 +1,14 @@
 .handoff-panel {
   height: 100%;
   overflow: auto;
-  background: #191d20;
-  color: #d7dce1;
+  background: var(--surface-0);
+  color: var(--text-primary);
 }
 .handoff-panel > header {
   display: flex;
   align-items: center;
   gap: 10px;
-  border-bottom: 1px solid #343a40;
+  border-bottom: 1px solid var(--border-subtle);
   padding: 14px;
 }
 .handoff-panel > header > div {
@@ -21,15 +21,15 @@
 }
 .handoff-panel > header span {
   margin-top: 4px;
-  color: #87919a;
+  color: var(--text-muted);
   font-size: var(--text-xs);
 }
 .handoff-panel button {
-  border: 1px solid #3b4650;
+  border: 1px solid var(--border-subtle);
   border-radius: 6px;
-  background: #22282e;
+  background: var(--surface-2);
   padding: 7px 9px;
-  color: #cbd3dc;
+  color: var(--text-secondary);
   font-size: var(--text-xs);
 }
 .handoff-actions {
@@ -47,24 +47,24 @@
 }
 .handoff-actions button:last-child,
 .handoff-preview > header button {
-  border-color: #3d6faa;
-  background: #285f9f;
-  color: #fff;
+  border-color: var(--accent);
+  background: var(--accent);
+  color: var(--accent-contrast);
 }
 .handoff-busy {
   display: flex;
   align-items: center;
   gap: 7px;
   padding: 0 13px 10px;
-  color: #8ea5bd;
+  color: var(--text-muted);
   font-size: var(--text-xs);
 }
 .handoff-preview,
 .handoff-history {
   margin: 0 12px 12px;
-  border: 1px solid #374049;
+  border: 1px solid var(--border-subtle);
   border-radius: 8px;
-  background: #1d2226;
+  background: var(--surface-1);
   padding: 11px;
 }
 .handoff-preview > header {
