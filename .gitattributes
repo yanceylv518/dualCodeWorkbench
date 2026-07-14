@@ -1,0 +1,6 @@
+# Prettier 检查的前端文件在所有平台按 LF 检出，
+# 避免 Windows runner 的 autocrlf 转换导致 CI 格式检查误报。
+*.ts text eol=lf
+*.tsx text eol=lf
+*.css text eol=lf
+*.json text eol=lf
