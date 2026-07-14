@@ -262,3 +262,18 @@
 - commit message 已恢复「编号 + 中文」约定格式（A4 备注生效）。
 - 验证：前端 71 项、后端 113 项、TypeScript、严格 ESLint、全量 Prettier、Ruff 全绿；
   CI run `29306915238` 双平台绿。
+
+### A6 Review（2026-07-14，Claude）
+
+**结论：A6 通过，继续 A8。保护条款 1 核查无恙。**
+
+- 安全语义逐行核对：「拒绝」→`decide(false)`、「允许」→`decide(true,"once")`、
+  「本次任务均允许」→`decide(true,"thread")` 且 `scoped` 门控（仅 `edit_files` /
+  `remote_edit_files`）原样未动——三个映射与改版前完全一致，仅文案与层级变化 ✓。
+  组件测试对三个调用签名逐一断言，并验证非编辑类操作不出现次按钮——正是保护条款
+  要求的验证方式 ✓。
+- 形态核查：标题「允许 X？」句式 ✓；操作内容改等宽 `<pre>` 完整展示 ✓；按钮右对齐
+  三层级（文字拒绝 / 次级本任务 / 主允许居右）✓；radius-md 与 A3 工具行一致、
+  150ms 进场动画 ✓。
+- 验证：前端 71 项、后端 113 项（含审批专项）、TypeScript、严格 ESLint、全量 Prettier、
+  Ruff 全绿；CI run `29308952752` 双平台绿。
