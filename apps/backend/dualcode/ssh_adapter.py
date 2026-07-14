@@ -9,7 +9,8 @@ from pathlib import Path, PurePosixPath
 
 import asyncssh
 
-from .adapters import AgentAdapter, AgentCapabilities, AgentRequest, AgentResponse
+from .adapters import AgentAdapter, AgentCapabilities, AgentRequest, AgentResponse, AgentStreamEvent
+from .claude_stream import ClaudeStreamParser
 from .security import validate_project_file
 
 
@@ -186,6 +187,12 @@ class ClaudeSshAdapter(AgentAdapter):
             if event.get("type") == "result" and isinstance(event.get("result"), str):
                 result.append(event["result"])
         return AgentResponse(session_id or str(uuid.uuid4()), "\n".join(result))
+
+    async def stream_events(self, request: AgentRequest) -> AsyncIterator[AgentStreamEvent]:
+        parser = ClaudeStreamParser()
+        async for chunk in self.stream(request):
+            for event in parser.feed(chunk):
+                yield event
 
     async def cancel(self, run_id: str) -> None:
         run = self._runs.pop(run_id, None)

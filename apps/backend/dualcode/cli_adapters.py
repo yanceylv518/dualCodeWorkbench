@@ -13,8 +13,8 @@ from .adapters import (
     AgentRequest,
     AgentResponse,
     AgentStreamEvent,
-    AgentStreamEventType,
 )
+from .claude_stream import ClaudeStreamParser
 from .security import validate_project_file
 
 
@@ -257,53 +257,10 @@ class ClaudeCliAdapter(BaseCliAdapter):
         return args
 
     async def stream_events(self, request: AgentRequest) -> AsyncIterator[AgentStreamEvent]:
-        session_id = ""
-        emitted_text = False
+        parser = ClaudeStreamParser()
         async for chunk in self.stream(request):
-            try:
-                event = json.loads(chunk)
-            except json.JSONDecodeError:
-                if chunk:
-                    emitted_text = True
-                    yield AgentStreamEvent(AgentStreamEventType.DELTA, session_id=session_id, text=chunk)
-                continue
-            session_id = str(event.get("session_id") or session_id)
-            event_type = event.get("type")
-            if event_type == "assistant":
-                message = event.get("message")
-                blocks = message.get("content", []) if isinstance(message, dict) else []
-                for block in blocks:
-                    if not isinstance(block, dict):
-                        continue
-                    if block.get("type") == "text":
-                        text = str(block.get("text") or "")
-                        if text:
-                            emitted_text = True
-                            yield AgentStreamEvent(AgentStreamEventType.DELTA, session_id=session_id, text=text)
-                    elif block.get("type") == "tool_use":
-                        yield AgentStreamEvent(
-                            AgentStreamEventType.TOOL_EVENT,
-                            session_id=session_id,
-                            event="tool_use",
-                            item={str(key): value for key, value in block.items()},
-                        )
-            elif event_type == "user":
-                message = event.get("message")
-                blocks = message.get("content", []) if isinstance(message, dict) else []
-                for block in blocks:
-                    if isinstance(block, dict) and block.get("type") == "tool_result":
-                        yield AgentStreamEvent(
-                            AgentStreamEventType.TOOL_EVENT,
-                            session_id=session_id,
-                            event="tool_result",
-                            item={str(key): value for key, value in block.items()},
-                        )
-            elif event_type == "result":
-                result = str(event.get("result") or "")
-                if result and not emitted_text:
-                    emitted_text = True
-                    yield AgentStreamEvent(AgentStreamEventType.DELTA, session_id=session_id, text=result)
-                yield AgentStreamEvent(AgentStreamEventType.FINAL, session_id=session_id)
+            for event in parser.feed(chunk):
+                yield event
 
     async def send(self, request: AgentRequest) -> AgentResponse:
         chunks = [chunk async for chunk in self.stream(request)]

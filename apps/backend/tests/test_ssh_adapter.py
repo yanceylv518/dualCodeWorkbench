@@ -6,6 +6,27 @@ from dualcode.adapters import AgentRequest
 from dualcode.ssh_adapter import ClaudeSshAdapter, ClaudeSshConfig, RemoteRepositoryUnavailable
 
 
+@pytest.mark.asyncio
+async def test_claude_ssh_stream_events_filter_protocol_envelopes(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    adapter = object.__new__(ClaudeSshAdapter)
+
+    async def fake_stream(_request):
+        yield '{"type":"system","subtype":"init","session_id":"session-1"}'
+        yield (
+            '{"type":"assistant","session_id":"session-1",'
+            '"message":{"content":[{"type":"text","text":"answer"}]}}'
+        )
+        yield '{"type":"result","session_id":"session-1","result":"answer"}'
+
+    monkeypatch.setattr(adapter, "stream", fake_stream)
+    events = [event async for event in adapter.stream_events(object())]
+
+    assert [event.type.value for event in events] == ["delta", "final"]
+    assert events[0].text == "answer"
+
+
 def config(tmp_path: Path, **changes):
     known_hosts = tmp_path / "known_hosts"
     known_hosts.write_text("host ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAITest\n")

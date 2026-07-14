@@ -258,3 +258,9 @@
 - SSH 命令不拼接不可信输入。
 - 模型调用、审批、Git 和文件变化必须留审计记录。
 - 不自动合并或静默推送代码。
+
+## 2026-07-14 Claude SSH 流式协议修复
+
+- VPS Claude 与本地 Claude CLI 统一使用 `ClaudeStreamParser` 解析 `stream-json`。
+- `system/init` 与限流元数据不再进入聊天正文；assistant 文本保持流式输出，工具事件进入活动摘要，非 JSON 诊断进入终端。
+- 增加协议解析和 SSH 适配器回归测试，避免初始化 JSON 再次泄漏到消息区。
