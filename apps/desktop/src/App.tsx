@@ -1614,12 +1614,12 @@ function ApprovalCard({
 }) {
   const labels: Record<string, string> = {
     network_access: "发送给 Claude",
-    edit_files: "允许 Codex 本轮操作",
-    codex_command: "允许 Codex 执行命令",
-    codex_file_change: "允许 Codex 修改文件",
-    codex_permissions: "允许 Codex 扩大权限",
+    edit_files: "Codex 本轮操作",
+    codex_command: "Codex 执行命令",
+    codex_file_change: "Codex 修改文件",
+    codex_permissions: "Codex 扩大权限",
     undo_codex_run: "撤销 Codex 本轮修改",
-    remote_edit_files: "允许 Claude 远端操作",
+    remote_edit_files: "Claude 远端操作",
     run_test: "运行本地测试",
     git_commit: "Git 提交",
     git_push: "推送远程",
@@ -1632,23 +1632,24 @@ function ApprovalCard({
     <section className="approval-card">
       <header>
         <ShieldCheck size={16} />
-        <div>
-          <small>本轮操作需要授权</small>
-          <strong>{labels[action] ?? action}</strong>
-        </div>
+        <strong>允许 {labels[action] ?? action}？</strong>
       </header>
-      <p>{reason}</p>
-      <div>
-        <button onClick={() => void decide(false)}>取消本轮</button>
-        <button onClick={() => void decide(true, "once")}>允许一次</button>
+      <pre>{reason}</pre>
+      <div className="approval-actions">
+        <button className="reject" onClick={() => void decide(false)}>
+          拒绝
+        </button>
         {scoped && (
           <button
-            className="approve"
+            className="approve-thread"
             onClick={() => void decide(true, "thread")}
           >
-            允许本任务
+            本次任务均允许
           </button>
         )}
+        <button className="approve" onClick={() => void decide(true, "once")}>
+          允许
+        </button>
       </div>
     </section>
   );

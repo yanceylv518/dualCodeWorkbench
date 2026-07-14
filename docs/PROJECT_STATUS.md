@@ -310,3 +310,11 @@
 - 常驻快捷键文案已移除并进入 textarea tooltip，减少底栏噪声。
 - 验证通过：前端 71 项、TypeScript、严格 ESLint、全量 Prettier、Ruff、后端 113 项全量测试、
   Vite 生产构建、Windows sidecar 与 Tauri release `--no-bundle` 构建。
+
+## 2026-07-14 Claude App 对齐 A6
+
+- 审批卡改为「允许 X？」标题、等宽完整操作内容和右对齐按钮组，并以 150ms 淡入进入消息流。
+- 按钮层级调整为文字「拒绝」、编辑类操作专属次按钮「本次任务均允许」、实底主按钮「允许」。
+- 审批 scope 映射和后端安全语义保持不变，没有扩大自动授权范围。
+- 验证通过：前端 71 项、TypeScript、严格 ESLint、A6 改动文件 Prettier、Ruff、后端 113 项全量测试、
+  Vite 生产构建、Windows sidecar 与 Tauri release `--no-bundle` 构建。

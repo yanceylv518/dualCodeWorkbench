@@ -1033,10 +1033,11 @@ button:disabled {
 .approval-card {
   margin: 12px;
   padding: 13px;
-  border: 1px solid #6a4c17;
-  border-radius: 9px;
-  background: linear-gradient(145deg, #21190c, #17130c);
-  box-shadow: 0 10px 24px #0004;
+  border: 0;
+  border-radius: var(--radius-md);
+  background: var(--surface-2);
+  box-shadow: none;
+  animation: approval-card-enter 150ms ease;
 }
 .approval-card header {
   display: flex;
@@ -1044,40 +1045,55 @@ button:disabled {
   gap: 9px;
   color: #f2b94d;
 }
-.approval-card header div {
-  display: flex;
-  flex-direction: column;
-}
-.approval-card header small {
-  font-size: var(--text-xs);
-  color: #9f8150;
-}
 .approval-card header strong {
-  margin-top: 2px;
-  font-size: var(--text-xs);
+  font-size: var(--text-base);
 }
-.approval-card p {
+.approval-card pre {
   margin: 10px 0;
-  color: #ab9a7c;
+  overflow: auto;
+  border-radius: 8px;
+  background: var(--surface-0);
+  padding: 10px 11px;
+  color: #b9c4d2;
   font-size: var(--text-xs);
+  font-family: ui-monospace, "Cascadia Code", Consolas, monospace;
   line-height: 1.5;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
 }
-.approval-card > div {
+.approval-actions {
   display: flex;
+  justify-content: flex-end;
   gap: 7px;
 }
 .approval-card button {
-  flex: 1;
-  border: 1px solid #3b3326;
+  flex: none;
+  border: 0;
   border-radius: 6px;
-  background: #17140f;
-  padding: 7px;
+  background: transparent;
+  padding: 7px 10px;
   font-size: var(--text-xs);
 }
+.approval-card button.reject {
+  color: var(--text-muted);
+}
+.approval-card button.approve-thread {
+  background: #2b333c;
+  color: #c9d2df;
+}
 .approval-card button.approve {
-  border-color: #2768cc;
   background: #286bd3;
   color: #fff;
+}
+@keyframes approval-card-enter {
+  from {
+    opacity: 0;
+    transform: translateY(3px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
 }
 .diff-panel,
 .terminal-panel {
@@ -3430,10 +3446,11 @@ button:disabled {
 }
 .approval-card > div:last-child {
   display: flex;
+  justify-content: flex-end;
   gap: 7px;
 }
 .approval-card > div:last-child button {
-  flex: 1;
+  flex: none;
   white-space: nowrap;
 }
 .inspector-tabs {

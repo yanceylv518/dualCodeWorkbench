@@ -643,17 +643,19 @@ describe("workbench", () => {
     expect(screen.getByText("没有匹配的项目或任务")).toBeTruthy();
   });
 
-  it("keeps approval actions visible when the inspector is hidden", () => {
+  it("keeps approval actions visible and preserves approval scopes", async () => {
+    const decideApproval = vi.fn(async () => undefined);
     useStore.setState({
       backend: "online",
       workspaceId: "workspace-1",
       threadId: "thread-1",
       pendingApproval: {
         id: "approval-1",
-        action: "codex_command",
-        reason: "需要执行检查命令",
+        action: "edit_files",
+        reason: "修改 apps/desktop/src/App.tsx",
         status: "PENDING",
       },
+      decideApproval,
       workspaces: [
         {
           id: "workspace-1",
@@ -674,8 +676,30 @@ describe("workbench", () => {
     render(<App />);
     fireEvent.click(screen.getByTitle("隐藏检查器"));
 
-    expect(screen.getByRole("button", { name: "允许一次" })).toBeTruthy();
-    expect(screen.getByText("需要执行检查命令")).toBeTruthy();
+    expect(screen.getByText("允许 Codex 本轮操作？")).toBeTruthy();
+    expect(screen.getByText("修改 apps/desktop/src/App.tsx")).toBeTruthy();
+
+    fireEvent.click(screen.getByRole("button", { name: "拒绝" }));
+    fireEvent.click(screen.getByRole("button", { name: "本次任务均允许" }));
+    fireEvent.click(screen.getByRole("button", { name: "允许" }));
+
+    await vi.waitFor(() => {
+      expect(decideApproval).toHaveBeenNthCalledWith(1, false);
+      expect(decideApproval).toHaveBeenNthCalledWith(2, true, "thread");
+      expect(decideApproval).toHaveBeenNthCalledWith(3, true, "once");
+    });
+
+    act(() => {
+      useStore.setState({
+        pendingApproval: {
+          id: "approval-2",
+          action: "codex_command",
+          reason: "运行只读检查",
+          status: "PENDING",
+        },
+      });
+    });
+    expect(screen.queryByRole("button", { name: "本次任务均允许" })).toBeNull();
   });
 
   it("does not force the message stream to the bottom after the user scrolls up", () => {
