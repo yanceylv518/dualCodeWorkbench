@@ -3814,12 +3814,20 @@ button:disabled {
 .message-content {
   min-width: 0;
 }
+.conversation-pane {
+  --conversation-content-width: 900px;
+}
 .message-stream {
   overflow-x: hidden;
   overflow-y: auto;
 }
 .message-card {
-  width: min(100%, 800px);
+  width: min(100%, var(--conversation-content-width));
+  box-sizing: border-box;
+}
+.composer {
+  width: min(100%, var(--conversation-content-width));
+  max-width: none;
   box-sizing: border-box;
 }
 .message-body,
