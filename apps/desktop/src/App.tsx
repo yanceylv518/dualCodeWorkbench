@@ -4,6 +4,7 @@ import { getCurrentWindow } from "@tauri-apps/api/window";
 import { open } from "@tauri-apps/plugin-dialog";
 import {
   AlertTriangle,
+  ArrowUp,
   Bot,
   Check,
   Copy,
@@ -1531,6 +1532,7 @@ export function Composer({
         )}
         <textarea
           ref={textareaRef}
+          title="Enter 发送，Shift+Enter 换行"
           value={text}
           disabled={offline}
           onChange={(event) => setText(event.target.value)}
@@ -1572,14 +1574,11 @@ export function Composer({
             aria-label="添加附件"
             onClick={() => fileInput.current?.click()}
           >
-            <ImagePlus size={15} />
+            <Plus size={16} />
           </button>
-          <span className="composer-hint">
-            {running
-              ? "本轮完成后即可发送草稿"
-              : "Enter 发送 · Shift+Enter 换行"}
-          </span>
           <select
+            aria-label="选择 Agent"
+            title="选择 Agent"
             disabled={offline}
             value={mode}
             onChange={(event) => setMode(event.target.value as Mode)}
@@ -1593,10 +1592,11 @@ export function Composer({
           <button
             disabled={offline || (!running && emptyDraft)}
             className={`run-button ${running ? "stop" : ""}`}
+            aria-label={running ? "停止" : "发送"}
+            title={running ? "停止当前任务" : "发送消息"}
             onClick={() => (running ? void cancel() : run())}
           >
-            {running ? <Square size={13} /> : <Play size={13} />}{" "}
-            {running ? "停止" : "发送"}
+            {running ? <Square size={14} /> : <ArrowUp size={17} />}
           </button>
         </div>
       </div>

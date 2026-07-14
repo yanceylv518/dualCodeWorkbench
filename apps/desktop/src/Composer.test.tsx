@@ -85,6 +85,22 @@ describe("Composer", () => {
     fireEvent.dragEnter(composer);
     expect(composer.classList.contains("dragging")).toBe(true);
   });
+
+  it("uses a compact mode selector and circular send or stop actions", () => {
+    renderComposer({ text: "准备发送" });
+
+    expect(screen.getByRole("combobox", { name: "选择 Agent" })).toBeTruthy();
+    const send = screen.getByRole("button", { name: "发送" });
+    expect(send.classList.contains("run-button")).toBe(true);
+    expect(send.querySelector(".lucide-arrow-up")).toBeTruthy();
+    expect(screen.queryByText("Enter 发送 · Shift+Enter 换行")).toBeNull();
+
+    cleanup();
+    renderComposer({ running: true });
+    const stop = screen.getByRole("button", { name: "停止" });
+    expect(stop.classList.contains("stop")).toBe(true);
+    expect(stop.querySelector(".lucide-square")).toBeTruthy();
+  });
 });
 
 describe("ImageAttachment", () => {

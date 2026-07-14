@@ -302,3 +302,11 @@
   用户消息的接口。
 - 验证通过：前端 70 项、TypeScript、严格 ESLint、A4 改动文件 Prettier、Ruff、后端 113 项全量测试、
   Vite 生产构建、Windows sidecar 与 Tauri release `--no-bundle` 构建。
+
+## 2026-07-14 Claude App 对齐 A5
+
+- Composer 保持附件、自动增高、IME、草稿、离线禁用和取消逻辑不变，调整为上方输入、下方操作的双行结构。
+- 底栏左侧使用「+」附件入口和无边框 Agent 选择器，右侧使用 34px 圆形主按钮；空闲显示上箭头，运行中显示停止方块。
+- 常驻快捷键文案已移除并进入 textarea tooltip，减少底栏噪声。
+- 验证通过：前端 71 项、TypeScript、严格 ESLint、全量 Prettier、Ruff、后端 113 项全量测试、
+  Vite 生产构建、Windows sidecar 与 Tauri release `--no-bundle` 构建。

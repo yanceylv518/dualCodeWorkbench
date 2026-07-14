@@ -3929,3 +3929,45 @@ button:disabled {
     opacity: 1;
   }
 }
+
+/* A5：双行 Composer；底栏左侧是附件与 Agent，右侧是圆形主操作。 */
+.composer {
+  border-radius: 18px;
+}
+.composer-tools {
+  gap: 3px;
+  border-top: 0;
+  padding: 7px 10px 10px;
+}
+.composer-tools > button:not(.run-button) {
+  width: 30px;
+  height: 30px;
+  border-radius: 8px;
+}
+.composer select {
+  margin-left: 0;
+  max-width: 168px;
+  border: 0;
+  border-radius: 8px;
+  background: transparent;
+  padding: 6px 8px;
+  color: var(--text-muted);
+  font-size: var(--text-xs);
+}
+.composer select:hover,
+.composer select:focus-visible {
+  background: var(--surface-2);
+  color: var(--text-primary);
+}
+.composer .run-button {
+  display: grid;
+  place-items: center;
+  width: 34px;
+  height: 34px;
+  margin-left: auto;
+  border-radius: 50%;
+  padding: 0;
+}
+.composer .run-button:disabled {
+  opacity: 0.42;
+}
