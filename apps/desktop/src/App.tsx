@@ -5,7 +5,6 @@ import { open } from "@tauri-apps/plugin-dialog";
 import {
   AlertTriangle,
   ArrowUp,
-  Bot,
   Check,
   Copy,
   ChevronDown,
@@ -550,11 +549,8 @@ export default function App() {
                   ))
                 ) : (
                   <div className="new-task-empty">
-                    <Bot size={28} />
-                    <strong>从产品目标开始</strong>
-                    <span>
-                      描述目标用户、核心场景、业务需求和约束。先澄清需求与验收标准，再讨论技术方案和实现框架。
-                    </span>
+                    <strong>今天想一起做什么？</strong>
+                    <span>说说你的目标、问题，或准备推进的下一步。</span>
                   </div>
                 )}
                 {activeStates.has(thread.state) && (
@@ -1136,13 +1132,8 @@ function MessageCard({
   if (agent === "system")
     return (
       <article className="system-event">
-        <span>
-          <SquareTerminal size={12} />
-        </span>
-        <div>
-          <strong>System</strong>
-          <p>{text}</p>
-        </div>
+        <SquareTerminal size={12} aria-hidden="true" />
+        <p>{text}</p>
         {time && <time>{time}</time>}
       </article>
     );

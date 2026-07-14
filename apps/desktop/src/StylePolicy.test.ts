@@ -77,4 +77,13 @@ describe("desktop visual policy", () => {
     );
     expect(index).toContain(".tool-activity-row.failed .tool-activity-status");
   });
+
+  it("keeps empty and system states quiet and borderless", () => {
+    expect(index).toMatch(
+      /\.new-task-empty strong \{[\s\S]*?font-size: 26px;[\s\S]*?font-weight: 500;/,
+    );
+    expect(index).toMatch(
+      /\.system-event \{[\s\S]*?padding: 0;[\s\S]*?border: 0;[\s\S]*?background: transparent;/,
+    );
+  });
 });

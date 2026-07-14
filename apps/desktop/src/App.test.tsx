@@ -41,6 +41,50 @@ const singleTaskState = (state: "CREATED" | "IMPLEMENTING") => ({
 });
 
 describe("workbench", () => {
+  it("renders a greeting-only empty state", () => {
+    useStore.setState(singleTaskState("CREATED"));
+
+    const { container } = render(<App />);
+    expect(screen.getByText("今天想一起做什么？")).toBeTruthy();
+    expect(
+      screen.getByText("说说你的目标、问题，或准备推进的下一步。"),
+    ).toBeTruthy();
+    expect(container.querySelector(".new-task-empty svg")).toBeNull();
+    expect(screen.queryByText("从产品目标开始")).toBeNull();
+  });
+
+  it("renders system events as quiet inline messages", () => {
+    const base = singleTaskState("CREATED");
+    useStore.setState({
+      ...base,
+      workspaces: [
+        {
+          ...base.workspaces[0],
+          threads: [
+            {
+              ...base.workspaces[0].threads[0],
+              messages: [
+                {
+                  id: "system-message",
+                  agent: "system",
+                  text: "测试已通过",
+                  time: "10:02",
+                },
+              ],
+            },
+          ],
+        },
+      ],
+    });
+
+    const { container } = render(<App />);
+    const event = container.querySelector(".system-event");
+    expect(event?.textContent).toContain("测试已通过");
+    expect(event?.textContent).toContain("10:02");
+    expect(event?.textContent).not.toContain("System");
+    expect(event?.querySelector("p")?.textContent).toBe("测试已通过");
+  });
+
   it("renders stream placeholders as plain text and persisted messages as Markdown", () => {
     Object.defineProperty(HTMLElement.prototype, "scrollIntoView", {
       configurable: true,

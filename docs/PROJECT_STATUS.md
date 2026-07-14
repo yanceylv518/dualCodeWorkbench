@@ -1,5 +1,12 @@
 # DualCode Workbench 项目状态
 
+## 2026-07-14 Claude App 对齐 A8
+
+- 新任务空状态由功能说明卡收敛为居中大号问候语和一行轻提示，不再展示机器人图标或技术流程说明。
+- system 事件移除绿色状态边框、底色和 `System` 标题，改为对话内容轨道内的低对比度行内灰字；时间仍保留在右侧。
+- 验证通过：前端 74 项、TypeScript、严格 ESLint、A8 改动文件 Prettier、Ruff、后端 113 项全量测试、
+  Vite 生产构建、Windows sidecar 与 Tauri release `--no-bundle` 构建。
+
 ## 2026-07-14 Agent 消息复制入口精简
 
 - 根据安装包验收反馈，移除 Codex/Claude 消息右上角的整条消息复制工具条，避免遮挡正文和形成不必要的悬浮控件。
