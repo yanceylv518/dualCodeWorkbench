@@ -3366,19 +3366,16 @@ button:disabled {
 }
 .message-card.codex .message-body,
 .message-card.claude .message-body {
-  max-width: 758px;
+  width: 100%;
+  max-width: none;
 }
 .message-card.codex .message-content,
 .message-card.claude .message-content {
   border: 0;
-  border-left: 2px solid #2f5c90;
   border-radius: 0;
   background: transparent;
-  padding: 10px 0 12px 14px;
+  padding: 8px 0 12px;
   box-shadow: none;
-}
-.message-card.claude .message-content {
-  border-left-color: #6d4f95;
 }
 .message-content p {
   margin: 0 0 9px;
@@ -3830,21 +3827,24 @@ button:disabled {
   max-width: none;
   box-sizing: border-box;
 }
-.message-body,
-.message-content {
+.message-body {
   max-width: 100%;
   box-sizing: border-box;
 }
 .message-content {
+  box-sizing: border-box;
   overflow-wrap: anywhere;
 }
 .message-card.codex .message-content,
 .message-card.claude .message-content {
-  border: 0;
+  width: calc(100% + 42px);
+  max-width: none;
+  margin-left: -42px;
+  border: 0 !important;
   border-radius: 0;
-  background: transparent;
+  background: transparent !important;
   padding: 8px 0 12px;
-  box-shadow: none;
+  box-shadow: none !important;
 }
 .message-content table {
   min-width: 0;
