@@ -22,6 +22,10 @@ class AppServerProtocolError(RuntimeError):
     pass
 
 
+class AppServerNoProgressError(AppServerProtocolError):
+    """The app-server accepted a turn but then stopped emitting events."""
+
+
 class CodexAppServerAdapter(BaseCliAdapter):
     """Persistent Codex app-server JSON-RPC client.
 
@@ -43,11 +47,13 @@ class CodexAppServerAdapter(BaseCliAdapter):
     }
 
     def __init__(self, executable: str = "codex", timeout_seconds: float = 900,
-                 model: str = "", reasoning_effort: str = "medium", permission_mode: str = "safe") -> None:
+                 model: str = "", reasoning_effort: str = "medium", permission_mode: str = "safe",
+                 progress_timeout_seconds: float = 60) -> None:
         super().__init__(executable, timeout_seconds)
         self.model = model
         self.reasoning_effort = reasoning_effort
         self.permission_mode = permission_mode
+        self.progress_timeout_seconds = progress_timeout_seconds
         self._process: asyncio.subprocess.Process | None = None
         self._reader_task: asyncio.Task[None] | None = None
         self._stderr_task: asyncio.Task[None] | None = None
@@ -283,7 +289,19 @@ class CodexAppServerAdapter(BaseCliAdapter):
         try:
             async with asyncio.timeout(self.timeout_seconds):
                 while True:
-                    event = await queue.get()
+                    try:
+                        event = await asyncio.wait_for(
+                            queue.get(), timeout=self.progress_timeout_seconds
+                        )
+                    except TimeoutError as exc:
+                        # A wedged app-server can keep the process alive without
+                        # ever completing the turn. Reset the transport so the
+                        # scheduler can retry a stale session as a fresh thread.
+                        await self.close()
+                        raise AppServerNoProgressError(
+                            f"Codex app-server {self.progress_timeout_seconds:g} 秒内没有返回任何进展，"
+                            "已重启连接并准备重试"
+                        ) from exc
                     if event.get("id") is not None and event.get("method") in self._APPROVAL_METHODS:
                         handler = request.context.get("approval_callback")
                         params = event.get("params") if isinstance(event.get("params"), dict) else {}
@@ -357,7 +375,8 @@ class CodexAppServerAdapter(BaseCliAdapter):
     async def close(self) -> None:
         process = self._process
         if process and process.returncode is None:
-            process.terminate()
+            with suppress(ProcessLookupError):
+                process.terminate()
             with suppress(TimeoutError):
                 await asyncio.wait_for(process.wait(), 3)
         for task in (self._reader_task, self._stderr_task):

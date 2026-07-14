@@ -4,7 +4,11 @@ import json
 import pytest
 
 from dualcode.adapters import AgentRequest, AgentStreamEventType
-from dualcode.codex_app_server import AppServerProtocolError, CodexAppServerAdapter
+from dualcode.codex_app_server import (
+    AppServerNoProgressError,
+    AppServerProtocolError,
+    CodexAppServerAdapter,
+)
 
 
 class FakeStdin:
@@ -126,6 +130,29 @@ async def test_app_server_resumes_existing_thread(monkeypatch, tmp_path):
     assert response.run_id == "thread-app-1"
     assert not any(item.get("method") == "thread/start" for item in process.stdin.writes)
     await adapter.close()
+
+
+@pytest.mark.asyncio
+async def test_app_server_resets_transport_when_turn_stops_emitting_events(
+    monkeypatch, tmp_path
+):
+    process = FakeProcess()
+    process.emit_turn = lambda: None
+    adapter = CodexAppServerAdapter("fake", progress_timeout_seconds=0.01)
+    monkeypatch.setattr(adapter, "resolve_executable", lambda: "fake")
+    monkeypatch.setattr(
+        asyncio,
+        "create_subprocess_exec",
+        lambda *a, **k: asyncio.sleep(0, result=process),
+    )
+
+    with pytest.raises(AppServerNoProgressError, match="没有返回任何进展"):
+        await adapter.send(
+            AgentRequest("local-thread", "hello", {"workspace_path": str(tmp_path)})
+        )
+
+    assert process.returncode == -15
+    assert adapter._process is None
 
 
 @pytest.mark.asyncio

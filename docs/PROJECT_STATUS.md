@@ -336,3 +336,9 @@
 - 审批 scope 映射和后端安全语义保持不变，没有扩大自动授权范围。
 - 验证通过：前端 71 项、TypeScript、严格 ESLint、A6 改动文件 Prettier、Ruff、后端 113 项全量测试、
   Vite 生产构建、Windows sidecar 与 Tauri release `--no-bundle` 构建。
+
+## 2026-07-14 Codex app-server 无进展恢复
+
+- 确认 Codex CLI、登录和 app-server 基础协议可用；实际故障为单轮任务在进程仍存活时停止返回协议事件，旧实现会等待总超时 15 分钟，界面因此长期停留在“Codex 回复中”。
+- 为 app-server 增加 60 秒无进展看门狗；任意协议事件都会刷新计时，连续无事件时终止失活进程并重置连接。历史会话由调度器自动降级为新会话重试，重试仍失败则向界面返回明确错误，不再无限转圈。
+- 新增失活进程回归测试；Codex app-server 与 Agent 韧性测试共 19 项通过。
