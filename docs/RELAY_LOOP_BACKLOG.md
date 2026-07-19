@@ -36,12 +36,15 @@
 **现状**：`claude_stream.py` 的 `feed()` 只处理 `text` / `tool_use` / `tool_result`，
 `thinking` 块无分支、被静默丢弃——模型思考内容永远不可见。
 
-- [ ] `ClaudeStreamParser` 为 `thinking` 块产出 reasoning 类活动事件（对齐 Codex 的
+- [x] `ClaudeStreamParser` 为 `thinking` 块产出 reasoning 类活动事件（对齐 Codex 的
   `activity.delta` / reasoning item 语义），进入前端既有 A2 思考态 UI；
   `redacted_thinking` 忽略并计入终端诊断行，不进思考区。
-- [ ] SSH 与本地 CLI 两条路径共用该解析器，行为一致（现状已共用，补测试锁定）。
+- [x] SSH 与本地 CLI 两条路径共用该解析器，行为一致（现状已共用，补测试锁定）。
 - **验收**：协议测试覆盖「thinking 块 → reasoning 事件、text 块 → DELTA、
   redacted_thinking 不泄漏」；真实 VPS 会话可看到「正在思考…」态出现思考文本。
+- **验证结果（2026-07-19）**：协议测试已覆盖 thinking、text 与 redacted thinking；
+  本地 CLI/VPS SSH 两条适配路径均锁定 reasoning 事件行为。后端 116 项、前端 75 项、
+  TypeScript 与 Ruff 全部通过；真实 VPS 会话显示由安装包验收确认。
 
 ### T2 Claude 逐 token 流式（--include-partial-messages）
 

@@ -16,15 +16,18 @@ async def test_claude_ssh_stream_events_filter_protocol_envelopes(
         yield '{"type":"system","subtype":"init","session_id":"session-1"}'
         yield (
             '{"type":"assistant","session_id":"session-1",'
-            '"message":{"content":[{"type":"text","text":"answer"}]}}'
+            '"message":{"content":[{"type":"thinking","thinking":"inspect"},'
+            '{"type":"text","text":"answer"}]}}'
         )
         yield '{"type":"result","session_id":"session-1","result":"answer"}'
 
     monkeypatch.setattr(adapter, "stream", fake_stream)
     events = [event async for event in adapter.stream_events(object())]
 
-    assert [event.type.value for event in events] == ["delta", "final"]
-    assert events[0].text == "answer"
+    assert [event.type.value for event in events] == ["tool_event", "delta", "final"]
+    assert events[0].item["type"] == "reasoning"
+    assert events[0].item["text"] == "inspect"
+    assert events[1].text == "answer"
 
 
 def config(tmp_path: Path, **changes):

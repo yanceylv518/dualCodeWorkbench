@@ -55,7 +55,7 @@ async def test_claude_exposes_normalized_stream_events(monkeypatch):
     adapter = ClaudeCliAdapter()
 
     async def protocol_stream(_request):
-        yield '{"type":"assistant","session_id":"claude-1","message":{"content":[{"type":"text","text":"分析"},{"type":"tool_use","name":"Read","input":{}}]}}'
+        yield '{"type":"assistant","session_id":"claude-1","message":{"content":[{"type":"thinking","thinking":"检查项目"},{"type":"text","text":"分析"},{"type":"tool_use","name":"Read","input":{}}]}}'
         yield '{"type":"result","session_id":"claude-1","result":"分析"}'
 
     monkeypatch.setattr(adapter, "stream", protocol_stream)
@@ -67,8 +67,11 @@ async def test_claude_exposes_normalized_stream_events(monkeypatch):
     ]
 
     assert [event.type for event in events] == [
+        AgentStreamEventType.TOOL_EVENT,
         AgentStreamEventType.DELTA,
         AgentStreamEventType.TOOL_EVENT,
         AgentStreamEventType.FINAL,
     ]
     assert all(event.session_id == "claude-1" for event in events)
+    assert events[0].item["type"] == "reasoning"
+    assert events[0].item["text"] == "检查项目"

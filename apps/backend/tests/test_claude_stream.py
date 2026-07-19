@@ -45,6 +45,61 @@ def test_assistant_text_and_tools_are_normalized() -> None:
     assert events[1].event == "tool_use"
 
 
+def test_assistant_thinking_is_normalized_as_reasoning_delta() -> None:
+    events = ClaudeStreamParser().feed(
+        json.dumps(
+            {
+                "type": "assistant",
+                "session_id": "session-thinking",
+                "message": {
+                    "content": [
+                        {"type": "thinking", "thinking": "先检查项目结构"},
+                        {"type": "text", "text": "检查完成"},
+                    ]
+                },
+            },
+            ensure_ascii=False,
+        )
+    )
+
+    assert [event.type for event in events] == [
+        AgentStreamEventType.TOOL_EVENT,
+        AgentStreamEventType.DELTA,
+    ]
+    assert events[0].event == "delta"
+    assert events[0].item == {
+        "id": "claude-reasoning-0",
+        "type": "reasoning",
+        "text": "先检查项目结构",
+    }
+    assert events[1].text == "检查完成"
+
+
+def test_redacted_thinking_is_terminal_diagnostic_without_content_leakage() -> None:
+    secret = "sensitive hidden reasoning"
+    events = ClaudeStreamParser().feed(
+        json.dumps(
+            {
+                "type": "assistant",
+                "session_id": "session-redacted",
+                "message": {
+                    "content": [
+                        {
+                            "type": "redacted_thinking",
+                            "data": secret,
+                        }
+                    ]
+                },
+            }
+        )
+    )
+
+    assert len(events) == 1
+    assert events[0].type == AgentStreamEventType.TERMINAL
+    assert events[0].text == "[Claude redacted thinking omitted]"
+    assert secret not in events[0].text
+
+
 def test_result_does_not_duplicate_streamed_assistant_text() -> None:
     parser = ClaudeStreamParser()
     parser.feed(

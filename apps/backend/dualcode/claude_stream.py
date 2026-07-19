@@ -36,7 +36,7 @@ class ClaudeStreamParser:
         if event_type in {"assistant", "user"}:
             message = payload.get("message")
             blocks = message.get("content", []) if isinstance(message, dict) else []
-            for block in blocks:
+            for block_index, block in enumerate(blocks):
                 if not isinstance(block, dict):
                     continue
                 block_type = block.get("type")
@@ -51,6 +51,32 @@ class ClaudeStreamParser:
                                 text=text,
                             )
                         )
+                elif event_type == "assistant" and block_type == "thinking":
+                    thinking = str(block.get("thinking") or "")
+                    if thinking:
+                        events.append(
+                            AgentStreamEvent(
+                                AgentStreamEventType.TOOL_EVENT,
+                                session_id=self.session_id,
+                                event="delta",
+                                item={
+                                    "id": str(
+                                        block.get("id")
+                                        or f"claude-reasoning-{block_index}"
+                                    ),
+                                    "type": "reasoning",
+                                    "text": thinking,
+                                },
+                            )
+                        )
+                elif event_type == "assistant" and block_type == "redacted_thinking":
+                    events.append(
+                        AgentStreamEvent(
+                            AgentStreamEventType.TERMINAL,
+                            session_id=self.session_id,
+                            text="[Claude redacted thinking omitted]",
+                        )
+                    )
                 elif block_type in {"tool_use", "tool_result"}:
                     events.append(
                         AgentStreamEvent(

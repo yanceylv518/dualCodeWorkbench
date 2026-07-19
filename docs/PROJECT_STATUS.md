@@ -1,5 +1,14 @@
 # DualCode Workbench 项目状态
 
+## 2026-07-19 Phase T1 Claude thinking 块接入
+
+- `ClaudeStreamParser` 已把 Claude `thinking` 内容映射为现有 `delta + reasoning item`
+  活动事件，直接复用 A2 的「正在思考」与可折叠思考过程 UI；普通 `text` 仍走正文增量。
+- `redacted_thinking` 只生成不含协议数据的终端诊断，不进入思考正文，避免 signature、
+  data 等脱敏内容泄漏；本地 Claude CLI 与 VPS SSH 两条路径继续共用同一解析器。
+- 新增协议及双路径回归测试；验证通过：后端 116 项、前端 75 项、TypeScript 与 Ruff。
+  按执行约定停在 T1，真实 VPS 展示效果留待安装包验收，不进入 T2。
+
 ## 2026-07-19 协作闭环方向确认与规格清单
 
 - 用户确认当前工具「离真正可用有差距」的两个核心问题：思考过程未先行流式展示；
