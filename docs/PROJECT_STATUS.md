@@ -1,5 +1,17 @@
 # DualCode Workbench 项目状态
 
+## 2026-07-19 协作闭环方向确认与规格清单
+
+- 用户确认当前工具「离真正可用有差距」的两个核心问题：思考过程未先行流式展示；
+  Codex/Claude 之间没有自动接力，用户被迫充当信使推动每一环交接。
+- 协作形态选定「自动接力循环」（Codex 实现 → Claude 审查 → 发现自动回注修复），
+  Claude 保持在 VPS 运行是硬约束，同步机制以 Git 影子 ref 自动推送替代手动 commit/push。
+- 思考缺失根因已在代码定位：`claude_stream.py` 丢弃 `thinking` 块；Claude CLI 调用缺
+  `--include-partial-messages` 导致无逐 token 流式；Codex turn 配置疑似未开启 reasoning summary。
+- 新增 `docs/RELAY_LOOP_BACKLOG.md`：Phase T（思考可见性 T1-T3）与 Phase R0-R3
+  （影子同步、审查协议、编排状态机、上下文与 UI），含保护条款与安全不变量修订说明。
+  执行约定沿用 REMEDIATION_BACKLOG，Codex 按序执行、Claude 逐 Phase review。
+
 ## 2026-07-14 Claude App 对齐 A7
 
 - U5 主题层迁移为暖中性配色：`surface-0 #1f1e1b`、`surface-1 #262521`、`surface-2 #302e29`、
