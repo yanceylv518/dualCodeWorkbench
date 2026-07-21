@@ -222,7 +222,7 @@ export async function uploadAttachment(
     `${API}/workspaces/${workspaceId}/threads/${threadId}/attachments`,
     { method: "POST", body },
   );
-  if (!r.ok) throw new Error(await r.text());
+  if (!r.ok) throw await responseError(r);
   return r.json();
 }
 export async function threadSocket(threadId: string) {

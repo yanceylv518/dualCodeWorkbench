@@ -1,5 +1,15 @@
 # DualCode Workbench 项目状态
 
+## 2026-07-21 Word 附件上传与 Agent 上下文接入
+
+- Composer 文件选择器新增 `.docx` 与旧 `.doc`；`.docx` 可正常上传，旧 `.doc` 会收到
+  “请另存为 `.docx`”的明确提示，不再表现为文件不可选择或无反馈。
+- 后端新增 DOCX MIME 归一化、OOXML 结构校验、解压大小限制和正文安全提取；原始文档仍存
+  应用附件目录，SQLite 只保存元数据，下载时保持原文件。
+- 调度器把 DOCX 正文作为显式文本附件交给 Codex/Claude，不再误送到仅支持图片的参数通道；
+  上传错误统一使用中文 API 错误内容反馈。
+- 验证通过：后端 119 项、前端 76 项、TypeScript、ESLint、Prettier 与 Ruff。
+
 ## 2026-07-19 Phase T1 Claude thinking 块接入
 
 - `ClaudeStreamParser` 已把 Claude `thinking` 内容映射为现有 `delta + reasoning item`

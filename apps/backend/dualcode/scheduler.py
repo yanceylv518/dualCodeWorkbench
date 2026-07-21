@@ -19,6 +19,7 @@ from .codex_app_server import CodexAppServerAdapter
 from .connections import manager
 from .context_budget import build_recent_transcript, truncate_contract
 from .database import SessionLocal
+from .document_text import DOCX_MEDIA_TYPE, extract_docx_text
 from .events import AgentEvent, EventType
 from .git_service import GitService
 from .models import (
@@ -253,7 +254,12 @@ class RunScheduler:
                     for item in records:
                         local_path = (attachment_root / item.storage_key).resolve(strict=True)
                         if item.media_type == "text/plain":
-                            text_attachments.append(f"ATTACHMENT {item.name}:\n{local_path.read_text(encoding='utf-8', errors='replace')[:200_000]}")
+                            content = local_path.read_text(encoding="utf-8", errors="replace")
+                            text_attachments.append(f"ATTACHMENT {item.name}:\n{content[:200_000]}")
+                            continue
+                        if item.media_type == DOCX_MEDIA_TYPE:
+                            content = extract_docx_text(local_path)
+                            text_attachments.append(f"ATTACHMENT {item.name}:\n{content[:200_000]}")
                             continue
                         attachments.append(AgentAttachment(
                             id=item.id,

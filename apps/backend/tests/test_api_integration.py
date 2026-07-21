@@ -2,6 +2,8 @@ import os
 import subprocess
 import tempfile
 import base64
+import io
+import zipfile
 from pathlib import Path
 
 import httpx
@@ -17,6 +19,24 @@ from dualcode.config import sidecar_token
 from dualcode.main import app
 from dualcode.models import AuditLog, Base, ExecutionJob, FileChange, Message, TestRun as PersistedTestRun
 from sqlalchemy import select
+
+
+def _docx_bytes(text: str) -> bytes:
+    output = io.BytesIO()
+    with zipfile.ZipFile(output, "w") as archive:
+        archive.writestr(
+            "[Content_Types].xml",
+            '<Types xmlns="http://schemas.openxmlformats.org/package/2006/content-types"/>',
+        )
+        archive.writestr(
+            "word/document.xml",
+            (
+                '<w:document xmlns:w="http://schemas.openxmlformats.org/'
+                'wordprocessingml/2006/main"><w:body><w:p><w:r><w:t>'
+                f"{text}</w:t></w:r></w:p></w:body></w:document>"
+            ),
+        )
+    return output.getvalue()
 
 
 @pytest.fixture
@@ -216,6 +236,45 @@ async def test_user_facing_http_errors_are_localized(
     )
     assert unsupported.status_code == 415
     assert unsupported.json()["detail"] == "不支持此附件类型"
+
+    legacy_word = await api_client.post(
+        f"{prefix}/attachments",
+        files={"file": ("legacy.doc", b"legacy", "application/msword")},
+    )
+    assert legacy_word.status_code == 415
+    assert legacy_word.json()["detail"] == "暂不支持旧版 .doc，请另存为 .docx 后上传"
+
+
+@pytest.mark.asyncio
+async def test_docx_attachment_is_validated_stored_and_downloadable(
+    api_client: httpx.AsyncClient, tmp_path: Path
+):
+    workspace, thread = await _workspace(api_client, tmp_path)
+    prefix = f"/api/workspaces/{workspace['id']}/threads/{thread['id']}"
+    media_type = "application/vnd.openxmlformats-officedocument.wordprocessingml.document"
+    document = _docx_bytes("产品需求说明")
+
+    uploaded = await api_client.post(
+        f"{prefix}/attachments",
+        files={"file": ("requirements.docx", document, media_type)},
+    )
+
+    assert uploaded.status_code == 201, uploaded.text
+    assert uploaded.json()["name"] == "requirements.docx"
+    assert uploaded.json()["media_type"] == media_type
+    content = await api_client.get(
+        f"{prefix}/attachments/{uploaded.json()['id']}/content"
+    )
+    assert content.status_code == 200
+    assert content.content == document
+
+    invalid = await api_client.post(
+        f"{prefix}/attachments",
+        files={"file": ("broken.docx", b"not-a-document", media_type)},
+    )
+    assert invalid.status_code == 400
+    assert "Word 文档" in invalid.json()["detail"]
+
 
 
 @pytest.mark.asyncio

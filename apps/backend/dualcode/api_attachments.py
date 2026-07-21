@@ -18,6 +18,7 @@ from PIL import Image
 from .config import settings
 from .connections import manager
 from .database import get_session
+from .document_text import DOCX_MEDIA_TYPE, InvalidDocumentError, extract_docx_text
 from .events import AgentEvent, EventType
 from .models import (
     Attachment,
@@ -39,29 +40,42 @@ async def upload_attachment(
     )
     if not thread:
         raise HTTPException(404, "项目与任务不匹配")
-    if file.content_type not in settings.allowed_attachment_types:
+    filename = Path(file.filename or "attachment").name
+    suffix = Path(filename).suffix.lower()
+    if suffix == ".doc":
+        raise HTTPException(415, "暂不支持旧版 .doc，请另存为 .docx 后上传")
+    media_type = file.content_type or "application/octet-stream"
+    if suffix == ".docx":
+        media_type = DOCX_MEDIA_TYPE
+    if media_type not in settings.allowed_attachment_types:
         raise HTTPException(415, "不支持此附件类型")
     content = await file.read(settings.max_attachment_bytes + 1)
     if len(content) > settings.max_attachment_bytes:
         raise HTTPException(413, "附件大小超过限制")
-    if file.content_type in {"image/png", "image/jpeg", "image/webp"}:
+    if media_type in {"image/png", "image/jpeg", "image/webp"}:
         try:
             with Image.open(io.BytesIO(content)) as image:
                 image.load()
                 output = io.BytesIO()
-                format_name = {"image/png": "PNG", "image/jpeg": "JPEG", "image/webp": "WEBP"}[file.content_type]
+                format_name = {"image/png": "PNG", "image/jpeg": "JPEG", "image/webp": "WEBP"}[media_type]
                 if format_name == "JPEG" and image.mode not in {"RGB", "L"}:
                     image = image.convert("RGB")
                 image.save(output, format=format_name)
                 content = output.getvalue()
         except (OSError, ValueError) as exc:
             raise HTTPException(400, "图片附件无效或已损坏") from exc
+    elif media_type == DOCX_MEDIA_TYPE:
+        try:
+            extract_docx_text(content)
+        except InvalidDocumentError as exc:
+            raise HTTPException(400, str(exc)) from exc
     attachment_suffix = {
         "image/png": ".png",
         "image/jpeg": ".jpg",
         "image/webp": ".webp",
         "text/plain": ".txt",
-    }.get(file.content_type, "")
+        DOCX_MEDIA_TYPE: ".docx",
+    }.get(media_type, "")
     key = f"{workspace_id}/{thread_id}/{uuid.uuid4()}{attachment_suffix}"
     target = settings.data_dir / "attachments" / key
     target.parent.mkdir(parents=True, exist_ok=True)
@@ -69,8 +83,8 @@ async def upload_attachment(
     item = Attachment(
         workspace_id=workspace_id,
         thread_id=thread_id,
-        name=Path(file.filename or "attachment").name,
-        media_type=file.content_type,
+        name=filename,
+        media_type=media_type,
         size=len(content),
         storage_key=key,
     )

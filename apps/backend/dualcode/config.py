@@ -12,6 +12,7 @@ class Settings(BaseSettings):
         "image/jpeg",
         "image/webp",
         "text/plain",
+        "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
     )
     enable_real_agents: bool = True
     codex_executable: str = "codex"

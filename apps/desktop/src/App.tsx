@@ -11,8 +11,8 @@ import {
   Circle,
   Code2,
   FolderGit2,
+  FileText,
   GitBranch,
-  ImagePlus,
   LoaderCircle,
   MessageSquarePlus,
   MoreHorizontal,
@@ -1508,7 +1508,7 @@ export function Composer({
                     alt={item.name}
                   />
                 ) : (
-                  <ImagePlus size={13} />
+                  <FileText size={13} />
                 )}
                 <span>{item.name}</span>
                 <button
@@ -1551,7 +1551,7 @@ export function Composer({
           <input
             ref={fileInput}
             type="file"
-            accept="image/png,image/jpeg,image/webp,text/plain"
+            accept="image/png,image/jpeg,image/webp,text/plain,.txt,.doc,.docx,application/msword,application/vnd.openxmlformats-officedocument.wordprocessingml.document"
             multiple
             hidden
             onChange={(event) => {

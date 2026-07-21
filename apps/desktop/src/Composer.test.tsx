@@ -73,6 +73,20 @@ describe("Composer", () => {
     expect(notify).toHaveBeenCalledWith("error", "每条消息最多添加 8 个附件");
   });
 
+  it("allows Word documents in the picker and sends legacy files for a clear error", () => {
+    renderComposer();
+    const input = document.querySelector(
+      'input[type="file"]',
+    ) as HTMLInputElement;
+
+    expect(input.accept).toContain(".docx");
+    expect(input.accept).toContain(".doc");
+    expect(input.accept).toContain(
+      "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+    );
+    expect(input.accept).toContain("application/msword");
+  });
+
   it("keeps Shift+Enter as a newline shortcut and highlights drag hover", () => {
     const run = vi.fn();
     renderComposer({ run });
