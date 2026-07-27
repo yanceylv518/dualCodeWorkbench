@@ -8,6 +8,13 @@
 - Ruff、前端 TypeScript、远程身份归一化和 VPS 直接子仓库发现回归测试通过；Windows sidecar 与 Tauri Release 构建成功。本机全量 pytest 仍受既有 Windows 临时目录 ACL 故障影响，需由 CI 补验。
 - 安装验收返工：远端扫描拆分为“列出一级目录 + 逐目录参数化 Git 检查”，避免复合 shell 扫描在不同远端环境下无结果；未识别状态也始终提供“刷新状态”，保存检测后可手动重试并显示运行反馈。前端 76 项、TypeScript、后端专项测试与 Ruff 通过。
 
+## 2026-07-27 Claude 过程区对齐 Codex
+
+- Claude `tool_use` 与 `tool_result` 现在通过同一个工具调用 ID 归并，完成结果会更新原有步骤，不再生成无法结束的匿名“调用工具”行。
+- Read、Glob、Grep、Bash、Edit、Write、WebFetch、WebSearch 和 Task 映射为中文真实动作；完整输入仅放在展开详情，主对话保持简洁。
+- 多个工具步骤收纳在单一“正在处理 / 已处理 / 处理失败”过程区中；运行时展开，结束后自动收起，可按需展开查看，形式与 Codex/Claude 成熟客户端一致。
+- 后端 Claude stream 8 项、前端 77 项、TypeScript、严格 ESLint 与 Ruff 全部通过。
+
 ## 2026-07-21 Word 附件上传与 Agent 上下文接入
 
 - Composer 文件选择器新增 `.docx` 与旧 `.doc`；`.docx` 可正常上传，旧 `.doc` 会收到

@@ -601,6 +601,12 @@ describe("workbench", () => {
     });
 
     const { container } = render(<App />);
+    expect(
+      container.querySelector(".agent-activity-summary")?.textContent,
+    ).toContain("处理失败");
+    expect(container.querySelector(".agent-activity")?.hasAttribute("open")).toBe(
+      false,
+    );
     const rows = [...container.querySelectorAll(".tool-activity-row")];
     expect(rows.map((row) => row.querySelector("strong")?.textContent)).toEqual(
       ["执行命令", "修改文件", "调用工具"],

@@ -143,20 +143,40 @@ const toolStep = (
   event: unknown,
 ): ActivityStep => {
   const reasoning = item.type === "reasoning";
+  const toolName = String(item.name ?? item.tool ?? "");
+  const toolLabels: Record<string, string> = {
+    Read: "读取文件",
+    Glob: "查找文件",
+    Grep: "搜索代码",
+    Bash: "执行命令",
+    Edit: "修改文件",
+    Write: "写入文件",
+    WebFetch: "读取网页",
+    WebSearch: "搜索资料",
+    Task: "委派任务",
+  };
   const kind = reasoning
     ? "reasoning"
-    : item.type === "command_execution" || item.type === "commandExecution"
+    : item.type === "command_execution" ||
+        item.type === "commandExecution" ||
+        toolName === "Bash"
       ? "command"
-      : item.type === "file_change" || item.type === "fileChange"
+      : item.type === "file_change" ||
+          item.type === "fileChange" ||
+          ["Edit", "Write"].includes(toolName)
         ? "file"
         : "tool";
+  const toolInput =
+    item.input && typeof item.input === "object"
+      ? JSON.stringify(item.input, null, 2)
+      : undefined;
   const raw = String(
     item.text ??
       item.command ??
       item.path ??
-      item.name ??
+      toolInput ??
+      item.result ??
       item.query ??
-      item.tool ??
       item.type ??
       "工具操作",
   );
@@ -170,9 +190,10 @@ const toolStep = (
         ? "执行命令"
         : kind === "file"
           ? "修改文件"
-          : item.type === "web_search"
+          : toolLabels[toolName] ??
+              (item.type === "web_search"
             ? "搜索资料"
-            : "调用工具",
+                : toolName || "调用工具"),
     // 思考与工具输入都保留完整原文；工具行收起时只展示动作摘要。
     detail: raw,
     status: failed
@@ -547,7 +568,10 @@ export const useStore = create<Store>((set, get) => ({
                                         }
                                         return stampStep(value, {
                                           ...step,
+                                          kind: value.kind,
+                                          label: value.label,
                                           detail:
+                                            item.type === "tool_result" ||
                                             step.detail === "reasoning"
                                               ? value.detail
                                               : step.detail,

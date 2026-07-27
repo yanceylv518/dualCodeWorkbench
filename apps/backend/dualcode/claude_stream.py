@@ -77,13 +77,39 @@ class ClaudeStreamParser:
                             text="[Claude redacted thinking omitted]",
                         )
                     )
-                elif block_type in {"tool_use", "tool_result"}:
+                elif block_type == "tool_use":
+                    tool_id = str(block.get("id") or "")
+                    tool_name = str(block.get("name") or "")
+                    if not tool_id or not tool_name:
+                        continue
                     events.append(
                         AgentStreamEvent(
                             AgentStreamEventType.TOOL_EVENT,
                             session_id=self.session_id,
-                            event=str(block_type),
-                            item={str(key): value for key, value in block.items()},
+                            event="item/started",
+                            item={
+                                "id": tool_id,
+                                "type": "tool_use",
+                                "name": tool_name,
+                                "input": block.get("input", {}),
+                            },
+                        )
+                    )
+                elif block_type == "tool_result":
+                    tool_id = str(block.get("tool_use_id") or "")
+                    if not tool_id:
+                        continue
+                    events.append(
+                        AgentStreamEvent(
+                            AgentStreamEventType.TOOL_EVENT,
+                            session_id=self.session_id,
+                            event="item/completed",
+                            item={
+                                "id": tool_id,
+                                "type": "tool_result",
+                                "status": "failed" if block.get("is_error") else "completed",
+                                "result": block.get("content", ""),
+                            },
                         )
                     )
             return events

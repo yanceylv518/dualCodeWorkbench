@@ -30,7 +30,12 @@ def test_assistant_text_and_tools_are_normalized() -> None:
                 "message": {
                     "content": [
                         {"type": "text", "text": "你好"},
-                        {"type": "tool_use", "name": "Read", "input": {"file": "a.py"}},
+                        {
+                            "type": "tool_use",
+                            "id": "tool-read-1",
+                            "name": "Read",
+                            "input": {"file": "a.py"},
+                        },
                     ]
                 },
             },
@@ -42,7 +47,42 @@ def test_assistant_text_and_tools_are_normalized() -> None:
         AgentStreamEventType.TOOL_EVENT,
     ]
     assert events[0].text == "你好"
-    assert events[1].event == "tool_use"
+    assert events[1].event == "item/started"
+    assert events[1].item == {
+        "id": "tool-read-1",
+        "type": "tool_use",
+        "name": "Read",
+        "input": {"file": "a.py"},
+    }
+
+
+def test_tool_result_completes_the_matching_tool_use() -> None:
+    events = ClaudeStreamParser().feed(
+        json.dumps(
+            {
+                "type": "user",
+                "session_id": "session-tools",
+                "message": {
+                    "content": [
+                        {
+                            "type": "tool_result",
+                            "tool_use_id": "tool-read-1",
+                            "content": "file contents",
+                        }
+                    ]
+                },
+            }
+        )
+    )
+
+    assert len(events) == 1
+    assert events[0].event == "item/completed"
+    assert events[0].item == {
+        "id": "tool-read-1",
+        "type": "tool_result",
+        "status": "completed",
+        "result": "file contents",
+    }
 
 
 def test_assistant_thinking_is_normalized_as_reasoning_delta() -> None:

@@ -91,10 +91,12 @@ describe("desktop visual policy", () => {
     );
   });
 
-  it("renders tools as independent borderless rows without an outer card", () => {
+  it("groups tool rows in one borderless collapsible process summary", () => {
     expect(index).toMatch(
-      /\.agent-activity \{[\s\S]*?gap: 8px;[\s\S]*?border: 0 !important;[\s\S]*?background: transparent !important;/,
+      /\.agent-activity \{[\s\S]*?border: 0 !important;[\s\S]*?background: transparent !important;/,
     );
+    expect(index).toContain(".agent-activity-summary");
+    expect(index).toContain(".agent-activity-steps");
     expect(index).toMatch(
       /\.tool-activity-row \{[\s\S]*?border: 0;[\s\S]*?border-radius: var\(--radius-md\);/,
     );

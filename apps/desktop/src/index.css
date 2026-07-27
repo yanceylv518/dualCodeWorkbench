@@ -3653,15 +3653,48 @@ button:disabled {
 
 /* A3 工具活动：每次调用独立成行，不再包裹外层折叠卡。 */
 .agent-activity {
-  display: flex;
   width: min(100%, var(--conversation-content-width));
   max-width: var(--conversation-content-width);
-  flex-direction: column;
-  gap: 8px;
   margin: 0 auto var(--conversation-turn-gap);
   overflow: visible;
   border: 0 !important;
   background: transparent !important;
+}
+.agent-activity-summary {
+  display: flex;
+  min-height: 34px;
+  align-items: center;
+  justify-content: space-between;
+  padding: 0 2px;
+  border-bottom: 1px solid var(--border-subtle);
+  color: var(--text-muted);
+  cursor: pointer;
+  font-size: var(--text-sm);
+  list-style: none;
+}
+.agent-activity-summary::-webkit-details-marker {
+  display: none;
+}
+.agent-activity-summary > span {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+}
+.agent-activity-summary small {
+  color: var(--text-weak);
+  font-size: var(--text-xs);
+}
+.agent-activity-summary > svg:last-child {
+  transition: transform var(--transition-fast);
+}
+.agent-activity[open] > .agent-activity-summary > svg:last-child {
+  transform: rotate(180deg);
+}
+.agent-activity-steps {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  padding-top: 8px;
 }
 .tool-activity-row {
   overflow: hidden;

@@ -368,6 +368,47 @@ describe("thread realtime event merging", () => {
     });
   });
 
+  it("merges Claude tool results into the named tool row", async () => {
+    const socket = await connectThread();
+    emitSocketEvent(socket, {
+      type: "agent.tool",
+      run_id: "run-claude-tool",
+      payload: {
+        agent: "claude",
+        event: "item/started",
+        item: {
+          id: "tool-read-1",
+          type: "tool_use",
+          name: "Read",
+          input: { file_path: "/home/user/work/README.md" },
+        },
+      },
+    });
+    emitSocketEvent(socket, {
+      type: "agent.tool",
+      run_id: "run-claude-tool",
+      payload: {
+        agent: "claude",
+        event: "item/completed",
+        item: {
+          id: "tool-read-1",
+          type: "tool_result",
+          status: "completed",
+          result: "contents",
+        },
+      },
+    });
+
+    const steps = selectedMessages()[0].activity?.steps;
+    expect(steps).toHaveLength(1);
+    expect(steps?.[0]).toMatchObject({
+      id: "tool-read-1",
+      label: "读取文件",
+      status: "completed",
+    });
+    expect(steps?.[0].detail).toContain("README.md");
+  });
+
   it("preserves complete command input for the expandable tool row", async () => {
     const socket = await connectThread();
     const command = `powershell -Command ${"Get-ChildItem ".repeat(20)}`;

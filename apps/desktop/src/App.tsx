@@ -1002,6 +1002,10 @@ function ActivityCard({
   activity: NonNullable<Message["activity"]>;
   openRunLogs: () => void;
 }) {
+  const [expanded, setExpanded] = useState(activity.status === "running");
+  useEffect(() => {
+    setExpanded(activity.status === "running");
+  }, [activity.status]);
   const failedSteps = activity.steps.filter((step) => step.status === "failed");
   const syntheticFailure =
     activity.error && failedSteps.length === 0
@@ -1017,86 +1021,118 @@ function ActivityCard({
     ? [...activity.steps, syntheticFailure]
     : activity.steps;
   const errorStepId = syntheticFailure?.id ?? failedSteps.at(-1)?.id;
+  const elapsedSeconds =
+    activity.startedAt && activity.completedAt
+      ? Math.max(
+          1,
+          Math.round((activity.completedAt - activity.startedAt) / 1000),
+        )
+      : undefined;
+  const processLabel =
+    activity.status === "running"
+      ? "正在处理"
+      : activity.status === "failed"
+        ? "处理失败"
+        : activity.status === "cancelled"
+          ? "已取消"
+          : `已处理${elapsedSeconds ? ` ${elapsedSeconds} 秒` : ""}`;
   if (steps.length === 0) return null;
   return (
-    <section
+    <details
       className={`agent-activity ${activity.status}`}
       aria-label="执行活动"
+      open={expanded}
+      onToggle={(event) => setExpanded(event.currentTarget.open)}
     >
-      {steps.map((step, index) =>
-        step.kind === "reasoning" ? (
-          step.detail &&
-          step.detail !== "reasoning" &&
-          (step.status === "running" ? (
-            <div
-              className="thinking-block running"
-              key={step.id}
-              aria-label="思考过程"
-            >
-              <header>
-                <span className="thinking-pulse" aria-hidden="true" />
-                正在思考…
-              </header>
-              <p>{step.detail}</p>
-            </div>
+      <summary className="agent-activity-summary">
+        <span>
+          {activity.status === "running" && (
+            <LoaderCircle size={13} className="spin" />
+          )}
+          {processLabel}
+          <small>{steps.length} 项操作</small>
+        </span>
+        <ChevronDown size={13} />
+      </summary>
+      <div className="agent-activity-steps">
+        {steps.map((step, index) =>
+          step.kind === "reasoning" ? (
+            step.detail &&
+            step.detail !== "reasoning" &&
+            (step.status === "running" ? (
+              <div
+                className="thinking-block running"
+                key={step.id}
+                aria-label="思考过程"
+              >
+                <header>
+                  <span className="thinking-pulse" aria-hidden="true" />
+                  正在思考…
+                </header>
+                <p>{step.detail}</p>
+              </div>
+            ) : (
+              <details className="thought-pill" key={step.id}>
+                <summary>
+                  <span>已思考{thoughtDuration(step)}</span>
+                  <ChevronDown size={12} />
+                </summary>
+                <p>{step.detail}</p>
+              </details>
+            ))
           ) : (
-            <details className="thought-pill" key={step.id}>
+            <details
+              className={`tool-activity-row ${step.status}`}
+              key={step.id}
+              data-order={index}
+            >
               <summary>
-                <span>已思考{thoughtDuration(step)}</span>
-                <ChevronDown size={12} />
+                <span className="tool-activity-icon">
+                  {step.kind === "command" ? (
+                    <SquareTerminal size={14} />
+                  ) : step.kind === "file" ? (
+                    <Pencil size={14} />
+                  ) : (
+                    <Settings2 size={14} />
+                  )}
+                </span>
+                <span className="tool-activity-title">
+                  <strong>{step.label}</strong>
+                  {step.id === errorStepId && activity.error && (
+                    <small>{activity.error}</small>
+                  )}
+                </span>
+                <span
+                  className="tool-activity-status"
+                  aria-label={step.status}
+                >
+                  {step.status === "running" ? (
+                    <LoaderCircle size={14} className="spin" />
+                  ) : step.status === "completed" ? (
+                    <Check size={14} />
+                  ) : (
+                    <X size={14} />
+                  )}
+                </span>
+                <ChevronDown size={13} className="tool-activity-chevron" />
               </summary>
-              <p>{step.detail}</p>
+              <div className="tool-activity-detail">
+                {step.detail && step.detail !== "reasoning" && (
+                  <div>
+                    <small>{step.kind === "command" ? "命令" : "详情"}</small>
+                    <pre>{step.detail}</pre>
+                  </div>
+                )}
+                <button type="button" onClick={openRunLogs}>
+                  <SquareTerminal size={13} />
+                  查看运行日志
+                </button>
+              </div>
             </details>
-          ))
-        ) : (
-          <details
-            className={`tool-activity-row ${step.status}`}
-            key={step.id}
-            data-order={index}
-          >
-            <summary>
-              <span className="tool-activity-icon">
-                {step.kind === "command" ? (
-                  <SquareTerminal size={14} />
-                ) : step.kind === "file" ? (
-                  <Pencil size={14} />
-                ) : (
-                  <Settings2 size={14} />
-                )}
-              </span>
-              <span className="tool-activity-title">
-                <strong>{step.label}</strong>
-                {step.id === errorStepId && activity.error && (
-                  <small>{activity.error}</small>
-                )}
-              </span>
-              <span className="tool-activity-status" aria-label={step.status}>
-                {step.status === "running" ? (
-                  <LoaderCircle size={14} className="spin" />
-                ) : step.status === "completed" ? (
-                  <Check size={14} />
-                ) : (
-                  <X size={14} />
-                )}
-              </span>
-              <ChevronDown size={13} className="tool-activity-chevron" />
-            </summary>
-            <div className="tool-activity-detail">
-              {step.detail && step.detail !== "reasoning" && (
-                <div>
-                  <small>{step.kind === "command" ? "命令" : "详情"}</small>
-                  <pre>{step.detail}</pre>
-                </div>
-              )}
-              <button type="button" onClick={openRunLogs}>
-                <SquareTerminal size={13} />
-                查看运行日志
-              </button>
-            </div>
-          </details>
-        ),
-      )}
-    </section>
+          ),
+        )}
+      </div>
+    </details>
   );
 }
 function MessageCard({
