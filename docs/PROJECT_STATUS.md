@@ -1,5 +1,11 @@
 # DualCode Workbench 项目状态
 
+## 2026-07-27 智能协作实施方案
+
+- 新增 `docs/SMART_COLLABORATION_IMPLEMENTATION_PLAN.md`，将共享项目/任务记忆、确定性自动路由、结构化交接、Codex 实现与 Claude 审查闭环、停止条件和统一协作 UI 汇总为完整实施方案。
+- 方案复用现有 TaskContract、HandoffPackage、AgentRun、ExecutionJob、Approval、AuditLog 及 `RELAY_LOOP_BACKLOG.md` 的影子 Git 安全设计，不引入另一套冲突的协作机制。
+- 实施拆分为 C0–C6：协议冻结、共享记忆、结构化审查、智能路由、影子 Git、自动整改循环和产品化 UI；建议从 C0-1 开始，每阶段完成后独立 review。
+
 ## 2026-07-27 对话运行态视觉收敛
 
 - Codex/Claude 的真实工具活动摘要出现后，不再额外渲染独立的蓝色“正在处理”卡片；运行中只保留一套可折叠过程摘要，尚未收到任何活动事件时才使用轻量占位提示。
