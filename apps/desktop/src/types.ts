@@ -149,7 +149,7 @@ export interface WorkspaceRemoteStatus {
   vps?: { branch: string; head: string; remote: string };
   same_remote: boolean;
   same_commit: boolean;
-  state?: "not_cloned";
+  state?: "not_cloned" | "ambiguous";
   error?: string;
 }
 export interface ProjectContract {

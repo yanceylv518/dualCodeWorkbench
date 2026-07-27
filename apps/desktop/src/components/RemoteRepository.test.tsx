@@ -99,7 +99,10 @@ describe("RemoteRepository", () => {
   it("renders a guarded ready state for an empty remote repository", () => {
     renderRepository();
     expect(screen.getByText("仓库配置已保存")).toBeTruthy();
-    expect(screen.getByText("VPS 目录尚未检测为有效 Git 仓库")).toBeTruthy();
+    expect(
+      screen.getByText("尚未在 VPS 项目根目录中识别到对应 Git 仓库"),
+    ).toBeTruthy();
+    expect(screen.getByRole("button", { name: "刷新状态" })).toBeTruthy();
 
     cleanup();
     render(

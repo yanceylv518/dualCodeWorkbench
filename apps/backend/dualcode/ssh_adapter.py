@@ -286,27 +286,32 @@ class ClaudeSshAdapter(AgentAdapter):
             raise ValueError("VPS projects root must be absolute and normalized")
         connection = await self._connect()
         quoted_root = shlex.quote(str(projects_root))
-        script = (
-            f"if [ -d {quoted_root} ]; then "
-            f"find {quoted_root} -mindepth 1 -maxdepth 1 -type d -exec sh -c '"
-            "for candidate do "
-            'git -C "$candidate" rev-parse --is-inside-work-tree >/dev/null 2>&1 || continue; '
-            'remote=$(git -C "$candidate" remote get-url origin 2>/dev/null) || continue; '
-            'printf "%s\\0%s\\0" "$candidate" "$remote"; '
-            "done' sh {} +; "
-            "fi"
-        )
         try:
-            result = await connection.run(script, check=True, timeout=20)
-            fields = result.stdout.split("\0")
-            if fields and not fields[-1]:
-                fields.pop()
-            if len(fields) % 2:
-                raise ValueError("Invalid VPS repository discovery response")
-            return [
-                {"path": fields[index], "remote": fields[index + 1]}
-                for index in range(0, len(fields), 2)
-            ]
+            listed = await connection.run(
+                f"if [ -d {quoted_root} ]; then "
+                f"find {quoted_root} -mindepth 1 -maxdepth 1 -type d -print0; fi",
+                check=True,
+                timeout=20,
+            )
+            repositories: list[dict[str, str]] = []
+            for raw_candidate in listed.stdout.split("\0"):
+                if not raw_candidate:
+                    continue
+                candidate = PurePosixPath(raw_candidate)
+                if candidate.parent != projects_root:
+                    continue
+                quoted_candidate = shlex.quote(str(candidate))
+                inspected = await connection.run(
+                    f"if git -C {quoted_candidate} rev-parse --is-inside-work-tree "
+                    f">/dev/null 2>&1; then "
+                    f"git -C {quoted_candidate} remote get-url origin 2>/dev/null || true; fi",
+                    check=True,
+                    timeout=15,
+                )
+                remote = inspected.stdout.strip()
+                if remote:
+                    repositories.append({"path": str(candidate), "remote": remote})
+            return repositories
         finally:
             connection.close()
             await connection.wait_closed()

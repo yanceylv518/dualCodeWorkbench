@@ -124,16 +124,22 @@ async def test_repository_discovery_only_lists_immediate_git_children(
     monkeypatch: pytest.MonkeyPatch,
 ):
     class Result:
-        stdout = (
-            "/home/yancey/work/DualCodeWorkBench\0"
-            "git@github.com:yanceylv518/DualCodeWorkBench.git\0"
-            "/home/yancey/work/Orbit\0https://github.com/acme/Orbit.git\0"
-        )
+        def __init__(self, stdout: str):
+            self.stdout = stdout
 
     class Connection:
         async def run(self, command, **kwargs):
-            assert "-mindepth 1 -maxdepth 1" in command
-            return Result()
+            if "-mindepth 1 -maxdepth 1" in command:
+                return Result(
+                    "/home/yancey/work/DualCodeWorkBench\0"
+                    "/home/yancey/work/Orbit\0"
+                    "/home/yancey/work/not-a-repository\0"
+                )
+            if "DualCodeWorkBench" in command:
+                return Result("git@github.com:yanceylv518/DualCodeWorkBench.git\n")
+            if "Orbit" in command:
+                return Result("https://github.com/acme/Orbit.git\n")
+            return Result("")
 
         def close(self):
             return None

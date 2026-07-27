@@ -219,9 +219,16 @@ export function RemoteRepository({
         </>
       ) : (
         <>
-          <div className="empty-inline">VPS 目录尚未检测为有效 Git 仓库</div>
+          <div className="empty-inline">
+            {remote?.state === "ambiguous"
+              ? "发现多个匹配仓库，请修改配置"
+              : "尚未在 VPS 项目根目录中识别到对应 Git 仓库"}
+          </div>
           {configured && (
             <div className="remote-actions">
+              <button disabled={Boolean(busy)} onClick={() => void refresh()}>
+                {busy === "refresh" ? "刷新中…" : "刷新状态"}
+              </button>
               <button
                 disabled={Boolean(busy) || cloneRunning}
                 onClick={() =>
