@@ -2,6 +2,7 @@ import json
 import os
 import re
 from pathlib import Path, PurePosixPath
+from urllib.parse import urlparse
 
 from pydantic import BaseModel, field_validator
 
@@ -62,6 +63,21 @@ class WorkspaceRemoteStore:
 
 
 workspace_remote_store = WorkspaceRemoteStore()
+
+
+def normalize_remote_url(remote_url: object) -> str:
+    """Return a transport-independent repository identity for comparison."""
+    value = str(remote_url).strip().rstrip("/")
+    if value.lower().endswith(".git"):
+        value = value[:-4]
+    scp_match = re.fullmatch(r"(?:[^@/\s]+@)?([^:/\s]+):(.+)", value)
+    if scp_match and "://" not in value:
+        host, repository = scp_match.groups()
+        return f"{host}/{repository.lstrip('/')}".lower()
+    parsed = urlparse(value)
+    if parsed.scheme and parsed.hostname:
+        return f"{parsed.hostname}/{parsed.path.lstrip('/')}".lower()
+    return value.lower()
 
 
 def derived_repository_path(projects_root: str, remote_url: str, workspace_name: str) -> str:

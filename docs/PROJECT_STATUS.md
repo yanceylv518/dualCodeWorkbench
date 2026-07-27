@@ -1,5 +1,12 @@
 # DualCode Workbench 项目状态
 
+## 2026-07-27 VPS 已有仓库自动发现
+
+- VPS 仓库状态检测不再只依赖远程 URL 推导出的目录名；精确路径无效时，会扫描已配置 VPS 项目根目录的直接子目录，并按 Git `origin` 身份识别已有仓库。
+- HTTPS、SSH/scp 形式、大小写和 `.git` 后缀会归一化比较；仅有唯一匹配时才自动采用并持久化真实目录，多匹配时明确报错，不会误选或触发克隆。
+- 自动发现只执行只读 SSH/Git 检查，不递归进入项目内容，不要求审批；成功采用路径会写入审计记录，后续 Claude 会直接使用发现后的仓库。
+- Ruff、前端 TypeScript、远程身份归一化和 VPS 直接子仓库发现回归测试通过；Windows sidecar 与 Tauri Release 构建成功。本机全量 pytest 仍受既有 Windows 临时目录 ACL 故障影响，需由 CI 补验。
+
 ## 2026-07-21 Word 附件上传与 Agent 上下文接入
 
 - Composer 文件选择器新增 `.docx` 与旧 `.doc`；`.docx` 可正常上传，旧 `.doc` 会收到

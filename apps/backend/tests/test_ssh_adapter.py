@@ -120,6 +120,47 @@ async def test_repository_status_accepts_cloned_empty_repository(
 
 
 @pytest.mark.asyncio
+async def test_repository_discovery_only_lists_immediate_git_children(
+    monkeypatch: pytest.MonkeyPatch,
+):
+    class Result:
+        stdout = (
+            "/home/yancey/work/DualCodeWorkBench\0"
+            "git@github.com:yanceylv518/DualCodeWorkBench.git\0"
+            "/home/yancey/work/Orbit\0https://github.com/acme/Orbit.git\0"
+        )
+
+    class Connection:
+        async def run(self, command, **kwargs):
+            assert "-mindepth 1 -maxdepth 1" in command
+            return Result()
+
+        def close(self):
+            return None
+
+        async def wait_closed(self):
+            return None
+
+    adapter = object.__new__(ClaudeSshAdapter)
+
+    async def connect():
+        return Connection()
+
+    monkeypatch.setattr(adapter, "_connect", connect)
+
+    assert await adapter.discover_repositories(PurePosixPath("/home/yancey/work")) == [
+        {
+            "path": "/home/yancey/work/DualCodeWorkBench",
+            "remote": "git@github.com:yanceylv518/DualCodeWorkBench.git",
+        },
+        {
+            "path": "/home/yancey/work/Orbit",
+            "remote": "https://github.com/acme/Orbit.git",
+        },
+    ]
+
+
+@pytest.mark.asyncio
 async def test_repair_provision_refuses_valid_repo_then_replaces_only_exact_path(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ):

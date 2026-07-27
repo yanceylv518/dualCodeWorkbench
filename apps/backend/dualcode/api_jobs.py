@@ -12,7 +12,15 @@ from .approvals import approval_gate
 from .connections import manager
 from .database import SessionLocal, get_session
 from .events import AgentEvent, EventType
-from .execution_jobs import claim_job, create_job, decide_job, decode_json_object, mark_job, record_job_evidence, request_retry
+from .execution_jobs import (
+    claim_job,
+    create_job,
+    decide_job,
+    decode_json_object,
+    mark_job,
+    record_job_evidence,
+    request_retry,
+)
 from .git_service import GitError
 from .models import (
     Approval,
@@ -28,11 +36,17 @@ from .schemas import GitActionCreate, RemoteGitActionCreate
 from .ssh_adapter import ClaudeSshAdapter, ClaudeSshConfig, RemoteRepositoryUnavailable
 from .test_executor import TestCommand
 from .runtime_settings import agent_settings_store
-from .workspace_remote import WorkspaceRemoteSettings, derived_repository_path, workspace_remote_store
+from .workspace_remote import (
+    WorkspaceRemoteSettings,
+    derived_repository_path,
+    normalize_remote_url,
+    workspace_remote_store,
+)
 
 from .api_runtime import git_tasks as _git_tasks
 
 router = APIRouter(prefix="/api")
+
 
 async def _persist_evidence(approval_id: str, phase: str, value: dict[str, object]) -> None:
     async with SessionLocal() as evidence_db:
@@ -42,9 +56,15 @@ async def _persist_evidence(approval_id: str, phase: str, value: dict[str, objec
 
 async def _local_git_evidence(repository: Path, *, verified: bool = False) -> dict[str, object]:
     status = await scheduler._git.repository_status(repository)
-    return {"verified": verified, "head": status["head"], "branch": status["branch"],
-            "upstream": status["upstream"], "ahead": status["ahead"], "behind": status["behind"],
-            "remote": status["remote"]}
+    return {
+        "verified": verified,
+        "head": status["head"],
+        "branch": status["branch"],
+        "upstream": status["upstream"],
+        "ahead": status["ahead"],
+        "behind": status["behind"],
+        "remote": status["remote"],
+    }
 
 
 def _job_response(job: ExecutionJob) -> dict[str, object]:
@@ -53,9 +73,11 @@ def _job_response(job: ExecutionJob) -> dict[str, object]:
     for phase in ("before", "after"):
         snapshot = evidence.get(phase)
         if isinstance(snapshot, dict):
-            safe_evidence[phase] = {key: snapshot[key] for key in (
-                "verified", "head", "branch", "upstream", "ahead", "behind"
-            ) if key in snapshot}
+            safe_evidence[phase] = {
+                key: snapshot[key]
+                for key in ("verified", "head", "branch", "upstream", "ahead", "behind")
+                if key in snapshot
+            }
     error = ""
     if job.last_error:
         if job.kind == "remote_git":
@@ -66,12 +88,17 @@ def _job_response(job: ExecutionJob) -> dict[str, object]:
         else:
             error = "Execution failed; inspect the terminal and repository state before retrying"
     return {
-        "id": job.id, "approval_id": job.approval_id,
-        "workspace_id": job.workspace_id, "thread_id": job.thread_id,
-        "kind": job.kind, "payload": {"action": decode_json_object(job.payload).get("action")},
-        "status": job.status, "attempts": job.attempts,
+        "id": job.id,
+        "approval_id": job.approval_id,
+        "workspace_id": job.workspace_id,
+        "thread_id": job.thread_id,
+        "kind": job.kind,
+        "payload": {"action": decode_json_object(job.payload).get("action")},
+        "status": job.status,
+        "attempts": job.attempts,
         "last_error": error,
-        "evidence": safe_evidence, "created_at": job.created_at,
+        "evidence": safe_evidence,
+        "created_at": job.created_at,
         "updated_at": job.updated_at,
     }
 
@@ -94,45 +121,77 @@ async def _execute_retry_job(job_id: str) -> None:
             action = str(payload["action"])
             await _persist_evidence(approval_id, "before", await _local_git_evidence(repository))
             if action == "commit":
-                output = await scheduler._git.commit_all(repository, str(payload.get("message", "")))
+                output = await scheduler._git.commit_all(
+                    repository, str(payload.get("message", ""))
+                )
             elif action == "push":
                 output = await scheduler._git.push(repository)
             elif action == "pull":
                 output = await scheduler._git.pull_ff_only(repository)
             else:
                 raise ValueError(f"Unsupported Git action: {action}")
-            await _persist_evidence(approval_id, "after", await _local_git_evidence(repository, verified=True))
+            await _persist_evidence(
+                approval_id, "after", await _local_git_evidence(repository, verified=True)
+            )
             event = "git.action.completed"
         elif kind == "test_run":
             repository = Path(str(payload["repository"]))
-            command = TestCommand(executable=Path(str(payload["executable"])),
-                                  arguments=tuple(str(item) for item in payload.get("arguments", [])), cwd=repository)
+            command = TestCommand(
+                executable=Path(str(payload["executable"])),
+                arguments=tuple(str(item) for item in payload.get("arguments", [])),
+                cwd=repository,
+            )
+
             async def terminal(channel: str, text: str) -> None:
-                await manager.publish(AgentEvent(type=EventType.TERMINAL_OUTPUT, thread_id=thread_id,
-                                                 payload={"channel": channel, "text": text}))
+                await manager.publish(
+                    AgentEvent(
+                        type=EventType.TERMINAL_OUTPUT,
+                        thread_id=thread_id,
+                        payload={"channel": channel, "text": text},
+                    )
+                )
+
             result = await scheduler._tests.execute(command, repository, terminal)
             output = result.stdout + result.stderr
             async with SessionLocal() as db:
-                db.add(TestRun(thread_id=thread_id, command=" ".join(result.command), output=output,
-                               exit_code=result.exit_code))
+                db.add(
+                    TestRun(
+                        thread_id=thread_id,
+                        command=" ".join(result.command),
+                        output=output,
+                        exit_code=result.exit_code,
+                    )
+                )
                 await db.commit()
             if result.exit_code != 0:
                 raise RuntimeError(f"Tests exited with code {result.exit_code}")
             event = "test.completed"
         elif kind == "remote_git":
             runtime = agent_settings_store.load()
-            adapter = ClaudeSshAdapter(ClaudeSshConfig(
-                host=runtime.claude_ssh_host, username=runtime.claude_ssh_username,
-                port=runtime.claude_ssh_port, known_hosts=Path(runtime.claude_ssh_known_hosts),
-                client_keys=(Path(runtime.claude_ssh_client_key),) if runtime.claude_ssh_client_key else (),
-                remote_root=PurePosixPath(runtime.claude_remote_root),
-                claude_executable=PurePosixPath(runtime.claude_ssh_executable),
-                model=runtime.claude_model, reasoning_effort=runtime.claude_reasoning_effort))
+            adapter = ClaudeSshAdapter(
+                ClaudeSshConfig(
+                    host=runtime.claude_ssh_host,
+                    username=runtime.claude_ssh_username,
+                    port=runtime.claude_ssh_port,
+                    known_hosts=Path(runtime.claude_ssh_known_hosts),
+                    client_keys=(Path(runtime.claude_ssh_client_key),)
+                    if runtime.claude_ssh_client_key
+                    else (),
+                    remote_root=PurePosixPath(runtime.claude_remote_root),
+                    claude_executable=PurePosixPath(runtime.claude_ssh_executable),
+                    model=runtime.claude_model,
+                    reasoning_effort=runtime.claude_reasoning_effort,
+                )
+            )
             remote_repository = PurePosixPath(str(payload["repository"]))
             remote_action = str(payload["action"])
             if remote_action not in {"provision", "repair_provision"}:
-                await _persist_evidence(approval_id, "before", await adapter.repository_status(remote_repository))
-            remote_url = str(payload.get("remote_url") or workspace_remote_store.get(workspace_id).remote_url)
+                await _persist_evidence(
+                    approval_id, "before", await adapter.repository_status(remote_repository)
+                )
+            remote_url = str(
+                payload.get("remote_url") or workspace_remote_store.get(workspace_id).remote_url
+            )
             output = await adapter.repository_update(remote_repository, remote_action, remote_url)
             after = await adapter.repository_status(remote_repository)
             after["verified"] = True
@@ -144,13 +203,25 @@ async def _execute_retry_job(job_id: str) -> None:
     except Exception as exc:
         output = str(exc)
     async with SessionLocal() as db:
-        await mark_job(db, approval_id, "SUCCEEDED" if succeeded else "FAILED", "" if succeeded else output)
-        db.add(AuditLog(workspace_id=workspace_id, thread_id=thread_id, event=event if succeeded else "execution.failed",
-                        detail=f"job={job_id};retry=true;success={str(succeeded).lower()}"))
+        await mark_job(
+            db, approval_id, "SUCCEEDED" if succeeded else "FAILED", "" if succeeded else output
+        )
+        db.add(
+            AuditLog(
+                workspace_id=workspace_id,
+                thread_id=thread_id,
+                event=event if succeeded else "execution.failed",
+                detail=f"job={job_id};retry=true;success={str(succeeded).lower()}",
+            )
+        )
         await db.commit()
-    await manager.publish(AgentEvent(type=EventType.RUN_OUTPUT if succeeded else EventType.ERROR,
-                                     thread_id=thread_id, payload={"kind": kind, "success": succeeded,
-                                                                   "output": output, "job_id": job_id}))
+    await manager.publish(
+        AgentEvent(
+            type=EventType.RUN_OUTPUT if succeeded else EventType.ERROR,
+            thread_id=thread_id,
+            payload={"kind": kind, "success": succeeded, "output": output, "job_id": job_id},
+        )
+    )
 
 
 def _schedule_retry(job_id: str) -> None:
@@ -160,33 +231,51 @@ def _schedule_retry(job_id: str) -> None:
 
 
 @router.get("/workspaces/{workspace_id}/threads/{thread_id}/jobs")
-async def list_execution_jobs(workspace_id: str, thread_id: str, db: AsyncSession = Depends(get_session)):
-    thread = await db.scalar(select(Thread).where(Thread.id == thread_id, Thread.workspace_id == workspace_id))
+async def list_execution_jobs(
+    workspace_id: str, thread_id: str, db: AsyncSession = Depends(get_session)
+):
+    thread = await db.scalar(
+        select(Thread).where(Thread.id == thread_id, Thread.workspace_id == workspace_id)
+    )
     if not thread:
         raise HTTPException(404, "未找到指定项目或任务")
-    jobs = (await db.scalars(select(ExecutionJob).where(
-        ExecutionJob.workspace_id == workspace_id, ExecutionJob.thread_id == thread_id
-    ).order_by(ExecutionJob.created_at.desc()))).all()
+    jobs = (
+        await db.scalars(
+            select(ExecutionJob)
+            .where(ExecutionJob.workspace_id == workspace_id, ExecutionJob.thread_id == thread_id)
+            .order_by(ExecutionJob.created_at.desc())
+        )
+    ).all()
     return [_job_response(job) for job in jobs]
 
 
 @router.get("/workspaces/{workspace_id}/threads/{thread_id}/jobs/{job_id}")
-async def get_execution_job(workspace_id: str, thread_id: str, job_id: str,
-                            db: AsyncSession = Depends(get_session)):
-    job = await db.scalar(select(ExecutionJob).where(
-        ExecutionJob.id == job_id, ExecutionJob.workspace_id == workspace_id,
-        ExecutionJob.thread_id == thread_id))
+async def get_execution_job(
+    workspace_id: str, thread_id: str, job_id: str, db: AsyncSession = Depends(get_session)
+):
+    job = await db.scalar(
+        select(ExecutionJob).where(
+            ExecutionJob.id == job_id,
+            ExecutionJob.workspace_id == workspace_id,
+            ExecutionJob.thread_id == thread_id,
+        )
+    )
     if not job:
         raise HTTPException(404, "未找到执行任务")
     return _job_response(job)
 
 
 @router.post("/workspaces/{workspace_id}/threads/{thread_id}/jobs/{job_id}/retry", status_code=202)
-async def retry_execution_job(workspace_id: str, thread_id: str, job_id: str,
-                              db: AsyncSession = Depends(get_session)):
-    job = await db.scalar(select(ExecutionJob).where(
-        ExecutionJob.id == job_id, ExecutionJob.workspace_id == workspace_id,
-        ExecutionJob.thread_id == thread_id))
+async def retry_execution_job(
+    workspace_id: str, thread_id: str, job_id: str, db: AsyncSession = Depends(get_session)
+):
+    job = await db.scalar(
+        select(ExecutionJob).where(
+            ExecutionJob.id == job_id,
+            ExecutionJob.workspace_id == workspace_id,
+            ExecutionJob.thread_id == thread_id,
+        )
+    )
     if not job:
         raise HTTPException(404, "未找到执行任务")
     try:
@@ -218,48 +307,124 @@ async def workspace_remote_status(workspace_id: str, db: AsyncSession = Depends(
     value = workspace_remote_store.get(workspace_id)
     runtime = agent_settings_store.load()
     if not value.vps_repo_path:
-        value = value.model_copy(update={"vps_repo_path": derived_repository_path(runtime.claude_ssh_projects_root, value.remote_url or "", workspace.name)})
+        value = value.model_copy(
+            update={
+                "vps_repo_path": derived_repository_path(
+                    runtime.claude_ssh_projects_root, value.remote_url or "", workspace.name
+                )
+            }
+        )
     local = await scheduler._git.repository_status(Path(workspace.path))
-    result: dict[str, object] = {"settings": value.model_dump(), "local": local, "vps": None, "same_remote": False, "same_commit": False}
+    result: dict[str, object] = {
+        "settings": value.model_dump(),
+        "local": local,
+        "vps": None,
+        "same_remote": False,
+        "same_commit": False,
+    }
     if not value.vps_repo_path:
         return result
-    if not (runtime.claude_ssh_enabled and runtime.claude_ssh_host and runtime.claude_ssh_username and runtime.claude_ssh_known_hosts):
+    if not (
+        runtime.claude_ssh_enabled
+        and runtime.claude_ssh_host
+        and runtime.claude_ssh_username
+        and runtime.claude_ssh_known_hosts
+    ):
         return result
-    adapter = ClaudeSshAdapter(ClaudeSshConfig(
-        host=runtime.claude_ssh_host,
-        username=runtime.claude_ssh_username,
-        port=runtime.claude_ssh_port,
-        known_hosts=Path(runtime.claude_ssh_known_hosts),
-        client_keys=(Path(runtime.claude_ssh_client_key),) if runtime.claude_ssh_client_key else (),
-        remote_root=PurePosixPath(runtime.claude_remote_root),
-        claude_executable=PurePosixPath(runtime.claude_ssh_executable),
-        model=runtime.claude_model,
-        reasoning_effort=runtime.claude_reasoning_effort,
-    ))
+    adapter = ClaudeSshAdapter(
+        ClaudeSshConfig(
+            host=runtime.claude_ssh_host,
+            username=runtime.claude_ssh_username,
+            port=runtime.claude_ssh_port,
+            known_hosts=Path(runtime.claude_ssh_known_hosts),
+            client_keys=(Path(runtime.claude_ssh_client_key),)
+            if runtime.claude_ssh_client_key
+            else (),
+            remote_root=PurePosixPath(runtime.claude_remote_root),
+            claude_executable=PurePosixPath(runtime.claude_ssh_executable),
+            model=runtime.claude_model,
+            reasoning_effort=runtime.claude_reasoning_effort,
+        )
+    )
     try:
         remote = await adapter.repository_status(PurePosixPath(value.vps_repo_path))
-        result["vps"] = remote
-        expected_remote = value.remote_url or str(local.get("remote", ""))
-        def normalize(item: object) -> str:
-            return str(item).strip().lower().removesuffix(".git").rstrip("/")
-        result["same_remote"] = bool(expected_remote) and normalize(expected_remote) == normalize(remote["remote"])
-        result["same_commit"] = bool(local.get("head")) and str(local["head"]).lower() == remote["head"][:10].lower()
     except RemoteRepositoryUnavailable:
-        result["state"] = "not_cloned"
+        try:
+            expected_remote = value.remote_url or str(local.get("remote", ""))
+            expected_identity = normalize_remote_url(expected_remote)
+            candidates = (
+                await adapter.discover_repositories(PurePosixPath(runtime.claude_ssh_projects_root))
+                if expected_identity and runtime.claude_ssh_projects_root
+                else []
+            )
+            matches = [
+                candidate
+                for candidate in candidates
+                if normalize_remote_url(candidate["remote"]) == expected_identity
+            ]
+            if len(matches) == 1:
+                discovered_path = matches[0]["path"]
+                value = value.model_copy(update={"vps_repo_path": discovered_path})
+                workspace_remote_store.save(workspace_id, value)
+                result["settings"] = value.model_dump()
+                db.add(
+                    AuditLog(
+                        workspace_id=workspace_id,
+                        thread_id=None,
+                        event="workspace.remote.discovered",
+                        detail=f"remote={expected_remote};vps_path={discovered_path}",
+                    )
+                )
+                await db.commit()
+                remote = await adapter.repository_status(PurePosixPath(discovered_path))
+            elif len(matches) > 1:
+                result["state"] = "ambiguous"
+                result["error"] = "VPS 项目根目录中发现多个匹配当前远程仓库的目录，请修改配置。"
+                return result
+            else:
+                result["state"] = "not_cloned"
+                return result
+        except Exception as exc:
+            result["error"] = f"无法自动发现 VPS 仓库：{exc}"
+            return result
     except Exception as exc:
         result["error"] = str(exc)
+        return result
+    result["vps"] = remote
+    expected_remote = value.remote_url or str(local.get("remote", ""))
+    result["same_remote"] = bool(expected_remote) and normalize_remote_url(
+        expected_remote
+    ) == normalize_remote_url(remote["remote"])
+    result["same_commit"] = (
+        bool(local.get("head")) and str(local["head"]).lower() == remote["head"][:10].lower()
+    )
     return result
 
 
 @router.put("/workspaces/{workspace_id}/remote", response_model=WorkspaceRemoteSettings)
-async def update_workspace_remote(workspace_id: str, value: WorkspaceRemoteSettings, db: AsyncSession = Depends(get_session)):
+async def update_workspace_remote(
+    workspace_id: str, value: WorkspaceRemoteSettings, db: AsyncSession = Depends(get_session)
+):
     workspace = await db.get(Workspace, workspace_id)
     if not workspace:
         raise HTTPException(404, "未找到指定项目")
     runtime = agent_settings_store.load()
-    value = value.model_copy(update={"vps_repo_path": derived_repository_path(runtime.claude_ssh_projects_root, value.remote_url, workspace.name)})
+    value = value.model_copy(
+        update={
+            "vps_repo_path": derived_repository_path(
+                runtime.claude_ssh_projects_root, value.remote_url, workspace.name
+            )
+        }
+    )
     workspace_remote_store.save(workspace_id, value)
-    db.add(AuditLog(workspace_id=workspace_id, thread_id=None, event="workspace.remote.updated", detail=f"remote={value.remote_url};vps_path={value.vps_repo_path}"))
+    db.add(
+        AuditLog(
+            workspace_id=workspace_id,
+            thread_id=None,
+            event="workspace.remote.updated",
+            detail=f"remote={value.remote_url};vps_path={value.vps_repo_path}",
+        )
+    )
     await db.commit()
     return value
 
@@ -272,7 +437,9 @@ async def request_remote_git_action(
     db: AsyncSession = Depends(get_session),
 ):
     workspace = await db.get(Workspace, workspace_id)
-    thread = await db.scalar(select(Thread).where(Thread.id == thread_id, Thread.workspace_id == workspace_id))
+    thread = await db.scalar(
+        select(Thread).where(Thread.id == thread_id, Thread.workspace_id == workspace_id)
+    )
     remote = workspace_remote_store.get(workspace_id)
     if not workspace or not thread:
         raise HTTPException(404, "未找到指定项目或任务")
@@ -286,17 +453,21 @@ async def request_remote_git_action(
     )
     if body.action == "repair_provision" and remote.vps_repo_path != expected_repository:
         raise HTTPException(400, "拒绝修复并非由当前项目自动生成的 VPS 路径")
-    adapter = ClaudeSshAdapter(ClaudeSshConfig(
-        host=runtime.claude_ssh_host,
-        username=runtime.claude_ssh_username,
-        port=runtime.claude_ssh_port,
-        known_hosts=Path(runtime.claude_ssh_known_hosts),
-        client_keys=(Path(runtime.claude_ssh_client_key),) if runtime.claude_ssh_client_key else (),
-        remote_root=PurePosixPath(runtime.claude_remote_root),
-        claude_executable=PurePosixPath(runtime.claude_ssh_executable),
-        model=runtime.claude_model,
-        reasoning_effort=runtime.claude_reasoning_effort,
-    ))
+    adapter = ClaudeSshAdapter(
+        ClaudeSshConfig(
+            host=runtime.claude_ssh_host,
+            username=runtime.claude_ssh_username,
+            port=runtime.claude_ssh_port,
+            known_hosts=Path(runtime.claude_ssh_known_hosts),
+            client_keys=(Path(runtime.claude_ssh_client_key),)
+            if runtime.claude_ssh_client_key
+            else (),
+            remote_root=PurePosixPath(runtime.claude_remote_root),
+            claude_executable=PurePosixPath(runtime.claude_ssh_executable),
+            model=runtime.claude_model,
+            reasoning_effort=runtime.claude_reasoning_effort,
+        )
+    )
     action_name = f"remote_git_{body.action}"
     reason = (
         "在 VPS 项目根目录中创建项目目录并克隆远程仓库"
@@ -325,7 +496,11 @@ async def request_remote_git_action(
         )
     ).all()
     existing = next(
-        (item for item in active_jobs if decode_json_object(item.payload).get("action") == body.action),
+        (
+            item
+            for item in active_jobs
+            if decode_json_object(item.payload).get("action") == body.action
+        ),
         None,
     )
     if existing:
@@ -349,12 +524,14 @@ async def request_remote_git_action(
         for stale in stale_approvals:
             stale.status = "REJECTED"
             await decide_job(db, stale.id, False)
-            db.add(AuditLog(
-                workspace_id=workspace_id,
-                thread_id=thread_id,
-                event="approval.superseded",
-                detail=f"approval={stale.id};action={action_name};reason=explicit_clone_click",
-            ))
+            db.add(
+                AuditLog(
+                    workspace_id=workspace_id,
+                    thread_id=thread_id,
+                    event="approval.superseded",
+                    detail=f"approval={stale.id};action={action_name};reason=explicit_clone_click",
+                )
+            )
     approval = Approval(
         thread_id=thread_id,
         action=action_name,
@@ -363,26 +540,55 @@ async def request_remote_git_action(
     )
     db.add(approval)
     await db.flush()
-    job = await create_job(db, approval=approval, workspace_id=workspace_id, kind="remote_git",
-                           payload={"action": body.action, "repository": remote.vps_repo_path,
-                                    "remote_url": remote.remote_url},
-                           initial_status="READY" if direct_authorization else "WAITING_APPROVAL")
+    job = await create_job(
+        db,
+        approval=approval,
+        workspace_id=workspace_id,
+        kind="remote_git",
+        payload={
+            "action": body.action,
+            "repository": remote.vps_repo_path,
+            "remote_url": remote.remote_url,
+        },
+        initial_status="READY" if direct_authorization else "WAITING_APPROVAL",
+    )
     if not direct_authorization:
         approval_gate.prepare(approval.id)
-    db.add(AuditLog(
-        workspace_id=workspace_id,
-        thread_id=thread_id,
-        event="remote.git.requested",
-        detail=f"{body.action}:{approval.id};authorization={'explicit_click' if direct_authorization else 'pending'}",
-    ))
+    db.add(
+        AuditLog(
+            workspace_id=workspace_id,
+            thread_id=thread_id,
+            event="remote.git.requested",
+            detail=f"{body.action}:{approval.id};authorization={'explicit_click' if direct_authorization else 'pending'}",
+        )
+    )
     await db.commit()
     if not direct_authorization:
-        await manager.publish(AgentEvent(type=EventType.APPROVAL_REQUIRED, thread_id=thread_id, payload={"id": approval.id, "action": action_name, "reason": reason}))
+        await manager.publish(
+            AgentEvent(
+                type=EventType.APPROVAL_REQUIRED,
+                thread_id=thread_id,
+                payload={"id": approval.id, "action": action_name, "reason": reason},
+            )
+        )
 
     async def execute_remote_action() -> None:
         if not direct_authorization and not await approval_gate.wait(approval.id):
             return
-        await manager.publish(AgentEvent(type=EventType.RUN_OUTPUT, thread_id=thread_id, payload={"kind": "remote_git", "job_id": job.id, "action": body.action, "status": "RUNNING", "success": False, "output": "VPS 仓库操作正在执行"}))
+        await manager.publish(
+            AgentEvent(
+                type=EventType.RUN_OUTPUT,
+                thread_id=thread_id,
+                payload={
+                    "kind": "remote_git",
+                    "job_id": job.id,
+                    "action": body.action,
+                    "status": "RUNNING",
+                    "success": False,
+                    "output": "VPS 仓库操作正在执行",
+                },
+            )
+        )
         async with SessionLocal() as action_db:
             if not await claim_job(action_db, job.id):
                 return
@@ -390,8 +596,12 @@ async def request_remote_git_action(
         try:
             remote_repository = PurePosixPath(remote.vps_repo_path)
             if body.action not in {"provision", "repair_provision"}:
-                await _persist_evidence(approval.id, "before", await adapter.repository_status(remote_repository))
-            output = await adapter.repository_update(remote_repository, body.action, remote.remote_url)
+                await _persist_evidence(
+                    approval.id, "before", await adapter.repository_status(remote_repository)
+                )
+            output = await adapter.repository_update(
+                remote_repository, body.action, remote.remote_url
+            )
             after = await adapter.repository_status(remote_repository)
             after["verified"] = True
             await _persist_evidence(approval.id, "after", after)
@@ -399,11 +609,35 @@ async def request_remote_git_action(
             event = "remote.git.failed"
             output = str(exc)
         async with SessionLocal() as action_db:
-            await mark_job(action_db, approval.id, "SUCCEEDED" if event.endswith("completed") else "FAILED", "" if event.endswith("completed") else output)
-            action_db.add(AuditLog(workspace_id=workspace_id, thread_id=thread_id, event=event,
-                                   detail=f"action={body.action};success={str(event.endswith('completed')).lower()}"))
+            await mark_job(
+                action_db,
+                approval.id,
+                "SUCCEEDED" if event.endswith("completed") else "FAILED",
+                "" if event.endswith("completed") else output,
+            )
+            action_db.add(
+                AuditLog(
+                    workspace_id=workspace_id,
+                    thread_id=thread_id,
+                    event=event,
+                    detail=f"action={body.action};success={str(event.endswith('completed')).lower()}",
+                )
+            )
             await action_db.commit()
-        await manager.publish(AgentEvent(type=EventType.RUN_OUTPUT, thread_id=thread_id, payload={"kind": "remote_git", "job_id": job.id, "action": body.action, "status": "SUCCEEDED" if event.endswith("completed") else "FAILED", "success": event.endswith("completed"), "output": output}))
+        await manager.publish(
+            AgentEvent(
+                type=EventType.RUN_OUTPUT,
+                thread_id=thread_id,
+                payload={
+                    "kind": "remote_git",
+                    "job_id": job.id,
+                    "action": body.action,
+                    "status": "SUCCEEDED" if event.endswith("completed") else "FAILED",
+                    "success": event.endswith("completed"),
+                    "output": output,
+                },
+            )
+        )
 
     task = asyncio.create_task(execute_remote_action())
     _git_tasks.add(task)
@@ -424,7 +658,9 @@ async def request_git_action(
     db: AsyncSession = Depends(get_session),
 ):
     workspace = await db.get(Workspace, workspace_id)
-    thread = await db.scalar(select(Thread).where(Thread.id == thread_id, Thread.workspace_id == workspace_id))
+    thread = await db.scalar(
+        select(Thread).where(Thread.id == thread_id, Thread.workspace_id == workspace_id)
+    )
     if not workspace or not thread:
         raise HTTPException(404, "未找到指定项目或任务")
     reasons = {
@@ -432,16 +668,36 @@ async def request_git_action(
         "push": "将当前分支提交推送到已配置的远程仓库",
         "pull": "使用 fast-forward-only 拉取远程提交，不自动创建合并提交",
     }
-    approval = Approval(thread_id=thread_id, action=f"git_{body.action}", reason=reasons[body.action])
+    approval = Approval(
+        thread_id=thread_id, action=f"git_{body.action}", reason=reasons[body.action]
+    )
     db.add(approval)
     await db.flush()
-    job = await create_job(db, approval=approval, workspace_id=workspace_id, kind="git_action",
-                           payload={"action": body.action, "message": body.message, "repository": workspace.path})
-    db.add(AuditLog(workspace_id=workspace_id, thread_id=thread_id, event="git.action.requested", detail=f"{body.action}:{approval.id}"))
+    job = await create_job(
+        db,
+        approval=approval,
+        workspace_id=workspace_id,
+        kind="git_action",
+        payload={"action": body.action, "message": body.message, "repository": workspace.path},
+    )
+    db.add(
+        AuditLog(
+            workspace_id=workspace_id,
+            thread_id=thread_id,
+            event="git.action.requested",
+            detail=f"{body.action}:{approval.id}",
+        )
+    )
     approval_gate.prepare(approval.id)
     repository_path = workspace.path
     await db.commit()
-    await manager.publish(AgentEvent(type=EventType.APPROVAL_REQUIRED, thread_id=thread_id, payload={"id": approval.id, "action": approval.action, "reason": approval.reason}))
+    await manager.publish(
+        AgentEvent(
+            type=EventType.APPROVAL_REQUIRED,
+            thread_id=thread_id,
+            payload={"id": approval.id, "action": approval.action, "reason": approval.reason},
+        )
+    )
 
     async def execute_after_approval() -> None:
         approved = await approval_gate.wait(approval.id)
@@ -461,16 +717,40 @@ async def request_git_action(
                 outcome = await scheduler._git.push(repository)
             else:
                 outcome = await scheduler._git.pull_ff_only(repository)
-            await _persist_evidence(approval.id, "after", await _local_git_evidence(repository, verified=True))
+            await _persist_evidence(
+                approval.id, "after", await _local_git_evidence(repository, verified=True)
+            )
         except Exception as exc:
             event = "git.action.failed"
             outcome = str(exc)
         async with SessionLocal() as action_db:
-            await mark_job(action_db, approval.id, "SUCCEEDED" if event.endswith("completed") else "FAILED", "" if event.endswith("completed") else outcome)
-            action_db.add(AuditLog(workspace_id=workspace_id, thread_id=thread_id, event=event,
-                                   detail=f"action={body.action};success={str(event.endswith('completed')).lower()}"))
+            await mark_job(
+                action_db,
+                approval.id,
+                "SUCCEEDED" if event.endswith("completed") else "FAILED",
+                "" if event.endswith("completed") else outcome,
+            )
+            action_db.add(
+                AuditLog(
+                    workspace_id=workspace_id,
+                    thread_id=thread_id,
+                    event=event,
+                    detail=f"action={body.action};success={str(event.endswith('completed')).lower()}",
+                )
+            )
             await action_db.commit()
-        await manager.publish(AgentEvent(type=EventType.RUN_OUTPUT, thread_id=thread_id, payload={"kind": "git_action", "action": body.action, "success": event.endswith("completed"), "output": outcome}))
+        await manager.publish(
+            AgentEvent(
+                type=EventType.RUN_OUTPUT,
+                thread_id=thread_id,
+                payload={
+                    "kind": "git_action",
+                    "action": body.action,
+                    "success": event.endswith("completed"),
+                    "output": outcome,
+                },
+            )
+        )
 
     task = asyncio.create_task(execute_after_approval())
     _git_tasks.add(task)
@@ -479,24 +759,53 @@ async def request_git_action(
 
 
 @router.post("/workspaces/{workspace_id}/threads/{thread_id}/tests/run", status_code=202)
-async def request_test_run(workspace_id: str, thread_id: str, db: AsyncSession = Depends(get_session)):
+async def request_test_run(
+    workspace_id: str, thread_id: str, db: AsyncSession = Depends(get_session)
+):
     workspace = await db.get(Workspace, workspace_id)
-    thread = await db.scalar(select(Thread).where(Thread.id == thread_id, Thread.workspace_id == workspace_id))
+    thread = await db.scalar(
+        select(Thread).where(Thread.id == thread_id, Thread.workspace_id == workspace_id)
+    )
     if not workspace or not thread:
         raise HTTPException(404, "未找到指定项目或任务")
     runtime = agent_settings_store.load()
     if not runtime.test_executable:
         raise HTTPException(400, "Agent 设置中尚未配置测试可执行文件")
-    approval = Approval(thread_id=thread_id, action="run_test", reason=f"在本地仓库运行测试：{runtime.test_executable} {' '.join(runtime.test_arguments)}")
+    approval = Approval(
+        thread_id=thread_id,
+        action="run_test",
+        reason=f"在本地仓库运行测试：{runtime.test_executable} {' '.join(runtime.test_arguments)}",
+    )
     db.add(approval)
     await db.flush()
-    job = await create_job(db, approval=approval, workspace_id=workspace_id, kind="test_run",
-                           payload={"executable": runtime.test_executable, "arguments": runtime.test_arguments,
-                                    "repository": workspace.path})
+    job = await create_job(
+        db,
+        approval=approval,
+        workspace_id=workspace_id,
+        kind="test_run",
+        payload={
+            "executable": runtime.test_executable,
+            "arguments": runtime.test_arguments,
+            "repository": workspace.path,
+        },
+    )
     approval_gate.prepare(approval.id)
-    db.add(AuditLog(workspace_id=workspace_id, thread_id=thread_id, event="test.requested", detail=approval.reason))
+    db.add(
+        AuditLog(
+            workspace_id=workspace_id,
+            thread_id=thread_id,
+            event="test.requested",
+            detail=approval.reason,
+        )
+    )
     await db.commit()
-    await manager.publish(AgentEvent(type=EventType.APPROVAL_REQUIRED, thread_id=thread_id, payload={"id": approval.id, "action": "run_test", "reason": approval.reason}))
+    await manager.publish(
+        AgentEvent(
+            type=EventType.APPROVAL_REQUIRED,
+            thread_id=thread_id,
+            payload={"id": approval.id, "action": "run_test", "reason": approval.reason},
+        )
+    )
     repository_path = workspace.path
 
     async def execute_after_approval() -> None:
@@ -510,40 +819,97 @@ async def request_test_run(workspace_id: str, thread_id: str, db: AsyncSession =
             if current:
                 current.state = RunState.TESTING
                 await action_db.commit()
-        await manager.publish(AgentEvent(type=EventType.RUN_STATE_CHANGED, thread_id=thread_id, payload={"state": RunState.TESTING.value}))
+        await manager.publish(
+            AgentEvent(
+                type=EventType.RUN_STATE_CHANGED,
+                thread_id=thread_id,
+                payload={"state": RunState.TESTING.value},
+            )
+        )
+
         async def output(channel: str, text: str) -> None:
-            await manager.publish(AgentEvent(type=EventType.TERMINAL_OUTPUT, thread_id=thread_id, payload={"channel": channel, "text": text}))
+            await manager.publish(
+                AgentEvent(
+                    type=EventType.TERMINAL_OUTPUT,
+                    thread_id=thread_id,
+                    payload={"channel": channel, "text": text},
+                )
+            )
+
         try:
             result = await scheduler._tests.execute(
-                TestCommand(executable=Path(runtime.test_executable), arguments=tuple(runtime.test_arguments), cwd=Path(repository_path)),
+                TestCommand(
+                    executable=Path(runtime.test_executable),
+                    arguments=tuple(runtime.test_arguments),
+                    cwd=Path(repository_path),
+                ),
                 Path(repository_path),
                 output,
             )
-            record = TestRun(thread_id=thread_id, command=" ".join(result.command), output=result.stdout + result.stderr, exit_code=result.exit_code)
+            record = TestRun(
+                thread_id=thread_id,
+                command=" ".join(result.command),
+                output=result.stdout + result.stderr,
+                exit_code=result.exit_code,
+            )
             async with SessionLocal() as action_db:
                 current = await action_db.get(Thread, thread_id)
                 if current:
                     current.state = RunState.CREATED
                 action_db.add(record)
-                await mark_job(action_db, approval.id, "SUCCEEDED" if result.exit_code == 0 else "FAILED", "" if result.exit_code == 0 else f"exit_code={result.exit_code}")
-                action_db.add(AuditLog(workspace_id=workspace_id, thread_id=thread_id, event="test.completed", detail=f"exit_code={result.exit_code}"))
+                await mark_job(
+                    action_db,
+                    approval.id,
+                    "SUCCEEDED" if result.exit_code == 0 else "FAILED",
+                    "" if result.exit_code == 0 else f"exit_code={result.exit_code}",
+                )
+                action_db.add(
+                    AuditLog(
+                        workspace_id=workspace_id,
+                        thread_id=thread_id,
+                        event="test.completed",
+                        detail=f"exit_code={result.exit_code}",
+                    )
+                )
                 await action_db.commit()
-            await manager.publish(AgentEvent(type=EventType.TEST_RESULT, thread_id=thread_id, payload={"command": record.command, "output": record.output, "exit_code": record.exit_code}))
+            await manager.publish(
+                AgentEvent(
+                    type=EventType.TEST_RESULT,
+                    thread_id=thread_id,
+                    payload={
+                        "command": record.command,
+                        "output": record.output,
+                        "exit_code": record.exit_code,
+                    },
+                )
+            )
         except Exception as exc:
             async with SessionLocal() as action_db:
                 current = await action_db.get(Thread, thread_id)
                 if current:
                     current.state = RunState.CREATED
                 await mark_job(action_db, approval.id, "FAILED", str(exc))
-                action_db.add(AuditLog(workspace_id=workspace_id, thread_id=thread_id, event="test.failed",
-                                       detail="test execution failed; see terminal output"))
+                action_db.add(
+                    AuditLog(
+                        workspace_id=workspace_id,
+                        thread_id=thread_id,
+                        event="test.failed",
+                        detail="test execution failed; see terminal output",
+                    )
+                )
                 await action_db.commit()
-            await manager.publish(AgentEvent(type=EventType.ERROR, thread_id=thread_id, payload={"message": str(exc)}))
-        await manager.publish(AgentEvent(type=EventType.RUN_STATE_CHANGED, thread_id=thread_id, payload={"state": RunState.CREATED.value}))
+            await manager.publish(
+                AgentEvent(type=EventType.ERROR, thread_id=thread_id, payload={"message": str(exc)})
+            )
+        await manager.publish(
+            AgentEvent(
+                type=EventType.RUN_STATE_CHANGED,
+                thread_id=thread_id,
+                payload={"state": RunState.CREATED.value},
+            )
+        )
 
     task = asyncio.create_task(execute_after_approval())
     _git_tasks.add(task)
     task.add_done_callback(_git_tasks.discard)
     return {"approval_id": approval.id, "status": "PENDING"}
-
-

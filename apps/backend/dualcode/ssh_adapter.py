@@ -135,7 +135,9 @@ class ClaudeSshAdapter(AgentAdapter):
         try:
             await connection.run(f"mkdir -p -- {quoted_upload}", check=True)
             if configured_workspace is not None:
-                await connection.run(f"git -C {quoted_work} rev-parse --is-inside-work-tree", check=True)
+                await connection.run(
+                    f"git -C {quoted_work} rev-parse --is-inside-work-tree", check=True
+                )
             remote_paths = await self._upload_explicit_attachments(connection, request, upload_dir)
             allow_write = request.context.get("allow_remote_write") is True
             permission = "acceptEdits" if allow_write else "plan"
@@ -236,7 +238,9 @@ class ClaudeSshAdapter(AgentAdapter):
             available_match = re.search(r"Available:\s*(.+?)(?:,?\s+or a full model ID\.)", message)
             aliases = []
             if available_match:
-                aliases = [part.strip() for part in available_match.group(1).split(",") if part.strip()]
+                aliases = [
+                    part.strip() for part in available_match.group(1).split(",") if part.strip()
+                ]
             return (current_match.group(1).strip() if current_match else "", aliases)
         except (asyncssh.Error, OSError, TimeoutError, json.JSONDecodeError):
             return ("", [])
@@ -267,12 +271,49 @@ class ClaudeSshAdapter(AgentAdapter):
             lines = result.stdout.splitlines()
             if len(lines) < 4 or lines[0].strip() != "true":
                 raise ValueError("VPS path is not a Git repository")
-            return {"branch": lines[1].strip(), "head": lines[2].strip(), "remote": lines[3].strip()}
+            return {
+                "branch": lines[1].strip(),
+                "head": lines[2].strip(),
+                "remote": lines[3].strip(),
+            }
         finally:
             connection.close()
             await connection.wait_closed()
 
-    async def repository_update(self, repository: PurePosixPath, action: str, remote_url: str = "") -> str:
+    async def discover_repositories(self, projects_root: PurePosixPath) -> list[dict[str, str]]:
+        """List immediate child Git repositories without traversing project contents."""
+        if not projects_root.is_absolute() or ".." in projects_root.parts:
+            raise ValueError("VPS projects root must be absolute and normalized")
+        connection = await self._connect()
+        quoted_root = shlex.quote(str(projects_root))
+        script = (
+            f"if [ -d {quoted_root} ]; then "
+            f"find {quoted_root} -mindepth 1 -maxdepth 1 -type d -exec sh -c '"
+            "for candidate do "
+            'git -C "$candidate" rev-parse --is-inside-work-tree >/dev/null 2>&1 || continue; '
+            'remote=$(git -C "$candidate" remote get-url origin 2>/dev/null) || continue; '
+            'printf "%s\\0%s\\0" "$candidate" "$remote"; '
+            "done' sh {} +; "
+            "fi"
+        )
+        try:
+            result = await connection.run(script, check=True, timeout=20)
+            fields = result.stdout.split("\0")
+            if fields and not fields[-1]:
+                fields.pop()
+            if len(fields) % 2:
+                raise ValueError("Invalid VPS repository discovery response")
+            return [
+                {"path": fields[index], "remote": fields[index + 1]}
+                for index in range(0, len(fields), 2)
+            ]
+        finally:
+            connection.close()
+            await connection.wait_closed()
+
+    async def repository_update(
+        self, repository: PurePosixPath, action: str, remote_url: str = ""
+    ) -> str:
         if not repository.is_absolute() or ".." in repository.parts:
             raise ValueError("remote repository path must be absolute and normalized")
         if action not in {"provision", "repair_provision", "fetch", "pull"}:
@@ -297,7 +338,9 @@ class ClaudeSshAdapter(AgentAdapter):
             elif action == "fetch":
                 command = f"git -C {quoted} fetch --prune"
             else:
-                dirty = await connection.run(f"git -C {quoted} status --porcelain", check=True, timeout=15)
+                dirty = await connection.run(
+                    f"git -C {quoted} status --porcelain", check=True, timeout=15
+                )
                 if dirty.stdout.strip():
                     raise ValueError("Remote pull refused: VPS workspace has uncommitted changes")
                 command = f"git -C {quoted} pull --ff-only"
