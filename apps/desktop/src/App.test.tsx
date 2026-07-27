@@ -625,6 +625,50 @@ describe("workbench", () => {
     expect(screen.getByText("终端等待中")).toBeTruthy();
   });
 
+  it("does not duplicate the processing card once activity is visible", () => {
+    const base = singleTaskState("IMPLEMENTING");
+    useStore.setState({
+      ...base,
+      activeAgent: "codex",
+      workspaces: [
+        {
+          ...base.workspaces[0],
+          threads: [
+            {
+              ...base.workspaces[0].threads[0],
+              messages: [
+                {
+                  id: "activity-running",
+                  agent: "system",
+                  text: "",
+                  time: "",
+                  activity: {
+                    runId: "run-active",
+                    agent: "codex",
+                    status: "running",
+                    steps: [
+                      {
+                        id: "read-project",
+                        kind: "tool",
+                        label: "读取项目",
+                        detail: "docs/PROJECT_STATUS.md",
+                        status: "running",
+                      },
+                    ],
+                  },
+                },
+              ],
+            },
+          ],
+        },
+      ],
+    });
+
+    const { container } = render(<App />);
+    expect(container.querySelector(".agent-activity")).toBeTruthy();
+    expect(container.querySelector(".processing-card")).toBeNull();
+  });
+
   it("supports inline task rename and explicit delete confirmation", () => {
     useStore.setState({
       backend: "online",

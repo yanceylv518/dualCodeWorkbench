@@ -553,13 +553,18 @@ export default function App() {
                     <span>说说你的目标、问题，或准备推进的下一步。</span>
                   </div>
                 )}
-                {activeStates.has(thread.state) && (
+                {activeStates.has(thread.state) &&
+                  !thread.messages.some(
+                    (message) =>
+                      message.activity?.status === "running" &&
+                      message.activity.steps.length > 0,
+                  ) && (
                   <ProcessingCard
                     state={thread.state}
                     agent={store.activeAgent ?? store.mode}
                     waitingApproval={Boolean(store.pendingApproval)}
                   />
-                )}
+                  )}
                 {store.pendingApproval && (
                   <ApprovalCard
                     action={store.pendingApproval.action}

@@ -3913,6 +3913,14 @@ button:disabled {
   padding: 8px 0 12px;
   box-shadow: none !important;
 }
+.message-card.codex .assistant-message-actions,
+.message-card.claude .assistant-message-actions {
+  width: fit-content;
+  padding: 0;
+  border: 0;
+  background: transparent !important;
+  box-shadow: none !important;
+}
 .message-card.codex .message-avatar,
 .message-card.claude .message-avatar {
   display: none;
