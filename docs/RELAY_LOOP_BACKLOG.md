@@ -169,4 +169,31 @@ stream-json 按整条 assistant 消息吐出，思考与正文都是「憋完一
 
 ## Review 记录
 
-（Claude 按 Phase 追加）
+### T1 Review（2026-07-19，Claude）
+
+**结论：有条件通过。核心实现正确，修复下方 T1-R1 后 T1 关闭；T2 可并行开始。**
+
+逐项核查（Linux 独立复验）：
+
+- 事件语义对齐 ✓：thinking 块产出 `TOOL_EVENT(event="delta", item={id, type:"reasoning", text})`，
+  与 Codex `activity.delta` 的输出形状逐字段一致（`codex_app_server.py:224`）；经 scheduler
+  统一转发后命中前端 `toolStep` 的 reasoning 分支（`store.ts:145`），A2 思考态 UI 复用成立。
+- 脱敏 ✓：`redacted_thinking` 输出固定文本「[Claude redacted thinking omitted]」进终端诊断，
+  `data` 不读取；`thinking` 块仅取 `thinking` 字段，`signature` 不泄漏。测试显式断言
+  secret 不在输出中。
+- 双路径锁定 ✓：`test_cli_adapters.py` 与 `test_ssh_adapter.py` 均补 thinking → reasoning
+  事件断言；新增协议专项 `test_claude_stream.py` 7 项覆盖规格要求的三类输入。
+- 验证 ✓：本地后端 116 项、Ruff 通过；CI run `29667473202` 双平台绿（含前端 75 项、
+  TypeScript、严格 ESLint）。真实 VPS 会话目视效果按验证结果所记留待安装包验收。
+
+**返工项（归属 T1）：**
+
+- **T1-R1｜reasoning 回退 ID 跨消息碰撞，思考段会被无分隔拼接。** thinking 块无原生
+  `id`，回退值 `claude-reasoning-{block_index}` 只含块下标；VPS 路径默认开启工具
+  （`ssh_adapter.py:142` `--tools Read`），一轮含多条 assistant 消息是常态，每条消息的
+  首个 thinking 块都会得到相同的 `claude-reasoning-0`。而 store 对 `event="delta"` 的
+  同 ID 步骤是直接字符串拼接（`store.ts` 归并分支），后到的思考段会无分隔地拼进
+  先前条目并破坏活动时间线顺序。修复：`ClaudeStreamParser` 维护 assistant 消息序号，
+  回退 ID 改为 `claude-reasoning-{message_seq}-{block_index}`；补一条「两条 assistant
+  消息各含 thinking → 产出两个不同 ID」的协议测试。注意 T2 的 partial 去重方案需
+  沿用同一 ID 语义，避免返工两次。
