@@ -466,3 +466,56 @@ collaboration.failed
 从 **C0-1：冻结协议与状态机** 开始，不直接编写自动循环。先把 `handoff.v2`、
 `review.v1`、状态跃迁表和路由矩阵固化为后端类型与契约测试；完成后停下进行独立 review，
 再进入共享记忆实现。
+
+---
+
+## Review 记录
+
+### 方案验收（2026-07-28，Claude）
+
+**结论：有条件通过。方案方向、分阶段拆分和安全边界成立；修复 C-R1、C-R2 后方可进入 C0 实施。**
+
+逐项核查（对照仓库事实）：
+
+- 复用声明属实 ✓：`TaskContract`、`HandoffPackage`、`AgentSession`、`AgentRun`、
+  `ExecutionJob`、`Approval`、`AuditLog`、`FileChange`、`TestRun` 全部存在于
+  `models.py:98-219`；`HandoffPackage.payload` 为 JSON 文本字段，升级 `handoff.v2`
+  无需另建表。Alembic 已接管 schema（P3-1），迁移约束可执行。
+- 上下文预算机制已有落点 ✓：`context_budget.py` 已实现 60k 对话 / 20k 契约预算与
+  截断标记（P3-4），§3.3 的组装顺序与"安全规则不得截断"为增量约束，非重建。
+- 影子 Git 设计一致 ✓：§7 与 `RELAY_LOOP_BACKLOG.md` 保护条款 1-5 逐条对应
+  （专用 ref、凭据防护先行、VPS 隔离 worktree、清理、正式 Git 走审批）。
+- 安全与审批边界 ✓：§11 未扩大任何现有权限；功能开关默认关闭、保留单 Agent
+  降级路径（§14）符合现有发布纪律。
+- 停止条件完备 ✓：轮次上限、无进展检测、冲突转人工、预算与失活降级（§5.3）
+  覆盖 RELAY 保护条款 4 并有扩展。
+
+**返工项（进入 C0 前必须关闭）：**
+
+- **C-R1｜与 `RELAY_LOOP_BACKLOG.md` R 系列的规格归属未冻结，存在两套冲突协议。**
+  方案自称"不引入另一套冲突的协作机制"，但事实上：
+  1. R2-1 定义 `RelayRun` 表 + `MessageCreate.mode` 增加 `relay`；本方案 §8.1 定义
+     `collaboration_runs` + `mode: smart`——同一循环两套持久化与模式枚举。
+  2. R1-2 的裁决 JSON（`verdict: pass|blocking`、中文 finding type、`suggestion` 字段）
+     与 §6 `review.v1`（新增 `needs_user`、英文 type、`severity`+`acceptance`）字段级不兼容；
+     而 C4 写"实施 R0、R1"，字面包含 R1-2，将与 C2 冻结的 `review.v1` 直接冲突。
+  修复：在两份文档中显式声明取代关系（建议：R0-1/R0-2/R0-3/R1-1 由 C4 原样实施；
+  R1-2 由 C2 `review.v1` 取代；R2-1/R2-2/R2-3 由 C5 取代；R3-1/R3-2 由 C6 取代），
+  执行者只面对一份权威规格。此项不关闭，C0"规格冻结"无法成立。
+- **C-R2｜上一轮 review 返工项 T1-R1 仍未关闭。** `claude_stream.py:65` 仍为
+  `claude-reasoning-{block_index}` 回退 ID，`test_claude_stream.py:111` 仍断言
+  `claude-reasoning-0`，无任何提交处理 T1-R1。按执行约定，先前 review 的返工项须在
+  进入新阶段前关闭；且本方案 C6 的统一协作时间线直接依赖活动时间线正确性。
+  应将 T1-R1（含其对 T2 partial 去重 ID 语义的约束）列为 C0 前置项。
+
+**建议项（不阻塞，实施对应阶段时处理）：**
+
+- §9.2 API 路径与现有实现不一致：现有交接路由为
+  `/workspaces/{workspace_id}/threads/{thread_id}/handoffs`（`api_collaboration.py:99`），
+  方案写 `/threads/{id}/...`。应统一为带 workspace 前缀的现有形态，避免双路由并存。
+- §5.1 新状态机与现有 `RunState`（`state_machine.py`，`AgentRun` 在用）关系未说明；
+  两者存在同名状态（`IMPLEMENTING`、`REVIEWING`、`CANCELLED`）。C0 冻结时应明确
+  `collaboration_runs.state` 为独立枚举及其与每轮 `AgentRun.state` 的层级关系。
+- §4.3 复杂度判定含"五个以上文件"，但文件数只能在实现后得知。C3 需明确判定时机：
+  事前按请求分类路由，实现后按实际 Diff 升级为需审查——否则"相同输入得到相同路由"
+  的表驱动测试无法定义。
