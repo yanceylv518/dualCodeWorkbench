@@ -1,5 +1,13 @@
 # DualCode Workbench 项目状态
 
+## 2026-07-29 智能协作 C2-2 ReviewParser
+
+- 新增严格 `ReviewParseResult` 和确定性 `review.v1` 解析器；优先 JSON 围栏，
+  无围栏时扫描裸对象，多候选选择最后一个通过冻结协议校验的裁决。
+- 缺字段、非法 JSON 和无 JSON 分别返回明确 outcome，不猜测裁决或补全字段；
+  原始文本逐字节保留，诊断压为单行最多 200 字符。
+- 专项 11 项通过，下一项为 C2-3 findings 持久化、迁移与裁决审计。
+
 ## 2026-07-29 智能协作 C2-1 HandoffCompiler
 
 - 新增 `handoff.v2` 编译器，从任务契约、真实 Git HEAD/分支、变更文件和测试证据

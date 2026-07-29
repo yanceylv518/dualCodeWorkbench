@@ -744,19 +744,21 @@ TypeScript 通过（前端应无 diff）；GitHub Actions 双平台绿；开关�
 
 ### C2-2 ReviewParser：`review.v1` 确定性解析
 
-- [ ] 新增 `apps/backend/dualcode/review_parser.py`：
+- [x] 新增 `apps/backend/dualcode/review_parser.py`：
   `parse_review(text: str) -> ReviewParseResult`。`ReviewParseResult` 为严格模型：
   `outcome: Literal["parsed", "no_json", "invalid_json", "schema_mismatch"]`、
   `review: ReviewV1 | None`（仅 parsed 非空）、`raw_text: str`（无论成败完整
   保留原文，供 C5 在解析失败时进入 `WAITING_USER` 展示）、
   `error: str | None`（截断为单行 200 字符）。
-- [ ] 提取规则确定性固定：优先扫描 ```json 围栏块，无围栏时扫描裸 JSON 对象；
+- [x] 提取规则确定性固定：优先扫描 ```json 围栏块，无围栏时扫描裸 JSON 对象；
   存在多个候选时取**最后一个**能通过 `ReviewV1` 校验的候选（结论惯例在文末），
   全部候选都校验失败时按最后一个候选的失败类别归类；禁止任何形式的裁决猜测
   或字段补全（§6：解析失败不得猜测裁决）。
 - **验收**：§12 C2 四类输入——正常、缺字段（`schema_mismatch`）、非法 JSON
   （`invalid_json`）、无 JSON（`no_json`）——各有确定行为断言；另覆盖多候选
   取末、围栏与裸 JSON、原文保留逐字节断言。
+  - 2026-07-29：专项 11 项通过；四类 outcome、围栏优先、裸对象、多候选末个
+    有效裁决、末失败分类、原文逐字节保留与 200 字符错误治理均已覆盖。
 
 ### C2-3 findings 持久化（迁移 + 服务 + 审计）
 
