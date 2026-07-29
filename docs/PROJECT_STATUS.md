@@ -1,5 +1,16 @@
 # DualCode Workbench 项目状态
 
+## 2026-07-29 智能协作 C0-1 协议与状态机冻结
+
+- 新增 `collaboration_protocol.py`，以严格 Pydantic 模型冻结 `handoff.v2`、
+  `review.v1`、独立 `CollaborationState` 跃迁表、八行路由矩阵与五项双 Agent
+  复杂度条件。
+- 明确协作状态与既有单次 `AgentRun` 的 `RunState` 相互独立；本阶段未接入
+  scheduler、adapter、API、前端、数据库、解析器或编排器，保持零行为变更。
+- 新契约测试 21 项、后端全量 145 项、Ruff 和桌面端 TypeScript 检查通过；沙箱内
+  全量测试曾受 Windows 临时目录 ACL 阻断，批准后在非沙箱进程复验全绿。
+- C0-1 已完成，按执行约定停下等待 Claude review，不进入 C0-2/C0-3。
+
 ## 2026-07-29 智能协作 C-R4 Ruff 工具链约束
 
 - 后端 dev 依赖将 Ruff 约束收紧为 `>=0.15,<0.16`，确保本地与 CI 使用同一 0.15.x 基线。
