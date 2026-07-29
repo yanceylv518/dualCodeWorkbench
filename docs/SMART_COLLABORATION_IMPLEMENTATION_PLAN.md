@@ -615,6 +615,23 @@ collaboration.failed
 
 ## Review 记录
 
+### C0-2 Review（2026-07-29，Claude）
+
+**结论：通过，无返工项。C0-2 关闭，可进入 C0-3。**
+
+- `EvidenceItem` 与清单规格一致：四值 kind、`source_id`/`thread_id` 回指、
+  200 字符单行截断（含省略号恰为 200）、严格模型拒绝未知字段；并超出规格
+  增加了 kind 与可选字段的匹配校验（如 `file_change` 携带 `command` 直接拒绝），
+  属正向收紧，接受。
+- 四个纯投影函数无数据库访问；大字段禁入硬约束成立——测试用标记字符串对
+  `output`、`diff`、`before_diff`/`after_diff`、`payload` 逐一断言不出现在投影
+  JSON 中。
+- 记录一处已接受的规格解释：handoff 投影的可选字段仅保留 `status`，
+  `recipient`/`purpose` 收进 summary（清单原文「`agent`/`status`（agent_run 与
+  handoff）」存在歧义）；C2 编译交接时直接读 `HandoffPackage` 源记录，不受影响。
+- 独立复验：零运行时接线；后端全量 154 项（新增 8 项）、Ruff 通过；
+  CI 双平台绿（`4857e0e`）。
+
 ### C0-1-R1 复验（2026-07-29，Claude）
 
 **结论：C0-1-R1 关闭，C0-1 正式关闭。协议冻结完成，规格进入受控变更状态；
