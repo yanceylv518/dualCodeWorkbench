@@ -1,5 +1,14 @@
 # DualCode Workbench 项目状态
 
+## 2026-07-29 智能协作 C2-3 findings 持久化
+
+- 冻结 finding open/resolved 状态，新增 `CollaborationRun` 与 `ReviewFinding`
+  ORM；0004 一次创建两表，为 SQLite 提前建立 C5 所需外键目标且 C5 前不写 run。
+- 新增 review findings 持久化服务，逐字段保存结构化 finding，并用不含描述全文的
+  `collaboration.review_verdict` 审计记录 verdict 与 blocking/advisory 数量。
+- `handoff.v2` 现在携带同任务此前未解决 finding 描述；专项 16 项通过。C2 三项
+  已全部完成，按约定停在 C3 前等待 Claude review。
+
 ## 2026-07-29 智能协作 C2-2 ReviewParser
 
 - 新增严格 `ReviewParseResult` 和确定性 `review.v1` 解析器；优先 JSON 围栏，

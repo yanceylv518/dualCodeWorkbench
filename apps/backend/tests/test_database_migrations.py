@@ -46,7 +46,7 @@ def test_empty_database_upgrades_to_current_schema(tmp_path: Path) -> None:
         }.issubset(memory_indexes)
         with engine.connect() as connection:
             assert connection.scalar(text("SELECT version_num FROM alembic_version")) == (
-                "0003_memory_facts"
+                "0004_collaboration_review"
             )
     finally:
         engine.dispose()
@@ -93,6 +93,41 @@ def test_memory_facts_migration_downgrades_without_touching_existing_data(
             ) == "Existing project"
             assert connection.scalar(text("SELECT version_num FROM alembic_version")) == (
                 "0002_legacy_columns"
+            )
+    finally:
+        engine.dispose()
+
+
+def test_collaboration_review_migration_downgrades_without_touching_existing_data(
+    tmp_path: Path,
+) -> None:
+    path = tmp_path / "collaboration-downgrade.db"
+    upgrade_database(_url(path))
+    engine = create_engine(_url(path))
+    try:
+        with engine.begin() as connection:
+            connection.execute(
+                text(
+                    "INSERT INTO workspaces (id, name, path) "
+                    "VALUES ('workspace-1', 'Existing project', '/existing')"
+                )
+            )
+    finally:
+        engine.dispose()
+
+    _downgrade_database(path, "0003_memory_facts")
+
+    engine = create_engine(_url(path))
+    try:
+        tables = set(inspect(engine).get_table_names())
+        assert "collaboration_runs" not in tables
+        assert "review_findings" not in tables
+        with engine.connect() as connection:
+            assert connection.scalar(
+                text("SELECT name FROM workspaces WHERE id = 'workspace-1'")
+            ) == "Existing project"
+            assert connection.scalar(text("SELECT version_num FROM alembic_version")) == (
+                "0003_memory_facts"
             )
     finally:
         engine.dispose()
@@ -199,7 +234,7 @@ def test_post_patch_database_is_stamped_without_data_loss(tmp_path: Path) -> Non
                 text("SELECT name FROM workspaces WHERE id = 'workspace-1'")
             ) == "Existing project"
             assert connection.scalar(text("SELECT version_num FROM alembic_version")) == (
-                "0003_memory_facts"
+                "0004_collaboration_review"
             )
     finally:
         engine.dispose()

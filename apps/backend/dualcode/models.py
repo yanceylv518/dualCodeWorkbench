@@ -133,6 +133,33 @@ class MemoryFact(Base):
     )
 
 
+class CollaborationRun(Base):
+    __tablename__ = "collaboration_runs"
+    id: Mapped[str] = mapped_column(String, primary_key=True, default=uid)
+    workspace_id: Mapped[str] = mapped_column(
+        ForeignKey("workspaces.id", ondelete="CASCADE"), index=True
+    )
+    thread_id: Mapped[str] = mapped_column(
+        ForeignKey("threads.id", ondelete="CASCADE"), index=True
+    )
+    mode: Mapped[str] = mapped_column(String(24))
+    state: Mapped[str] = mapped_column(String(32), index=True)
+    current_agent: Mapped[str | None] = mapped_column(String(30), nullable=True)
+    round: Mapped[int] = mapped_column(Integer, default=1)
+    max_rounds: Mapped[int] = mapped_column(Integer, default=3)
+    budget_json: Mapped[str] = mapped_column(Text, default="{}")
+    base_sha: Mapped[str | None] = mapped_column(String(64), nullable=True)
+    snapshot_sha: Mapped[str | None] = mapped_column(String(64), nullable=True)
+    error: Mapped[str] = mapped_column(Text, default="")
+    created_at: Mapped[datetime] = mapped_column(UTCDateTime(), default=utc_now)
+    updated_at: Mapped[datetime] = mapped_column(
+        UTCDateTime(), default=utc_now, onupdate=utc_now
+    )
+    completed_at: Mapped[datetime | None] = mapped_column(
+        UTCDateTime(), nullable=True
+    )
+
+
 class HandoffPackage(Base):
     __tablename__ = "handoff_packages"
     id: Mapped[str] = mapped_column(String, primary_key=True, default=uid)
@@ -143,6 +170,30 @@ class HandoffPackage(Base):
     payload: Mapped[str] = mapped_column(Text, default="{}")
     status: Mapped[str] = mapped_column(String(20), default="PREPARED")
     created_at: Mapped[datetime] = mapped_column(UTCDateTime(), default=utc_now)
+
+
+class ReviewFinding(Base):
+    __tablename__ = "review_findings"
+    id: Mapped[str] = mapped_column(String, primary_key=True, default=uid)
+    collaboration_run_id: Mapped[str | None] = mapped_column(
+        ForeignKey("collaboration_runs.id", ondelete="CASCADE"),
+        nullable=True,
+        index=True,
+    )
+    round: Mapped[int] = mapped_column(Integer)
+    type: Mapped[str] = mapped_column(String(32))
+    severity: Mapped[str] = mapped_column(String(20))
+    status: Mapped[str] = mapped_column(String(20), index=True)
+    file: Mapped[str | None] = mapped_column(String(1024), nullable=True)
+    line: Mapped[str | None] = mapped_column(String(100), nullable=True)
+    description: Mapped[str] = mapped_column(Text)
+    acceptance: Mapped[str] = mapped_column(Text)
+    source_handoff_id: Mapped[str] = mapped_column(
+        ForeignKey("handoff_packages.id", ondelete="CASCADE"), index=True
+    )
+    resolved_by_snapshot_sha: Mapped[str | None] = mapped_column(
+        String(64), nullable=True
+    )
 
 
 class Message(Base):

@@ -9,6 +9,8 @@ from dualcode.handoff_compiler import compile_handoff_v2
 from dualcode.models import (
     Base,
     FileChange,
+    HandoffPackage,
+    ReviewFinding,
     TaskContract,
     TestRun as RunRecord,
     Thread,
@@ -104,6 +106,31 @@ async def test_compile_handoff_v2_projects_real_sources_without_large_fields(
         ]
     )
     await session.flush()
+    previous_handoff = HandoffPackage(
+        workspace_id=workspace.id,
+        thread_id=thread.id,
+        recipient="claude",
+        purpose="review",
+    )
+    session.add(previous_handoff)
+    await session.flush()
+    session.add(
+        ReviewFinding(
+            id="open-finding",
+            collaboration_run_id=None,
+            round=1,
+            type="risk",
+            severity="blocking",
+            status="open",
+            file=None,
+            line=None,
+            description="Existing unresolved risk",
+            acceptance="Risk resolved",
+            source_handoff_id=previous_handoff.id,
+            resolved_by_snapshot_sha=None,
+        )
+    )
+    await session.flush()
 
     handoff = await compile_handoff_v2(
         session,
@@ -136,7 +163,7 @@ async def test_compile_handoff_v2_projects_real_sources_without_large_fields(
         "summary": "pytest -q → exit 0",
     }
     assert handoff.claims == []
-    assert handoff.open_findings == []
+    assert handoff.open_findings == ["Existing unresolved risk"]
     assert handoff.risks == ["Schema drift"]
     serialized = handoff.model_dump_json()
     assert "SECRET DIFF" not in serialized

@@ -762,16 +762,16 @@ TypeScript 通过（前端应无 diff）；GitHub Actions 双平台绿；开关�
 
 ### C2-3 findings 持久化（迁移 + 服务 + 审计）
 
-- [ ] `collaboration_protocol.py` 冻结 `FindingStatus = Literal["open",
+- [x] `collaboration_protocol.py` 冻结 `FindingStatus = Literal["open",
   "resolved"]`（受控协议变更）。
-- [ ] `models.py` 新增 `CollaborationRun` 与 `ReviewFinding` ORM，按 §8.1 列
+- [x] `models.py` 新增 `CollaborationRun` 与 `ReviewFinding` ORM，按 §8.1 列
   定义；`ReviewFinding.collaboration_run_id` 可空（C5 前的裁决仅关联
   `source_handoff_id`）、`resolved_by_snapshot_sha` 可空。
-- [ ] Alembic 迁移 `0004`：同时新增 `collaboration_runs` 与 `review_findings`
+- [x] Alembic 迁移 `0004`：同时新增 `collaboration_runs` 与 `review_findings`
   两表——**`collaboration_runs` 提前建表仅作为外键目标，C5 前无任何写入方**
   （SQLite 事后加外键需重建表，故一次建齐；在迁移 docstring 写明理由）；
   沿用防重入护栏与 downgrade；迁移测试覆盖升级保数据与降级。
-- [ ] 新增 `apps/backend/dualcode/review_findings.py`（或并入 review_parser，
+- [x] 新增 `apps/backend/dualcode/review_findings.py`（或并入 review_parser，
   二选一保持单一职责）：`persist_review_findings(db, *, workspace_id, thread_id,
   source_handoff_id, review: ReviewV1, collaboration_run_id=None, round=1)
   -> list[ReviewFinding]`——逐条落库（status="open"），并经
@@ -781,6 +781,9 @@ TypeScript 通过（前端应无 diff）；GitHub Actions 双平台绿；开关�
   描述全文不入审计）。
 - **验收**：持久化测试覆盖逐字段落库、audit 行断言、finding 描述不入审计
   detail；迁移测试全绿。
+  - 2026-07-29：专项 16 项通过；0004 双表升级/降级与既有数据保留、FindingStatus
+    冻结、逐字段落库、blocking/advisory 计数审计及描述禁入均已覆盖；新交接会
+    携带此前未解决 finding 描述。
 
 **C2 阶段验收**：后端全量 pytest、Ruff、桌面端 TypeScript 通过（前端应无
 diff）；GitHub Actions 双平台绿；开关默认关闭下现有交接 API payload 与提示词

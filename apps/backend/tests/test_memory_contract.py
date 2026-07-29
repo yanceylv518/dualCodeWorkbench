@@ -7,6 +7,7 @@ from dualcode.collaboration_protocol import (
     FactConfidence,
     FactKind,
     FactSource,
+    FindingStatus,
     MemoryFactContent,
 )
 
@@ -49,3 +50,11 @@ def test_confidence_rank_is_strictly_descending() -> None:
         FACT_CONFIDENCE_RANK[level]
         for level in ("confirmed", "verified", "unverified", "stale")
     ] == [3, 2, 1, 0]
+
+
+def test_finding_status_rejects_unknown_value() -> None:
+    adapter = TypeAdapter(FindingStatus)
+    assert adapter.validate_python("open") == "open"
+    assert adapter.validate_python("resolved") == "resolved"
+    with pytest.raises(ValidationError):
+        adapter.validate_python("ignored")

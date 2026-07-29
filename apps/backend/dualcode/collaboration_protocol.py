@@ -33,6 +33,7 @@ FactKind = Literal[
 ]
 FactSource = Literal["user", "git", "test", "codex", "claude", "system"]
 FactConfidence = Literal["confirmed", "verified", "unverified", "stale"]
+FindingStatus = Literal["open", "resolved"]
 
 FACT_CONFIDENCE_RANK: dict[FactConfidence, int] = {
     "confirmed": 3,

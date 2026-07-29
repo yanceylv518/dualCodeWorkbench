@@ -21,6 +21,7 @@ from .models import AuditLog
 EVENT_STATE_TRANSITION = "collaboration.state_transition"
 EVENT_ROUTING_DECISION = "collaboration.routing_decision"
 EVENT_MEMORY_CHANGE = "collaboration.memory_change"
+EVENT_REVIEW_VERDICT = "collaboration.review_verdict"
 
 
 class StateTransitionDetail(StrictModel):
@@ -61,6 +62,18 @@ class MemoryChangeDetail(StrictModel):
         return summarize_single_line(value)
 
 
+class ReviewVerdictDetail(StrictModel):
+    handoff_id: str
+    verdict: Literal["pass", "blocking", "needs_user"]
+    blocking_count: int
+    advisory_count: int
+
+    @field_validator("handoff_id")
+    @classmethod
+    def normalize_handoff_id(cls, value: str) -> str:
+        return summarize_single_line(value)
+
+
 def build_state_transition_audit(
     workspace_id: str,
     thread_id: str,
@@ -98,5 +111,18 @@ def build_memory_change_audit(
         workspace_id=workspace_id,
         thread_id=thread_id,
         event=EVENT_MEMORY_CHANGE,
+        detail=detail.model_dump_json(),
+    )
+
+
+def build_review_verdict_audit(
+    workspace_id: str,
+    thread_id: str,
+    detail: ReviewVerdictDetail,
+) -> AuditLog:
+    return AuditLog(
+        workspace_id=workspace_id,
+        thread_id=thread_id,
+        event=EVENT_REVIEW_VERDICT,
         detail=detail.model_dump_json(),
     )

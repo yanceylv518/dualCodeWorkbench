@@ -16,7 +16,15 @@ from .collaboration_protocol import (
 )
 from .evidence import from_test_run
 from .git_service import GitService
-from .models import FileChange, TaskContract, TestRun, Thread, Workspace
+from .models import (
+    FileChange,
+    HandoffPackage,
+    ReviewFinding,
+    TaskContract,
+    TestRun,
+    Thread,
+    Workspace,
+)
 
 
 def _json_list(value: str) -> list[str]:
@@ -46,6 +54,20 @@ async def compile_handoff_v2(
     tests = (
         await db.scalars(
             select(TestRun).where(TestRun.thread_id == thread.id).order_by(TestRun.id)
+        )
+    ).all()
+    open_findings = (
+        await db.scalars(
+            select(ReviewFinding.description)
+            .join(
+                HandoffPackage,
+                ReviewFinding.source_handoff_id == HandoffPackage.id,
+            )
+            .where(
+                HandoffPackage.thread_id == thread.id,
+                ReviewFinding.status == "open",
+            )
+            .order_by(ReviewFinding.id)
         )
     ).all()
     repository_path = Path(workspace.path)
@@ -85,8 +107,7 @@ async def compile_handoff_v2(
         ),
         claims=[],
         evidence=evidence,
-        # Review findings are persisted in C2-3; until then no source exists.
-        open_findings=[],
+        open_findings=list(open_findings),
         risks=_json_list(contract.risks) if contract else [],
         requested_action=purpose,
     )
