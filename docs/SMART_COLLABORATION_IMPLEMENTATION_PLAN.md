@@ -894,6 +894,97 @@ diff）；GitHub Actions 双平台绿；开关默认关闭下现有交接 API pa
 桌面端 TypeScript 通过（前端零 diff）；GitHub Actions 双平台绿；开关默认关闭
 下现有 codex/claude 模式零回归、`mode=smart` 明确 422。完成后停下等
 Claude review。
+
+---
+
+## C4 执行清单（交 Codex）
+
+> 实施 `RELAY_LOOP_BACKLOG.md` 保留条目 R0-1/R0-2/R0-3/R1-1，执行约定沿用
+> `docs/REMEDIATION_BACKLOG.md` 全部规则。C4-1 → C4-2 → C4-3 按序执行、
+> 一条目一 commit；全部完成后停下等 Claude review，不进入 C5。
+> 本阶段安全敏感度最高，以下不变量任何一条不得放宽：影子同步只触碰
+> `refs/dualcode/relay/*`，永不推 origin 或用户分支；凭据防护先于快照；
+> SSH/Git 全部参数化调用，known_hosts 强制校验；首次同步按任务审批并审计；
+> 用户本地 HEAD/index/工作树零变化；VPS 主仓工作区与 HEAD 零变化。
+> 完成每个条目后同步勾选 `RELAY_LOOP_BACKLOG.md` 对应 R 条目并填验证结果。
+
+### C4-1 RelayService 本地影子快照（R0-1 + 全长 SHA 收紧）
+
+- [ ] `git_service.py`：`run()` 增加可选 `env: dict[str, str] | None` 参数
+  （与现有环境合并后传入子进程），无调用方传入时行为不变。
+- [ ] 新增 `apps/backend/dualcode/relay_service.py`：
+  `create_shadow_snapshot(repository: Path) -> ShadowSnapshot`：
+  - 用临时 `GIT_INDEX_FILE`（放系统临时目录，用后删除）+ `git add -A` +
+    `git write-tree` + `git commit-tree`（父指向当前 HEAD）把工作区全部变更
+    （含未提交、未暂存、未跟踪）固化为快照 commit；全程不触碰用户真实
+    index、HEAD 与工作树。
+  - 凭据防护先行：对临时 index 中的路径逐一套用 `security.py` 的
+    `CREDENTIAL_RULES`，命中者以 `git rm --cached --` 从临时 index 移除，
+    并记入 `ShadowSnapshot.excluded_paths`。
+  - `ShadowSnapshot(StrictModel)`：`base_sha`、`snapshot_sha`（均为
+    `git rev-parse HEAD` / `commit-tree` 输出的**全长 SHA**）、
+    `excluded_paths: list[str]`。
+  - 空仓库（无 HEAB）明确抛中文错误，不生成孤儿快照。
+- [ ] `handoff_compiler.py` 同步收紧：`base_sha` 改用
+  `rev-parse HEAD` 全长输出（关闭 C2 review 建议项）；相关测试更新。
+- **验收**（对应 R0-1）：单元测试断言——脏工作树（含未跟踪文件）快照后
+  `git status`、`rev-parse HEAD`、真实 index 内容零变化；快照 commit 内容
+  含未提交变更；命中凭据规则的文件不在快照 tree 中且列入 excluded_paths；
+  全长 SHA 形状断言。
+
+### C4-2 影子 ref 推送与每任务授权（R0-2 + R0-3）
+
+- [ ] `relay_service.py` 增加
+  `push_shadow_ref(repository, snapshot_sha, *, workspace_id, thread_id,
+  remote_spec) -> None`：
+  - 目标 ref 固定 `refs/dualcode/relay/{workspace_id}/{thread_id}`；ref 名
+    组件仅允许 `[A-Za-z0-9._-]`，校验失败拒绝执行。
+  - 经 `git push --force <remote> <sha>:<ref>`（同 ref 覆盖属预期，R0-2）；
+    remote 为 `ssh://user@host:port/repo_path` 形式，由 Claude SSH 配置与
+    项目 VPS 仓库路径拼装，全部经参数化 argv 传递，禁止 shell 字符串拼接。
+  - SSH 传输经 `env` 注入
+    `GIT_SSH_COMMAND="ssh -o StrictHostKeyChecking=yes -o
+    UserKnownHostsFile=<known_hosts> -i <key> -p <port>"`，各值来自现有
+    `ClaudeSshConfig` 校验后的字段；known_hosts 缺失直接拒绝。
+  - 推送失败抛含中文原因的异常（网络/权限/路径分类透传 stderr 摘要），
+    由调用方展示并允许显式重试；**任何失败都不得改推 origin**。
+- [ ] 每任务授权（R0-3）：首次同步前创建 `relay_shadow_sync` 审批
+  （文案「允许本任务自动同步影子快照到 VPS？」），批准后本任务内复用，
+  重启后经审计恢复——三者均复用既有「允许本任务」thread-scope 机制；
+  同步成功/失败写审计（含 base/snapshot SHA 与 excluded 数量，不含文件内容）。
+- [ ] 清理：新增 `cleanup_shadow_ref(...)`——任务删除或接力结束时删除本地
+  与 VPS 侧影子 ref（`push :<ref>` 删除远端、`update-ref -d` 删本地如有）；
+  清理失败仅写警告审计，不阻塞主流程；接入现有任务删除链路。
+- **验收**（对应 R0-2/R0-3）：集成测试用本地裸仓模拟 VPS（file:// remote 或
+  本地路径 remote 等价参数化路径）覆盖：成功推送、同 ref 二次覆盖、失败
+  抛中文异常；授权测试覆盖首次审批、任务内复用、重启审计恢复；清理成功与
+  失败告警各有测试；ref 名非法字符拒绝。
+
+### C4-3 VPS 隔离 worktree 审查接线（R1-1）
+
+- [ ] `ssh_adapter.py`（或 relay_service 内经 SSH 适配器）增加隔离审查
+  生命周期：`git -C <vps_repo> worktree add --detach <临时路径> <snapshot_sha>`
+  → Claude 以该临时路径为工作目录执行审查轮 →
+  `git -C <vps_repo> worktree remove --force <临时路径>`（`worktree prune`
+  兜底）；临时路径位于现有远端运行根目录下按 thread 隔离；全部命令参数化。
+- [ ] 接线：`smart_collaboration_enabled` 开启且发送 recipient=claude、
+  purpose=review 的交接时——先 `create_shadow_snapshot` + `push_shadow_ref`
+  （含首次审批），成功后该轮 Claude 的远端工作目录指向隔离 worktree，
+  交接 payload 的 `snapshot_sha` 用真实快照 SHA（替换 C2 的
+  `snapshot_sha == base_sha` 过渡语义，注释同步删除）；快照或推送失败时
+  中止发送并返回中文错误，不回退为在 VPS 主仓审查。开关关闭时发送链路
+  逐字节不变。
+- [ ] 审查轮结束（成功或失败）都执行 worktree 清理；VPS 主仓的工作区与
+  HEAD 在全程零变化。
+- **验收**（对应 R1-1）：SSH 命令序列协议测试（worktree add/remove 顺序与
+  参数）；本地裸仓 + 本地「伪 VPS」路径的集成断言——审查前后 VPS 主仓
+  `HEAD`、`git status` 零变化；失败路径也执行清理；开关关闭时现有
+  send_handoff 行为回归断言。
+
+**C4 阶段验收**：后端全量 pytest、Ruff、桌面端 TypeScript 通过（前端零
+diff）；GitHub Actions 双平台绿；`RELAY_LOOP_BACKLOG.md` R0-1/R0-2/R0-3/R1-1
+勾选并填验证结果；安全不变量清单逐条自查写入验证结果。完成后停下等
+Claude review。
   - 2026-07-29：同一任务两轮审查复用 `F-1` 的专项测试通过，两条记录使用独立
     uid 且描述、轮次与 source handoff 互不覆盖；审查方编号不再作为数据库主键。
 - **验证结果（2026-07-29）**：新增两类稳定事件名、严格 detail 模型及返回未入库
