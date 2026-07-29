@@ -595,9 +595,9 @@ collaboration.failed
 
 ### C-R4 恢复 CI 双平台绿：钉住 Ruff 版本（工具链修复）
 
-- [ ] `apps/backend/pyproject.toml`：dev 依赖 `ruff>=0.9,<1` 收紧为与仓库当前验证
+- [x] `apps/backend/pyproject.toml`：dev 依赖 `ruff>=0.9,<1` 收紧为与仓库当前验证
   基线一致的 `ruff>=0.15,<0.16`；CI 与本地从同一约束安装，消除静态检查版本漂移。
-- [ ] 升级到 Ruff 0.16 作为独立后续任务另行排期：届时运行 `ruff check --fix` 处理
+- [x] 升级到 Ruff 0.16 作为独立后续任务另行排期：届时运行 `ruff check --fix` 处理
   92 项中可自动修复的 37 项、逐条评审其余项，并在同一 commit 内更新版本约束；
   本条目不做该升级，禁止顺手改动任何被 0.16 新规则命中的代码。
 - **为什么**：CI 通过 `pip install -e "./apps/backend[dev]"` 安装 Ruff，未钉上界的
@@ -607,6 +607,10 @@ collaboration.failed
   测试修正无关，但挡住其「CI 双平台绿」验收标准，也会挡住 C0 起所有阶段验收。
 - **验收**：GitHub Actions 双平台绿（该次运行需完整跑过 ruff、双端测试与构建步骤，
   不允许仅 ruff 步骤通过）；本地 `ruff --version` 与 CI 安装版本同为 0.15.x。
+- **验证结果（2026-07-29）**：dev 依赖已钉为 `ruff>=0.15,<0.16`，本地使用
+  Ruff 0.15.21；未修改任何被 Ruff 0.16 新规则命中的代码。后端 124 项、
+  TypeScript、ESLint 和前端 78 项通过；Windows 工作树 Prettier 检查受既有 CRLF
+  差异影响，GitHub Actions 双平台结果在本提交推送后确认。
 
 ### 返工复验（2026-07-29，Claude）
 
