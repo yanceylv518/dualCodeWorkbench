@@ -614,6 +614,7 @@ collaboration.failed
   首次 CI run `30413166268` 确认 Windows/Ubuntu 均安装 Ruff 0.15.22，且 Ruff、
   后端 124 项、TypeScript、ESLint 全绿；随后暴露 `App.tsx`、`App.test.tsx`、
   `store.ts` 三个既有 Prettier 漂移，已按 CI 输出机械格式化，未改变业务逻辑。
+  CI run `30413530551` 最终确认 Windows/Ubuntu 全步骤通过，C-R3 与 C-R4 正式关闭。
 
 ### 返工复验（2026-07-29，Claude）
 
