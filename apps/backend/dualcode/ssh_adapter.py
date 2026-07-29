@@ -57,6 +57,13 @@ class RemoteRun:
     remote_dir: PurePosixPath
 
 
+@dataclass(frozen=True)
+class RemoteReviewWorktree:
+    repository: PurePosixPath
+    path: PurePosixPath
+    snapshot_sha: str
+
+
 class ClaudeSshAdapter(AgentAdapter):
     """Remote planning/review adapter with strict host validation and isolated uploads."""
 
@@ -87,6 +94,102 @@ class ClaudeSshAdapter(AgentAdapter):
             ),
             timeout=self.config.connect_timeout,
         )
+
+    @staticmethod
+    def _validated_repository(repository: PurePosixPath) -> PurePosixPath:
+        if not repository.is_absolute() or ".." in repository.parts:
+            raise ValueError("VPS 仓库路径必须是规范化绝对路径")
+        return repository
+
+    async def create_review_worktree(
+        self,
+        repository: PurePosixPath,
+        *,
+        thread_id: str,
+        run_id: str,
+        snapshot_sha: str,
+    ) -> RemoteReviewWorktree:
+        """Create an isolated detached worktree for one Claude review."""
+
+        repository = self._validated_repository(repository)
+        try:
+            safe_thread = str(uuid.UUID(thread_id))
+            safe_run = str(uuid.UUID(run_id))
+        except ValueError as exc:
+            raise ValueError("审查任务标识必须是 UUID") from exc
+        if not re.fullmatch(r"[0-9a-fA-F]{40}", snapshot_sha):
+            raise ValueError("影子快照 SHA 无效")
+        target = (
+            self.config.remote_root
+            / "review-worktrees"
+            / safe_thread
+            / safe_run
+        )
+        connection = await self._connect()
+        quoted_repository = shlex.quote(str(repository))
+        quoted_target = shlex.quote(str(target))
+        quoted_parent = shlex.quote(str(target.parent))
+        quoted_sha = shlex.quote(snapshot_sha)
+        try:
+            await connection.run(f"mkdir -p -- {quoted_parent}", check=True)
+            await connection.run(
+                f"git -C {quoted_repository} worktree add --detach "
+                f"{quoted_target} {quoted_sha}",
+                check=True,
+            )
+            return RemoteReviewWorktree(repository, target, snapshot_sha)
+        except Exception:
+            await connection.run(
+                f"git -C {quoted_repository} worktree remove --force "
+                f"{quoted_target}",
+                check=False,
+            )
+            await connection.run(
+                f"git -C {quoted_repository} worktree prune", check=False
+            )
+            raise
+        finally:
+            connection.close()
+            await connection.wait_closed()
+
+    async def remove_review_worktree(
+        self, worktree: RemoteReviewWorktree
+    ) -> list[str]:
+        """Best-effort cleanup which never hides the review result."""
+
+        repository = self._validated_repository(worktree.repository)
+        target = worktree.path
+        if (
+            not target.is_absolute()
+            or ".." in target.parts
+            or self.config.remote_root not in target.parents
+        ):
+            raise ValueError("审查 worktree 路径不在远端运行根目录内")
+        connection = await self._connect()
+        quoted_repository = shlex.quote(str(repository))
+        quoted_target = shlex.quote(str(target))
+        warnings: list[str] = []
+        try:
+            result = await connection.run(
+                f"git -C {quoted_repository} worktree remove --force "
+                f"{quoted_target}",
+                check=False,
+            )
+            if result.exit_status != 0:
+                warnings.append(
+                    f"VPS 审查 worktree 清理失败：{str(result.stderr).strip()[:200]}"
+                )
+            prune = await connection.run(
+                f"git -C {quoted_repository} worktree prune", check=False
+            )
+            if prune.exit_status != 0:
+                warnings.append(
+                    f"VPS worktree prune 失败：{str(prune.stderr).strip()[:200]}"
+                )
+            return warnings
+        finally:
+            connection.close()
+            await connection.wait_closed()
 
     def _remote_dir(self, request: AgentRequest, run_id: str) -> PurePosixPath:
         try:

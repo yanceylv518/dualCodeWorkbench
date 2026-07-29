@@ -98,7 +98,8 @@ async def compile_handoff_v2(
         ),
         repository=HandoffRepository(
             base_sha=base_sha,
-            # C4 will replace this with the immutable shadow snapshot SHA.
+            # Manual/flag-off handoffs describe HEAD; C4 relay replaces this
+            # with its immutable shadow snapshot before Claude review.
             snapshot_sha=base_sha,
             branch=str(repository["branch"]),
             changed_files=changed_files,

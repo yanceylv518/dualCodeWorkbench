@@ -147,6 +147,65 @@ async def test_shadow_ref_push_overwrites_only_fixed_ref_and_cleans_up(
 
 
 @pytest.mark.asyncio
+async def test_isolated_review_leaves_vps_primary_checkout_unchanged(
+    tmp_path: Path,
+) -> None:
+    repository = tmp_path / "repository"
+    _repository(repository)
+    bare = tmp_path / "origin.git"
+    subprocess.run(
+        ["git", "init", "--bare", str(bare)], check=True, capture_output=True
+    )
+    _git(repository, "push", str(bare), "main")
+    vps_repository = tmp_path / "vps-project"
+    subprocess.run(
+        ["git", "clone", str(bare), str(vps_repository)],
+        check=True,
+        capture_output=True,
+    )
+    _git(vps_repository, "checkout", "main")
+    vps_head_before = _git(vps_repository, "rev-parse", "HEAD")
+    vps_status_before = _git(vps_repository, "status", "--porcelain=v1", "-z")
+
+    (repository / "review-only.txt").write_text("review\n", encoding="utf-8")
+    snapshot = await create_shadow_snapshot(repository)
+    spec = RelayRemoteSpec(local_remote=str(vps_repository))
+    await push_shadow_ref(
+        repository,
+        snapshot.snapshot_sha,
+        workspace_id="workspace-1",
+        thread_id="thread-1",
+        remote_spec=spec,
+    )
+    review_path = tmp_path / "review-worktree"
+    _git(
+        vps_repository,
+        "worktree",
+        "add",
+        "--detach",
+        str(review_path),
+        snapshot.snapshot_sha,
+    )
+    assert (review_path / "review-only.txt").read_text(encoding="utf-8") == (
+        "review\n"
+    )
+    _git(vps_repository, "worktree", "remove", "--force", str(review_path))
+    _git(vps_repository, "worktree", "prune")
+    await cleanup_shadow_ref(
+        repository,
+        workspace_id="workspace-1",
+        thread_id="thread-1",
+        remote_spec=spec,
+    )
+
+    assert _git(vps_repository, "rev-parse", "HEAD") == vps_head_before
+    assert (
+        _git(vps_repository, "status", "--porcelain=v1", "-z")
+        == vps_status_before
+    )
+
+
+@pytest.mark.asyncio
 async def test_shadow_push_failure_is_chinese_and_never_falls_back(
     tmp_path: Path,
 ) -> None:

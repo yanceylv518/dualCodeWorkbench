@@ -3,7 +3,11 @@ from pathlib import Path, PurePosixPath
 import pytest
 
 from dualcode.adapters import AgentRequest
-from dualcode.ssh_adapter import ClaudeSshAdapter, ClaudeSshConfig, RemoteRepositoryUnavailable
+from dualcode.ssh_adapter import (
+    ClaudeSshAdapter,
+    ClaudeSshConfig,
+    RemoteRepositoryUnavailable,
+)
 
 
 @pytest.mark.asyncio
@@ -56,6 +60,107 @@ def test_remote_thread_directory_uses_validated_uuid(tmp_path: Path):
     adapter = ClaudeSshAdapter(config(tmp_path))
     with pytest.raises(ValueError, match="UUID"):
         adapter._remote_dir(AgentRequest("../escape", "prompt", {}), "run")
+
+
+@pytest.mark.asyncio
+async def test_review_worktree_uses_detached_snapshot_and_cleans_up(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+):
+    commands: list[str] = []
+
+    class Result:
+        exit_status = 0
+        stderr = ""
+
+    class Connection:
+        async def run(self, command, **kwargs):
+            commands.append(command)
+            return Result()
+
+        def close(self):
+            return None
+
+        async def wait_closed(self):
+            return None
+
+    adapter = ClaudeSshAdapter(
+        config(
+            tmp_path,
+            remote_root=PurePosixPath("/home/dualcode/runtime"),
+        )
+    )
+
+    async def connect():
+        return Connection()
+
+    monkeypatch.setattr(adapter, "_connect", connect)
+    thread_id = "11111111-1111-4111-8111-111111111111"
+    run_id = "22222222-2222-4222-8222-222222222222"
+    snapshot_sha = "a" * 40
+    worktree = await adapter.create_review_worktree(
+        PurePosixPath("/home/dualcode/work/project"),
+        thread_id=thread_id,
+        run_id=run_id,
+        snapshot_sha=snapshot_sha,
+    )
+    warnings = await adapter.remove_review_worktree(worktree)
+
+    assert warnings == []
+    assert commands == [
+        "mkdir -p -- /home/dualcode/runtime/review-worktrees/"
+        "11111111-1111-4111-8111-111111111111",
+        "git -C /home/dualcode/work/project worktree add --detach "
+        "/home/dualcode/runtime/review-worktrees/"
+        "11111111-1111-4111-8111-111111111111/"
+        "22222222-2222-4222-8222-222222222222 "
+        + snapshot_sha,
+        "git -C /home/dualcode/work/project worktree remove --force "
+        "/home/dualcode/runtime/review-worktrees/"
+        "11111111-1111-4111-8111-111111111111/"
+        "22222222-2222-4222-8222-222222222222",
+        "git -C /home/dualcode/work/project worktree prune",
+    ]
+
+
+@pytest.mark.asyncio
+async def test_review_worktree_add_failure_prunes_registration(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+):
+    commands: list[str] = []
+
+    class Result:
+        exit_status = 0
+        stderr = ""
+
+    class Connection:
+        async def run(self, command, **kwargs):
+            commands.append(command)
+            if "worktree add" in command:
+                raise RuntimeError("add failed")
+            return Result()
+
+        def close(self):
+            return None
+
+        async def wait_closed(self):
+            return None
+
+    adapter = ClaudeSshAdapter(config(tmp_path))
+
+    async def connect():
+        return Connection()
+
+    monkeypatch.setattr(adapter, "_connect", connect)
+    with pytest.raises(RuntimeError, match="add failed"):
+        await adapter.create_review_worktree(
+            PurePosixPath("/home/dualcode/work/project"),
+            thread_id="11111111-1111-4111-8111-111111111111",
+            run_id="22222222-2222-4222-8222-222222222222",
+            snapshot_sha="b" * 40,
+        )
+
+    assert any("worktree remove --force" in command for command in commands)
+    assert commands[-1].endswith("worktree prune")
 
 
 @pytest.mark.asyncio

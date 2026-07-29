@@ -972,24 +972,30 @@ Claude review。
 
 ### C4-3 VPS 隔离 worktree 审查接线（R1-1）
 
-- [ ] `ssh_adapter.py`（或 relay_service 内经 SSH 适配器）增加隔离审查
+- [x] `ssh_adapter.py`（或 relay_service 内经 SSH 适配器）增加隔离审查
   生命周期：`git -C <vps_repo> worktree add --detach <临时路径> <snapshot_sha>`
   → Claude 以该临时路径为工作目录执行审查轮 →
   `git -C <vps_repo> worktree remove --force <临时路径>`（`worktree prune`
   兜底）；临时路径位于现有远端运行根目录下按 thread 隔离；全部命令参数化。
-- [ ] 接线：`smart_collaboration_enabled` 开启且发送 recipient=claude、
+- [x] 接线：`smart_collaboration_enabled` 开启且发送 recipient=claude、
   purpose=review 的交接时——先 `create_shadow_snapshot` + `push_shadow_ref`
   （含首次审批），成功后该轮 Claude 的远端工作目录指向隔离 worktree，
   交接 payload 的 `snapshot_sha` 用真实快照 SHA（替换 C2 的
   `snapshot_sha == base_sha` 过渡语义，注释同步删除）；快照或推送失败时
   中止发送并返回中文错误，不回退为在 VPS 主仓审查。开关关闭时发送链路
   逐字节不变。
-- [ ] 审查轮结束（成功或失败）都执行 worktree 清理；VPS 主仓的工作区与
+- [x] 审查轮结束（成功或失败）都执行 worktree 清理；VPS 主仓的工作区与
   HEAD 在全程零变化。
 - **验收**（对应 R1-1）：SSH 命令序列协议测试（worktree add/remove 顺序与
   参数）；本地裸仓 + 本地「伪 VPS」路径的集成断言——审查前后 VPS 主仓
   `HEAD`、`git status` 零变化；失败路径也执行清理；开关关闭时现有
   send_handoff 行为回归断言。
+- **验证结果（2026-07-29）**：Claude SSH 新增按 thread/run 隔离的 detached
+  worktree 生命周期，创建失败会强制 remove 并 prune，审查成功、失败或取消均在
+  finally 清理；review 交接在智能协作开启时先审批、生成并推送真实影子快照，再把
+  真实 snapshot SHA 写入 handoff，Claude 只读运行于临时 worktree，任一步失败均
+  中文终止且不回退 VPS 主仓。协议测试覆盖 add/remove/prune 顺序与失败清理；本地
+  裸仓 + 伪 VPS 集成验证主仓 HEAD/status 零变化；开关关闭仍调用原发送路径。
 
 **C4 阶段验收**：后端全量 pytest、Ruff、桌面端 TypeScript 通过（前端零
 diff）；GitHub Actions 双平台绿；`RELAY_LOOP_BACKLOG.md` R0-1/R0-2/R0-3/R1-1

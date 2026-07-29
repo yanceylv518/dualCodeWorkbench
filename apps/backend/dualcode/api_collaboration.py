@@ -148,10 +148,26 @@ async def send_handoff(workspace_id: str, thread_id: str, handoff_id: str, db: A
         raise HTTPException(404, "未找到交接包")
     if item.status != "PREPARED":
         raise HTTPException(409, "交接包已经发送")
-    run_id = await scheduler.start(thread_id, _handoff_prompt(item), item.recipient, [])
-    item.status = "SENT"
-    db.add(AuditLog(workspace_id=workspace_id, thread_id=thread_id, event="handoff.sent",
-                    detail=f"handoff={item.id};recipient={item.recipient};run={run_id}"))
+    isolated_review = (
+        settings.smart_collaboration_enabled
+        and item.recipient == "claude"
+        and item.purpose == "review"
+    )
+    if isolated_review:
+        run_id = await scheduler.start_handoff_review(thread_id, item.id)
+    else:
+        run_id = await scheduler.start(
+            thread_id, _handoff_prompt(item), item.recipient, []
+        )
+        item.status = "SENT"
+    db.add(
+        AuditLog(
+            workspace_id=workspace_id,
+            thread_id=thread_id,
+            event="handoff.queued" if isolated_review else "handoff.sent",
+            detail=f"handoff={item.id};recipient={item.recipient};run={run_id}",
+        )
+    )
     await db.commit()
     return {"run_id": run_id, "status": item.status}
 

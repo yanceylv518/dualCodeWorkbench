@@ -41,7 +41,15 @@ from .models import (
 )
 from .config import settings
 from .handoff_compiler import compile_handoff_v2
+from .handoff_prompt import handoff_prompt
 from .memory_service import snapshot_thread_facts
+from .relay_service import (
+    RelayRemoteSpec,
+    build_relay_sync_audit,
+    cleanup_shadow_ref,
+    create_shadow_snapshot,
+    push_shadow_ref,
+)
 from .ssh_adapter import ClaudeSshAdapter, ClaudeSshConfig
 from .runtime_settings import AgentSettings, agent_settings_store
 from .workspace_remote import derived_repository_path, workspace_remote_store
@@ -171,6 +179,176 @@ class RunScheduler:
         run_id = str(uuid.uuid4())
         self._tasks[thread_id] = asyncio.create_task(self._execute(thread_id, run_id, prompt, mode, attachment_ids or []))
         return run_id
+
+    async def start_handoff_review(
+        self, thread_id: str, handoff_id: str
+    ) -> str:
+        if thread_id in self._tasks and not self._tasks[thread_id].done():
+            raise RuntimeError("当前任务已有 Agent 正在运行")
+        run_id = str(uuid.uuid4())
+        self._tasks[thread_id] = asyncio.create_task(
+            self._execute_handoff_review(thread_id, run_id, handoff_id)
+        )
+        return run_id
+
+    def _relay_remote_spec(self, repository_path: str) -> RelayRemoteSpec:
+        return RelayRemoteSpec(
+            host=self.runtime.claude_ssh_host,
+            username=self.runtime.claude_ssh_username,
+            port=self.runtime.claude_ssh_port,
+            repository_path=repository_path,
+            known_hosts=self.runtime.claude_ssh_known_hosts,
+            client_key=self.runtime.claude_ssh_client_key,
+        )
+
+    async def _execute_handoff_review(
+        self, thread_id: str, run_id: str, handoff_id: str
+    ) -> None:
+        """Synchronize and review an immutable snapshot without touching VPS HEAD."""
+
+        worktree = None
+        repository: Path | None = None
+        remote_spec: RelayRemoteSpec | None = None
+        workspace_id = ""
+
+        async def emit(kind: EventType, payload: dict[str, object]) -> None:
+            await manager.publish(
+                AgentEvent(
+                    type=kind,
+                    thread_id=thread_id,
+                    run_id=run_id,
+                    payload=payload,
+                )
+            )
+
+        try:
+            async with SessionLocal() as db:
+                thread = await db.get(Thread, thread_id)
+                item = await db.get(HandoffPackage, handoff_id)
+                workspace = (
+                    await db.get(Workspace, thread.workspace_id) if thread else None
+                )
+                if (
+                    not thread
+                    or not workspace
+                    or not item
+                    or item.thread_id != thread_id
+                    or item.recipient != "claude"
+                    or item.purpose != "review"
+                ):
+                    raise ValueError("未找到可发送给 Claude 的审查交接包")
+                if not isinstance(self._claude, ClaudeSshAdapter):
+                    raise ValueError("智能审查要求已配置可用的 VPS Claude SSH")
+                remote_settings = workspace_remote_store.get(workspace.id)
+                remote_path = remote_settings.vps_repo_path
+                if not remote_path:
+                    remote_path = derived_repository_path(
+                        self.runtime.claude_ssh_projects_root,
+                        remote_settings.remote_url,
+                        workspace.name,
+                    )
+                if not remote_path:
+                    raise ValueError("尚未配置或发现 VPS 仓库路径")
+                workspace_id = workspace.id
+                if not await self.ensure_relay_sync_approval(
+                    db, thread_id, emit
+                ):
+                    raise PermissionError("用户取消了影子快照同步")
+
+                repository = Path(workspace.path).resolve(strict=True)
+                snapshot = await create_shadow_snapshot(repository)
+                remote_spec = self._relay_remote_spec(remote_path)
+                try:
+                    await push_shadow_ref(
+                        repository,
+                        snapshot.snapshot_sha,
+                        workspace_id=workspace.id,
+                        thread_id=thread_id,
+                        remote_spec=remote_spec,
+                    )
+                except Exception as exc:
+                    db.add(
+                        build_relay_sync_audit(
+                            workspace_id=workspace.id,
+                            thread_id=thread_id,
+                            snapshot=snapshot,
+                            succeeded=False,
+                            error=str(exc),
+                        )
+                    )
+                    await db.commit()
+                    raise
+                db.add(
+                    build_relay_sync_audit(
+                        workspace_id=workspace.id,
+                        thread_id=thread_id,
+                        snapshot=snapshot,
+                        succeeded=True,
+                    )
+                )
+                payload = json.loads(item.payload)
+                payload["repository"]["base_sha"] = snapshot.base_sha
+                payload["repository"]["snapshot_sha"] = snapshot.snapshot_sha
+                item.payload = json.dumps(payload, ensure_ascii=False)
+                await db.commit()
+                worktree = await self._claude.create_review_worktree(
+                    PurePosixPath(remote_path),
+                    thread_id=thread_id,
+                    run_id=run_id,
+                    snapshot_sha=snapshot.snapshot_sha,
+                )
+                item.status = "SENT"
+                db.add(
+                    AuditLog(
+                        workspace_id=workspace.id,
+                        thread_id=thread_id,
+                        event="handoff.sent",
+                        detail=(
+                            f"handoff={item.id};recipient=claude;run={run_id}"
+                        ),
+                    )
+                )
+                await db.commit()
+                prompt = handoff_prompt(item)
+
+            await self._execute_chat(
+                thread_id,
+                run_id,
+                prompt,
+                "claude",
+                [],
+                remote_workspace_path=str(worktree.path),
+                allow_remote_write=False,
+                skip_remote_approval=True,
+            )
+        except Exception as exc:
+            message = f"无法启动隔离审查：{str(exc)[:300]}"
+            await emit(EventType.ERROR, {"message": message})
+            async with SessionLocal() as db:
+                thread = await db.get(Thread, thread_id)
+                if thread:
+                    await self._record_system_message(db, thread_id, message)
+                    await db.commit()
+        finally:
+            if worktree and isinstance(self._claude, ClaudeSshAdapter):
+                try:
+                    warnings = await self._claude.remove_review_worktree(worktree)
+                    for warning in warnings:
+                        await emit(EventType.ERROR, {"message": warning})
+                except Exception as exc:
+                    await emit(
+                        EventType.ERROR,
+                        {"message": f"VPS 审查 worktree 清理失败：{str(exc)[:200]}"},
+                    )
+            if repository and remote_spec:
+                warnings = await cleanup_shadow_ref(
+                    repository,
+                    workspace_id=workspace_id,
+                    thread_id=thread_id,
+                    remote_spec=remote_spec,
+                )
+                for warning in warnings:
+                    await emit(EventType.ERROR, {"message": warning})
 
     async def cancel(self, thread_id: str) -> None:
         task = self._tasks.get(thread_id)
@@ -339,7 +517,18 @@ class RunScheduler:
         )
         return True
 
-    async def _execute_chat(self, thread_id: str, run_id: str, prompt: str, agent: str, attachment_ids: list[str]) -> None:
+    async def _execute_chat(
+        self,
+        thread_id: str,
+        run_id: str,
+        prompt: str,
+        agent: str,
+        attachment_ids: list[str],
+        *,
+        remote_workspace_path: str | None = None,
+        allow_remote_write: bool | None = None,
+        skip_remote_approval: bool = False,
+    ) -> None:
         """Run one turn for the selected agent without advancing an orchestration pipeline."""
         async with SessionLocal() as db:
             thread = await db.scalar(select(Thread).where(Thread.id == thread_id))
@@ -385,10 +574,16 @@ class RunScheduler:
                 if not remote_settings.vps_repo_path:
                     runtime = agent_settings_store.load()
                     remote_settings = remote_settings.model_copy(update={"vps_repo_path": derived_repository_path(runtime.claude_ssh_projects_root, remote_settings.remote_url, workspace.name)})
-                has_remote_repo = agent == "claude" and bool(remote_settings.vps_repo_path)
+                has_remote_repo = agent == "claude" and bool(
+                    remote_workspace_path or remote_settings.vps_repo_path
+                )
                 action = "remote_edit_files" if has_remote_repo else "network_access"
                 reason = "允许 VPS Claude 在已配置远端仓库中处理本轮请求" if has_remote_repo else "允许向 VPS Claude 发送本轮对话"
-                if agent != "codex" and not await approve(action, reason):
+                if (
+                    agent != "codex"
+                    and not skip_remote_approval
+                    and not await approve(action, reason)
+                ):
                     thread.state = RunState.CREATED
                     run.state = RunState.CANCELLED
                     await db.commit()
@@ -472,8 +667,12 @@ class RunScheduler:
                 if previous_session:
                     context["session_id"] = previous_session.external_session_id
                 if has_remote_repo:
-                    context["remote_workspace_path"] = remote_settings.vps_repo_path
-                    context["allow_remote_write"] = True
+                    context["remote_workspace_path"] = (
+                        remote_workspace_path or remote_settings.vps_repo_path
+                    )
+                    context["allow_remote_write"] = (
+                        True if allow_remote_write is None else allow_remote_write
+                    )
                 adapter = self._codex if agent == "codex" else self._claude
                 if agent == "codex":
                     run.before_diff = await self._git.diff(Path(workspace.path))

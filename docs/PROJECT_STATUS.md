@@ -1,5 +1,15 @@
 # DualCode Workbench 项目状态
 
+## 2026-07-29 智能协作 C4-3 VPS 隔离审查
+
+- review 交接在智能协作开启时执行完整影子链路：任务级首次审批、无侵入本地快照、
+  专用 relay ref 推送、真实 snapshot SHA 回填，再由 Claude 在 VPS detached worktree
+  中只读审查；关闭开关时保留原发送行为。
+- VPS worktree 位于远端运行根目录并按 thread/run 隔离；创建失败、审查成功、失败或取消
+  均执行强制 remove 与 prune，任一步失败都会中文终止，不会退回 VPS 主仓继续审查。
+- SSH 协议测试覆盖 add/remove/prune 顺序与失败清理；本地裸仓和伪 VPS 集成验证主仓
+  HEAD/status 零变化。C4 已完成，按约定停在 C5 前等待 Claude review。
+
 ## 2026-07-29 智能协作 C4-2 影子 ref 推送与任务授权
 
 - 影子快照仅强制推送到 `refs/dualcode/relay/{workspace}/{thread}`；组件先校验，

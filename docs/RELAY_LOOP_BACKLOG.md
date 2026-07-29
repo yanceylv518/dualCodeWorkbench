@@ -121,12 +121,15 @@ stream-json 按整条 assistant 消息吐出，思考与正文都是「憋完一
 
 ### R1-1 VPS 隔离 worktree 审查执行
 
-- [ ] Claude 审查轮在 VPS 上执行：`git fetch` 影子 ref → 在临时路径
+- [x] Claude 审查轮在 VPS 上执行：影子 ref 推送完成 → 在临时路径
   `git worktree add --detach` 检出 `snapshot_sha` → Claude 以该目录为工作目录审查 →
   轮次结束移除 worktree。VPS 主仓库工作区与 HEAD 全程不动。
-- [ ] 审查输入复用既有交接包结构（契约摘要、`base_sha..snapshot_sha` 变更文件与 Diff
+- [x] 审查输入复用既有交接包结构（契约摘要、`base_sha..snapshot_sha` 变更文件与 Diff
   统计、测试证据），不复制聊天全文。
 - **验收**：SSH 命令序列有协议测试；VPS 主仓库状态不变有集成断言。
+- **验证结果（2026-07-29）**：review 发送链路已接入真实 snapshot SHA、VPS detached
+  worktree 和只读 Claude 工作目录；add/remove/prune 命令序列、创建失败清理均有协议
+  测试，本地裸仓 + 伪 VPS 集成确认审查前后主仓 HEAD/status 零变化。
 
 ### R1-2 机器可读裁决（已由 `SMART_COLLABORATION_IMPLEMENTATION_PLAN.md` C2 取代）
 
