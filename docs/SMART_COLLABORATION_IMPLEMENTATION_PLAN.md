@@ -688,20 +688,23 @@ collaboration.failed
 
 ### C1-3 上下文组装注入（预算 + 功能开关）
 
-- [ ] `config.py` 新增 `smart_collaboration_enabled: bool = False`（§14 开关，
+- [x] `config.py` 新增 `smart_collaboration_enabled: bool = False`（§14 开关，
   环境变量可开）；`context_budget.py` 新增 `MEMORY_CHAR_BUDGET = 8_000` 与
   `MEMORY_TRUNCATION_MARKER = "【共享记忆已截断】"`。
-- [ ] 新增纯函数 `build_memory_section(facts, budget)`（放 `context_budget.py`
+- [x] 新增纯函数 `build_memory_section(facts, budget)`（放 `context_budget.py`
   或 memory_service，二选一并保持单一职责）：按 §3.3 顺序渲染——目标/验收 →
   决策与规则 → 仓库基线 → 未关闭风险/阻塞 → 其余；超预算按可信度从低到高
   丢弃（`stale`/`unverified` 先弃），`confirmed` 事实不得截断，溢出时插入
   截断标记。
-- [ ] scheduler 接线：开关开启时，Codex 与 Claude 的每轮上下文在现有契约段
+- [x] scheduler 接线：开关开启时，Codex 与 Claude 的每轮上下文在现有契约段
   之后附加记忆段（两条路径同一实现）；开关关闭（默认）时不查询、不注入，
   现有 prompt 逐字节不变。
 - **验收**：开关关闭时现有全部测试与 prompt 快照零变化；开关开启的集成测试
   覆盖 §12 C1 验收场景——同任务先后调用两个 Agent，上下文均含已确认目标、
   当前 commit 与未关闭风险；预算截断与 confirmed 保全有专项测试。
+  - 2026-07-29：专项 12 项通过；默认关闭路径已锁定为零数据库访问，环境变量
+    可开启；Codex/Claude 共用同一记忆组装入口，目标、commit、风险及预算策略
+    均有覆盖。
 
 **C1 阶段验收**：后端全量 pytest（含迁移、服务、注入专项）、Ruff、桌面端
 TypeScript 通过（前端应无 diff）；GitHub Actions 双平台绿；开关默认关闭下

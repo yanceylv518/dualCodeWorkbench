@@ -17,7 +17,7 @@ from .approvals import approval_gate
 from .cli_adapters import ClaudeCliAdapter
 from .codex_app_server import CodexAppServerAdapter
 from .connections import manager
-from .context_budget import build_recent_transcript, truncate_contract
+from .context_budget import build_memory_section, build_recent_transcript, truncate_contract
 from .database import SessionLocal
 from .document_text import DOCX_MEDIA_TYPE, extract_docx_text
 from .events import AgentEvent, EventType
@@ -30,6 +30,7 @@ from .models import (
     AuditLog,
     FileChange,
     Message,
+    MemoryFact,
     ProjectGovernance,
     RunState,
     Thread,
@@ -37,6 +38,7 @@ from .models import (
     Workspace,
 )
 from .config import settings
+from .memory_service import snapshot_thread_facts
 from .ssh_adapter import ClaudeSshAdapter, ClaudeSshConfig
 from .runtime_settings import AgentSettings, agent_settings_store
 from .workspace_remote import derived_repository_path, workspace_remote_store
@@ -118,6 +120,25 @@ class RunScheduler:
             self._thread_grants.add((thread_id, action))
             return True
         return False
+
+    async def _shared_memory_prompt(self, db, workspace: Workspace, thread: Thread) -> str:
+        if not settings.smart_collaboration_enabled:
+            return ""
+        await snapshot_thread_facts(db, workspace, thread)
+        facts = (
+            await db.scalars(
+                select(MemoryFact).where(
+                    MemoryFact.workspace_id == workspace.id,
+                    (
+                        (MemoryFact.thread_id == thread.id)
+                        | MemoryFact.thread_id.is_(None)
+                    ),
+                    MemoryFact.invalidated_at.is_(None),
+                )
+            )
+        ).all()
+        rendered = build_memory_section(list(facts))
+        return f"SHARED MEMORY:\n{rendered}\n\n" if rendered else ""
 
     async def start(self, thread_id: str, prompt: str, mode: str, attachment_ids: list[str] | None = None) -> str:
         if thread_id in self._tasks and not self._tasks[thread_id].done():
@@ -220,6 +241,7 @@ class RunScheduler:
                     "known_risks": json.loads(task_contract.risks) if task_contract else [],
                 }
                 contract_text = truncate_contract(json.dumps(governance_context, ensure_ascii=False))
+                memory_text = await self._shared_memory_prompt(db, workspace, thread)
                 request_prompt = (
                     "Continue this development conversation. Respond only as the selected agent. "
                     "Do not hand off to another agent or automatically advance a workflow. "
@@ -228,6 +250,7 @@ class RunScheduler:
                     "Identify requirements not covered by the implementation, potential problems, regression risks, and missing evidence. "
                     "If the existing architecture is insufficient, propose a formal architectural change instead of disguising a temporary patch as complete.\n\n"
                     f"PROJECT AND TASK CONTRACT:\n{contract_text}\n\n"
+                    f"{memory_text}"
                     f"RECENT CONVERSATION:\n{transcript}\n\nCURRENT REQUEST:\n{prompt}"
                 )
                 context = {"workspace_path": workspace.path}
