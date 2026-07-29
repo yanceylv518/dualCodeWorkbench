@@ -75,6 +75,9 @@ stream-json 按整条 assistant 消息吐出，思考与正文都是「憋完一
 
 ## Phase R0：影子同步通道（本地 → VPS，替代手动 push）
 
+> 规格归属：R0-1、R0-2、R0-3 保持有效，由
+> `SMART_COLLABORATION_IMPLEMENTATION_PLAN.md` Phase C4 原样实施。
+
 ### R0-1 本地影子快照生成
 
 - [ ] 不触碰用户 index 与工作树：用临时 index（`GIT_INDEX_FILE` + `git add -A` +
@@ -101,6 +104,10 @@ stream-json 按整条 assistant 消息吐出，思考与正文都是「憋完一
 
 ## Phase R1：Claude 审查协议
 
+> 规格归属：R1-1 保持有效，由
+> `SMART_COLLABORATION_IMPLEMENTATION_PLAN.md` Phase C4 原样实施；R1-2 已被 C2
+> `review.v1` 取代。
+
 ### R1-1 VPS 隔离 worktree 审查执行
 
 - [ ] Claude 审查轮在 VPS 上执行：`git fetch` 影子 ref → 在临时路径
@@ -110,7 +117,11 @@ stream-json 按整条 assistant 消息吐出，思考与正文都是「憋完一
   统计、测试证据），不复制聊天全文。
 - **验收**：SSH 命令序列有协议测试；VPS 主仓库状态不变有集成断言。
 
-### R1-2 机器可读裁决
+### R1-2 机器可读裁决（已由 `SMART_COLLABORATION_IMPLEMENTATION_PLAN.md` C2 取代）
+
+> 以下原始规格仅供追溯，不再作为实施依据。权威规格为 C2 `review.v1`：
+> 支持 `needs_user` 裁决，finding type 使用英文枚举，并以 `severity` + `acceptance`
+> 取代本条的中文 type 与 `suggestion` 字段。
 
 - [ ] Claude 审查提示词在自然语言结论后强制输出固定 JSON 块：
   `{"verdict": "pass" | "blocking", "findings": [{"type": "未实现|部分实现|回归|潜在问题|架构违规|证据缺口", "severity": "blocking|advisory", "file": "...", "desc": "...", "suggestion": "..."}]}`。
@@ -120,14 +131,21 @@ stream-json 按整条 assistant 消息吐出，思考与正文都是「憋完一
 
 ## Phase R2：编排循环状态机
 
-### R2-1 relay 执行模式与持久化状态机
+### R2-1 relay 执行模式与持久化状态机（已由 `SMART_COLLABORATION_IMPLEMENTATION_PLAN.md` C5 取代）
+
+> 以下原始规格仅供追溯，不再作为实施依据。权威实现为 C5
+> `collaboration_runs`；`MessageCreate.mode` 不新增 `relay`，智能协作模式统一为
+> `smart`。
 
 - [ ] `MessageCreate.mode` 增加 `relay`；新增 `RelayRun` 持久化记录（轮次、阶段
   `implementing→syncing→reviewing→fixing`、状态、每轮 verdict、错误）；
   崩溃重启后恢复到明确的可续/已中断状态，不自动重放副作用（对齐 ExecutionJob 语义）。
 - **验收**：状态机单元测试覆盖正常流转、每阶段失败、重启恢复。
 
-### R2-2 发现 → 修复指令编译
+### R2-2 发现 → 修复指令编译（已由 `SMART_COLLABORATION_IMPLEMENTATION_PLAN.md` C5 取代）
+
+> 以下原始规格仅供追溯，不再作为实施依据。权威实现为 C5
+> `HandoffCompiler`。
 
 - [ ] `verdict=blocking` 时把 findings 结构化编译为 Codex 下一轮提示词（按 severity
   排序、带文件定位与建议），并写入任务契约「已知问题」；`verdict=pass` 时生成
@@ -135,7 +153,9 @@ stream-json 按整条 assistant 消息吐出，思考与正文都是「憋完一
 - [ ] Claude 的 findings 同时作为下轮审查的「上轮遗留」输入，避免重复报告已修复项。
 - **验收**：编译器单元测试；契约写入有 API 测试。
 
-### R2-3 挂起、介入与上限
+### R2-3 挂起、介入与上限（已由 `SMART_COLLABORATION_IMPLEMENTATION_PLAN.md` C5 取代）
+
+> 以下原始规格仅供追溯，不再作为实施依据。权威停止条件为智能协作方案 §5.3。
 
 - [ ] Codex 轮内出现任何审批请求 → 循环挂起，审批卡照常进入消息流，用户处理后循环续跑。
 - [ ] 用户可随时停止接力（复用现有取消链路），停止后状态落在明确轮次边界。
@@ -144,13 +164,18 @@ stream-json 按整条 assistant 消息吐出，思考与正文都是「憋完一
 
 ## Phase R3：上下文增强与 UI
 
-### R3-1 交接携带决策上下文
+### R3-1 交接携带决策上下文（已由 `SMART_COLLABORATION_IMPLEMENTATION_PLAN.md` C1/C2 取代）
+
+> 以下原始规格仅供追溯，不再作为实施依据。共享决策上下文由 C1
+> `MemoryService` 维护，并通过 C2 `handoff.v2` 交接。
 
 - [ ] Codex 轮结束后从活动时间线提取本轮决策要点（执行过的关键命令、失败重试、
   文件级变更意图）附入审查输入；体量计入现有 20k 契约预算并截断标注。
 - **验收**：提取纯函数单元测试；超预算截断测试。
 
-### R3-2 接力进度卡
+### R3-2 接力进度卡（已由 `SMART_COLLABORATION_IMPLEMENTATION_PLAN.md` C6 取代）
+
+> 以下原始规格仅供追溯，不再作为实施依据。权威 UI 为 C6 统一协作时间线。
 
 - [ ] 消息流内新增接力进度卡：轮次时间线（实现→同步→审查→修复）、当前阶段动效、
   每轮 verdict 徽标、可展开 findings 列表、停止按钮；复用 A3/A6 的行样式与 token。

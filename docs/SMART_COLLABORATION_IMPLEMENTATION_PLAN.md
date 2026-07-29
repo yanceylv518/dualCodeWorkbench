@@ -293,18 +293,20 @@ Claude 的机器可读裁决：
 ### 9.2 API
 
 ```text
-POST   /threads/{id}/collaboration-runs
-GET    /threads/{id}/collaboration-runs/current
-POST   /collaboration-runs/{id}/pause
-POST   /collaboration-runs/{id}/resume
-POST   /collaboration-runs/{id}/cancel
-POST   /collaboration-runs/{id}/decisions
-GET    /threads/{id}/memory
-GET    /threads/{id}/handoffs
-GET    /collaboration-runs/{id}/findings
+POST   /api/workspaces/{workspace_id}/threads/{thread_id}/collaboration-runs
+GET    /api/workspaces/{workspace_id}/threads/{thread_id}/collaboration-runs/current
+GET    /api/workspaces/{workspace_id}/threads/{thread_id}/memory
+GET    /api/workspaces/{workspace_id}/threads/{thread_id}/handoffs
+POST   /api/collaboration-runs/{id}/pause
+POST   /api/collaboration-runs/{id}/resume
+POST   /api/collaboration-runs/{id}/cancel
+POST   /api/collaboration-runs/{id}/decisions
+GET    /api/collaboration-runs/{id}/findings
 ```
 
 创建请求只接收用户目标和可选模式；前端不能直接指定内部状态跃迁。
+`/api/collaboration-runs/{id}/...` 操作必须通过运行记录反查并校验当前 workspace/thread
+归属，继续使用现有 sidecar token 鉴权与工作区访问边界，不允许凭 run id 跨工作区访问。
 
 ### 9.3 WebSocket 事件
 
@@ -399,7 +401,8 @@ collaboration.failed
 
 ### Phase C4：影子 Git 与 VPS 隔离审查
 
-- 实施 `RELAY_LOOP_BACKLOG.md` R0、R1。
+- 实施 `RELAY_LOOP_BACKLOG.md` R0-1、R0-2、R0-3、R1-1；R1-2 已由 C2
+  `review.v1` 取代，不再实施。
 - 本地脏工作树快照、专用 ref、VPS worktree 和清理闭环。
 - **验收**：用户 HEAD/index/worktree 零变化；VPS 主仓状态零变化；敏感文件被排除。
 
@@ -529,7 +532,7 @@ collaboration.failed
 
 ### C-R1 冻结 R 系列与 C 系列的规格归属（纯文档修订）
 
-- [ ] `docs/RELAY_LOOP_BACKLOG.md`：为下列条目逐条标注取代关系，保留原文供追溯，
+- [x] `docs/RELAY_LOOP_BACKLOG.md`：为下列条目逐条标注取代关系，保留原文供追溯，
   条目标题后加「（已由 `SMART_COLLABORATION_IMPLEMENTATION_PLAN.md` 取代）」并注明对应阶段：
   - R1-2 机器可读裁决 → 由 **C2 `review.v1`** 取代（`needs_user` 裁决、英文 finding type、
     `severity` + `acceptance` 字段为准；R1-2 的中文 type 与 `suggestion` 字段作废）。
@@ -540,9 +543,9 @@ collaboration.failed
   - R3-1 交接携带决策上下文 → 由 **C1 MemoryService + C2 handoff.v2** 取代。
   - R3-2 接力进度卡 → 由 **C6 统一协作时间线** 取代。
   - R0-1、R0-2、R0-3、R1-1 保持有效，由 **C4** 原样实施；T2、T3 保持有效，独立于 C 系列。
-- [ ] 本方案 §12 Phase C4 的「实施 `RELAY_LOOP_BACKLOG.md` R0、R1」改为
+- [x] 本方案 §12 Phase C4 的「实施 `RELAY_LOOP_BACKLOG.md` R0、R1」改为
   「实施 R0-1、R0-2、R0-3、R1-1（R1-2 已由 C2 取代）」。
-- [ ] 本方案 §9.2 API 路径统一为现有形态：
+- [x] 本方案 §9.2 API 路径统一为现有形态：
   `/api/workspaces/{workspace_id}/threads/{thread_id}/...`（对照 `api_collaboration.py:99`），
   `collaboration-runs` 子资源操作挂 `/api/collaboration-runs/{id}/...` 需同步说明鉴权与归属校验。
 - **为什么**：两份文档当前对同一循环存在两套持久化（`RelayRun` vs `collaboration_runs`）、
@@ -550,6 +553,9 @@ collaboration.failed
   C0「规格冻结」无法成立。
 - **验收**：两份文档交叉引用一致；全文搜索不再存在未标注取代关系的冲突条目；
   `RelayRun`、`mode=relay` 仅出现在已标注作废的原文中。
+- **验证结果（2026-07-29）**：R0-1/R0-2/R0-3/R1-1 明确保留并归属 C4；
+  R1-2、R2-1/R2-2/R2-3、R3-1/R3-2 均已逐条标记取代关系；C4 范围和 API
+  路径已同步修正，`RelayRun` 与 `mode=relay` 只保留在明确作废的追溯原文中。
 
 ### C-R2 关闭 T1-R1：reasoning 回退 ID 跨消息碰撞（代码 + 测试）
 

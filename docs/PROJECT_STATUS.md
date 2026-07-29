@@ -1,5 +1,11 @@
 # DualCode Workbench 项目状态
 
+## 2026-07-29 智能协作 C-R1 规格归属冻结
+
+- 明确 `RELAY_LOOP_BACKLOG.md` 中 R0-1/R0-2/R0-3/R1-1 继续有效并归属 C4；旧 R1-2、R2、R3 规格分别由 C2、C5、C6 的权威协议取代，原文仅保留追溯。
+- 智能协作 API 路径统一到现有 `/api/workspaces/{workspace_id}/threads/{thread_id}/...` 形态，run 子资源操作必须反查 workspace/thread 归属。
+- C-R1 已关闭；下一项为 C-R2 reasoning 回退 ID 跨消息碰撞修复。
+
 ## 2026-07-27 智能协作实施方案
 
 - 新增 `docs/SMART_COLLABORATION_IMPLEMENTATION_PLAN.md`，将共享项目/任务记忆、确定性自动路由、结构化交接、Codex 实现与 Claude 审查闭环、停止条件和统一协作 UI 汇总为完整实施方案。
