@@ -519,3 +519,53 @@ collaboration.failed
 - §4.3 复杂度判定含"五个以上文件"，但文件数只能在实现后得知。C3 需明确判定时机：
   事前按请求分类路由，实现后按实际 Diff 升级为需审查——否则"相同输入得到相同路由"
   的表驱动测试无法定义。
+
+---
+
+## 返工项执行清单（交 Codex，进入 C0 前完成）
+
+> 执行约定沿用 `docs/REMEDIATION_BACKLOG.md` 全部规则：一条目一 commit、附测试、
+> 禁止顺手重构、全量验证、完成后勾选并填写验证结果，全部完成后停下等 Claude review。
+
+### C-R1 冻结 R 系列与 C 系列的规格归属（纯文档修订）
+
+- [ ] `docs/RELAY_LOOP_BACKLOG.md`：为下列条目逐条标注取代关系，保留原文供追溯，
+  条目标题后加「（已由 `SMART_COLLABORATION_IMPLEMENTATION_PLAN.md` 取代）」并注明对应阶段：
+  - R1-2 机器可读裁决 → 由 **C2 `review.v1`** 取代（`needs_user` 裁决、英文 finding type、
+    `severity` + `acceptance` 字段为准；R1-2 的中文 type 与 `suggestion` 字段作废）。
+  - R2-1 relay 执行模式与 `RelayRun` → 由 **C5 `collaboration_runs`** 取代
+    （`MessageCreate.mode` 不新增 `relay`，智能协作模式统一为 `smart`）。
+  - R2-2 发现 → 修复指令编译 → 由 **C5 HandoffCompiler** 取代。
+  - R2-3 挂起、介入与上限 → 由 **C5 停止条件（方案 §5.3）** 取代。
+  - R3-1 交接携带决策上下文 → 由 **C1 MemoryService + C2 handoff.v2** 取代。
+  - R3-2 接力进度卡 → 由 **C6 统一协作时间线** 取代。
+  - R0-1、R0-2、R0-3、R1-1 保持有效，由 **C4** 原样实施；T2、T3 保持有效，独立于 C 系列。
+- [ ] 本方案 §12 Phase C4 的「实施 `RELAY_LOOP_BACKLOG.md` R0、R1」改为
+  「实施 R0-1、R0-2、R0-3、R1-1（R1-2 已由 C2 取代）」。
+- [ ] 本方案 §9.2 API 路径统一为现有形态：
+  `/api/workspaces/{workspace_id}/threads/{thread_id}/...`（对照 `api_collaboration.py:99`），
+  `collaboration-runs` 子资源操作挂 `/api/collaboration-runs/{id}/...` 需同步说明鉴权与归属校验。
+- **为什么**：两份文档当前对同一循环存在两套持久化（`RelayRun` vs `collaboration_runs`）、
+  两套模式枚举（`relay` vs `smart`）和两套裁决 schema，执行者无法确定权威规格，
+  C0「规格冻结」无法成立。
+- **验收**：两份文档交叉引用一致；全文搜索不再存在未标注取代关系的冲突条目；
+  `RelayRun`、`mode=relay` 仅出现在已标注作废的原文中。
+
+### C-R2 关闭 T1-R1：reasoning 回退 ID 跨消息碰撞（代码 + 测试）
+
+- [ ] `apps/backend/dualcode/claude_stream.py`：`ClaudeStreamParser` 维护 assistant
+  消息序号（每收到一条 `type=assistant` 消息自增），thinking 块回退 ID 由
+  `claude-reasoning-{block_index}` 改为 `claude-reasoning-{message_seq}-{block_index}`；
+  块自带 `id` 时仍优先使用原生 id。
+- [ ] `apps/backend/tests/test_claude_stream.py`：更新现有断言（`:111` 的
+  `claude-reasoning-0`），并新增协议测试：「两条 assistant 消息各含一个 thinking 块 →
+  产出两个不同的 reasoning ID」，断言两个 ID 互不相等且各自稳定。
+- [ ] 本地 CLI 与 VPS SSH 两条路径共用该解析器，`test_cli_adapters.py` /
+  `test_ssh_adapter.py` 中如有引用旧 ID 的断言一并更新。
+- [ ] 完成后在 `docs/RELAY_LOOP_BACKLOG.md` T1 Review 记录的 T1-R1 条目下补验证结果。
+- **为什么**：VPS 路径默认开启工具，一轮多条 assistant 消息是常态，每条消息首个
+  thinking 块共享 `claude-reasoning-0`，前端 store 对同 ID `delta` 直接字符串拼接，
+  思考段会无分隔拼接并破坏活动时间线顺序（详见 T1 Review）。
+- **约束**：T2 的 partial 事件去重必须沿用同一 ID 语义（`message_seq` 维度），
+  实施 T2 时不得再次变更 ID 形态。
+- **验收**：后端全量 pytest 与 Ruff 通过；协议测试覆盖跨消息 ID 唯一性。
