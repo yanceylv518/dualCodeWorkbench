@@ -709,6 +709,78 @@ collaboration.failed
 **C1 阶段验收**：后端全量 pytest（含迁移、服务、注入专项）、Ruff、桌面端
 TypeScript 通过（前端应无 diff）；GitHub Actions 双平台绿；开关默认关闭下
 现有 Codex/Claude 单模式零回归。
+
+---
+
+## C2 执行清单（交 Codex）
+
+> 执行约定沿用 `docs/REMEDIATION_BACKLOG.md` 全部规则。C2-1 → C2-2 → C2-3 按序
+> 执行、一条目一 commit；三条全部完成后停下等 Claude review，不进入 C3。
+> 全程受 `smart_collaboration_enabled` 守门：开关关闭时现有交接 API 的 payload
+> 与提示词逐字节不变；v2 交接预览的前端渲染属 C6，本阶段前端应无 diff。
+
+### C2-1 HandoffCompiler：编译并存储 `handoff.v2`
+
+- [ ] 新增 `apps/backend/dualcode/handoff_compiler.py`：
+  `compile_handoff_v2(db, workspace, thread, *, purpose, sender, recipient)
+  -> HandoffV2`，从真实数据构建并经冻结模型校验：
+  - `task`：TaskContract 的 goal/non_goals/acceptance/constraints。
+  - `repository`：`base_sha` = 当前 HEAD；**C4 影子快照实施前
+    `snapshot_sha` 取值等于 `base_sha`，在字段旁注释说明**；`branch` 取现状；
+    `changed_files` 来自 FileChange 路径；`diff_stats` 定义为
+    `{"files": 变更文件数}`（后续扩展属受控协议变更）。
+  - `evidence`：TestRun 经 C0-2 `from_test_run` 投影为
+    `{type: "test", command, exit_code, summary}`；`output` 全文禁入。
+  - `claims` 留空列表（Codex 主张在 C5 由编排器填入）；`risks` 取契约
+    known_risks；`open_findings` 取该交接前未解决 finding 描述（C2-3 落地前
+    可先留空列表并注明）。
+- [ ] `api_collaboration.py` 的 `prepare_handoff`：开关开启时 payload 存
+  `compile_handoff_v2(...).model_dump(by_alias=True)`；开关关闭时走现有
+  `_handoff_payload` 且输出逐字节不变。
+- **验收**：编译器单元测试覆盖字段来源逐项断言、大字段（diff、output）禁入、
+  模型校验失败传播；API 测试覆盖开关两态的 payload 形状。
+
+### C2-2 ReviewParser：`review.v1` 确定性解析
+
+- [ ] 新增 `apps/backend/dualcode/review_parser.py`：
+  `parse_review(text: str) -> ReviewParseResult`。`ReviewParseResult` 为严格模型：
+  `outcome: Literal["parsed", "no_json", "invalid_json", "schema_mismatch"]`、
+  `review: ReviewV1 | None`（仅 parsed 非空）、`raw_text: str`（无论成败完整
+  保留原文，供 C5 在解析失败时进入 `WAITING_USER` 展示）、
+  `error: str | None`（截断为单行 200 字符）。
+- [ ] 提取规则确定性固定：优先扫描 ```json 围栏块，无围栏时扫描裸 JSON 对象；
+  存在多个候选时取**最后一个**能通过 `ReviewV1` 校验的候选（结论惯例在文末），
+  全部候选都校验失败时按最后一个候选的失败类别归类；禁止任何形式的裁决猜测
+  或字段补全（§6：解析失败不得猜测裁决）。
+- **验收**：§12 C2 四类输入——正常、缺字段（`schema_mismatch`）、非法 JSON
+  （`invalid_json`）、无 JSON（`no_json`）——各有确定行为断言；另覆盖多候选
+  取末、围栏与裸 JSON、原文保留逐字节断言。
+
+### C2-3 findings 持久化（迁移 + 服务 + 审计）
+
+- [ ] `collaboration_protocol.py` 冻结 `FindingStatus = Literal["open",
+  "resolved"]`（受控协议变更）。
+- [ ] `models.py` 新增 `CollaborationRun` 与 `ReviewFinding` ORM，按 §8.1 列
+  定义；`ReviewFinding.collaboration_run_id` 可空（C5 前的裁决仅关联
+  `source_handoff_id`）、`resolved_by_snapshot_sha` 可空。
+- [ ] Alembic 迁移 `0004`：同时新增 `collaboration_runs` 与 `review_findings`
+  两表——**`collaboration_runs` 提前建表仅作为外键目标，C5 前无任何写入方**
+  （SQLite 事后加外键需重建表，故一次建齐；在迁移 docstring 写明理由）；
+  沿用防重入护栏与 downgrade；迁移测试覆盖升级保数据与降级。
+- [ ] 新增 `apps/backend/dualcode/review_findings.py`（或并入 review_parser，
+  二选一保持单一职责）：`persist_review_findings(db, *, workspace_id, thread_id,
+  source_handoff_id, review: ReviewV1, collaboration_run_id=None, round=1)
+  -> list[ReviewFinding]`——逐条落库（status="open"），并经
+  `collaboration_audit.py` 新增的 `EVENT_REVIEW_VERDICT =
+  "collaboration.review_verdict"` 与 `ReviewVerdictDetail(handoff_id, verdict,
+  blocking_count, advisory_count)` 构建器写一条裁决审计（受控变更；finding
+  描述全文不入审计）。
+- **验收**：持久化测试覆盖逐字段落库、audit 行断言、finding 描述不入审计
+  detail；迁移测试全绿。
+
+**C2 阶段验收**：后端全量 pytest、Ruff、桌面端 TypeScript 通过（前端应无
+diff）；GitHub Actions 双平台绿；开关默认关闭下现有交接 API payload 与提示词
+逐字节不变（有回归断言）。完成后停下等 Claude review。
 - **验证结果（2026-07-29）**：新增两类稳定事件名、严格 detail 模型及返回未入库
   `AuditLog` 的纯构建器；构建前复用冻结的跃迁与路由查表校验。evidence 摘要函数
   仅提升为公开复用点，detail 全部字符串统一单行化并限制为最多 200 字符。
