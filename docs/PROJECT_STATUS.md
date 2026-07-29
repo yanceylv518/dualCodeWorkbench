@@ -1,5 +1,14 @@
 # DualCode Workbench 项目状态
 
+## 2026-07-29 智能协作 C1-2 MemoryService
+
+- 新增共享事实写入、可信度单调覆盖、旧 commit 仓库事实 stale 标记和任务快照；
+  Agent 的未验证事实不能覆盖用户确认或系统验证事实。
+- 快照从任务目标、验收、风险、当前 Git commit 和测试短摘要生成事实，同内容同
+  commit 幂等；完整契约字段、diff 与测试 output 不进入共享记忆。
+- 每次创建、覆盖和 stale 变更均生成严格 `collaboration.memory_change` 审计；
+  专项 12 项通过，下一项为 C1-3 开关守门的上下文注入。
+
 ## 2026-07-29 智能协作 C1-1 共享事实契约与迁移
 
 - 冻结共享事实 kind/source/confidence 协议、可信度排序和 500 字符单行内容契约；

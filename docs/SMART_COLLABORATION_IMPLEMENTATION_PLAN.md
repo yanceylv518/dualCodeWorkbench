@@ -663,7 +663,7 @@ collaboration.failed
 
 ### C1-2 MemoryService：事实生成、覆盖规则、失效与审计
 
-- [ ] 新增 `apps/backend/dualcode/memory_service.py`：
+- [x] 新增 `apps/backend/dualcode/memory_service.py`：
   - `record_fact(...)`：写入事实；`supersedes_id` 指定时执行覆盖规则——新事实
     可信度必须 ≥ 被覆盖事实（按 C1-1 排序），Agent 来源（codex/claude）的
     `unverified` 事实不得覆盖 `confirmed`/`verified`，违规抛 `ValueError`；
@@ -683,6 +683,8 @@ collaboration.failed
     每次写入/覆盖/失效均 `db.add` 对应审计行。
 - **验收**：服务测试覆盖写入、合法与非法覆盖、stale 批量失效、快照生成幂等、
   审计行逐字段；大字段（契约全文、diff、测试 output）不进入事实内容。
+  - 2026-07-29：专项 12 项通过；写入、可信度单调覆盖、旧 commit stale、
+    快照幂等和逐字段审计均已覆盖，测试 output 与未投影契约字段不会进入事实。
 
 ### C1-3 上下文组装注入（预算 + 功能开关）
 
