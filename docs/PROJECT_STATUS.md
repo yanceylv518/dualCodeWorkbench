@@ -1,5 +1,14 @@
 # DualCode Workbench 项目状态
 
+## 2026-07-29 智能协作 C4-2 影子 ref 推送与任务授权
+
+- 影子快照仅强制推送到 `refs/dualcode/relay/{workspace}/{thread}`；组件先校验，
+  SSH transport 强制 known_hosts 与 strict host checking，失败中文化且绝不回退 origin。
+- 首次同步使用 `relay_shadow_sync` 审批，允许本任务后经审计恢复；同步审计仅记录
+  SHA 与排除数量。任务删除接入本地/远端 ref 清理，失败只写警告审计。
+- 裸仓覆盖推送、审批恢复、清理和非法输入均有测试；后端 229 项、Ruff 与
+  TypeScript 通过。下一项为 C4-3 VPS 隔离 worktree 审查接线。
+
 ## 2026-07-29 智能协作 C4-1 本地影子快照
 
 - 新增 `RelayService.create_shadow_snapshot`，用临时 Git index 捕获 staged、

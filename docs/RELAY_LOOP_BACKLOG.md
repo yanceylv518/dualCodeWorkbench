@@ -93,18 +93,25 @@ stream-json 按整条 assistant 消息吐出，思考与正文都是「憋完一
 
 ### R0-2 VPS 直连推送影子 ref
 
-- [ ] 经既有 SSH 通道以 `ssh://` remote（或等价参数化 `git push` 命令）把快照推送到
+- [x] 经既有 SSH 通道以 `ssh://` remote（或等价参数化 `git push` 命令）把快照推送到
   VPS 仓库的 `refs/dualcode/relay/<workspace_id>/<thread_id>`；known_hosts 校验、
   参数化调用沿用现有 SSH 安全机制，不新增 shell 拼接。
-- [ ] 推送失败（网络、权限、非快进）给出中文原因并允许该轮显式重试；不自动改推 origin。
+- [x] 推送失败（网络、权限、非快进）给出中文原因并允许该轮显式重试；不自动改推 origin。
 - **验收**：集成测试（本地裸仓模拟 VPS）覆盖成功推送、非快进覆盖同 ref、失败重试。
+- **验证结果（2026-07-29）**：本地裸仓验证固定 relay ref 首次推送和二次
+  `--force` 覆盖；非法 ref 组件在执行前拒绝。SSH remote 强制 known_hosts、
+  strict host checking 和参数化 Git argv；失败返回中文且仓库无 origin 回退。
 
 ### R0-3 每任务授权与影子 ref 清理
 
-- [ ] 任务首次自动同步前弹出一次审批：「允许本任务自动同步影子快照到 VPS？」，
+- [x] 任务首次自动同步前弹出一次审批：「允许本任务自动同步影子快照到 VPS？」，
   批准后本任务内后续轮次复用（重启后经审计恢复，语义同现有「允许本任务」）。
-- [ ] 任务删除或接力结束时删除本地与 VPS 侧影子 ref；清理失败仅告警不阻塞。
+- [x] 任务删除或接力结束时删除本地与 VPS 侧影子 ref；清理失败仅告警不阻塞。
 - **验收**：审批/审计测试覆盖首次授权、复用、重启恢复；清理有测试。
+- **验证结果（2026-07-29）**：首次同步创建 `relay_shadow_sync` 审批，thread
+  scope 经 `approval.decided` 审计可在重启后恢复；任务删除接入本地/远端 ref
+  清理，失败降级为 warning 审计。C4-2 专项 18 项、后端全量 229 项、Ruff 与
+  桌面端 TypeScript 通过。
 
 ## Phase R1：Claude 审查协议
 

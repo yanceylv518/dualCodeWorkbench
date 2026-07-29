@@ -8,6 +8,7 @@ from sqlalchemy.ext.asyncio import async_sessionmaker, create_async_engine
 
 from dualcode.models import (
     AgentRun,
+    Approval,
     AuditLog,
     Base,
     FileChange,
@@ -264,4 +265,111 @@ async def test_single_agent_route_upgrades_only_above_diff_threshold(
     if expected_upgrade:
         assert "事后 Diff 升级：6 个文件" in audits[0].detail
         assert "已升级为双 Agent 审查" in system_messages[0].content
+    await engine.dispose()
+
+
+@pytest.mark.asyncio
+async def test_relay_sync_thread_grant_is_restored_from_audit(
+    tmp_path,
+) -> None:
+    engine = create_async_engine(f"sqlite+aiosqlite:///{tmp_path / 'grant.db'}")
+    async with engine.begin() as connection:
+        await connection.run_sync(Base.metadata.create_all)
+    sessions = async_sessionmaker(engine, expire_on_commit=False)
+    async with sessions() as db:
+        workspace = Workspace(name="Project", path=str(tmp_path))
+        db.add(workspace)
+        await db.flush()
+        thread = Thread(workspace_id=workspace.id, title="Task")
+        db.add(thread)
+        await db.flush()
+        approval = Approval(
+            thread_id=thread.id,
+            action="relay_shadow_sync",
+            status="APPROVED",
+            reason="允许本任务自动同步影子快照到 VPS？",
+        )
+        db.add(approval)
+        await db.flush()
+        db.add(
+            AuditLog(
+                workspace_id=workspace.id,
+                thread_id=thread.id,
+                event="approval.decided",
+                detail=f"{approval.id}:APPROVED:scope=thread:accepted",
+            )
+        )
+        await db.commit()
+        thread_id = thread.id
+
+    scheduler = RunScheduler.__new__(RunScheduler)
+    scheduler._thread_grants = set()
+    async with sessions() as db:
+        assert (
+            await scheduler._has_thread_grant(
+                db, thread_id, "relay_shadow_sync"
+            )
+            is True
+        )
+    assert (thread_id, "relay_shadow_sync") in scheduler._thread_grants
+
+    scheduler._thread_grants.clear()
+    async with sessions() as db:
+        assert (
+            await scheduler._has_thread_grant(
+                db, thread_id, "relay_shadow_sync"
+            )
+            is True
+        )
+    await engine.dispose()
+
+
+@pytest.mark.asyncio
+async def test_first_relay_sync_requests_task_approval(
+    tmp_path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    engine = create_async_engine(f"sqlite+aiosqlite:///{tmp_path / 'approval.db'}")
+    async with engine.begin() as connection:
+        await connection.run_sync(Base.metadata.create_all)
+    sessions = async_sessionmaker(engine, expire_on_commit=False)
+    async with sessions() as db:
+        workspace = Workspace(name="Project", path=str(tmp_path))
+        db.add(workspace)
+        await db.flush()
+        thread = Thread(workspace_id=workspace.id, title="Task")
+        db.add(thread)
+        await db.commit()
+        thread_id = thread.id
+
+    prepared: list[str] = []
+    emitted: list[tuple[object, dict[str, object]]] = []
+
+    async def approve(approval_id: str) -> bool:
+        return True
+
+    async def emit(kind, payload):
+        emitted.append((kind, payload))
+
+    monkeypatch.setattr(
+        "dualcode.scheduler.approval_gate.prepare", prepared.append
+    )
+    monkeypatch.setattr("dualcode.scheduler.approval_gate.wait", approve)
+    scheduler = RunScheduler.__new__(RunScheduler)
+    scheduler._thread_grants = set()
+    async with sessions() as db:
+        assert (
+            await scheduler.ensure_relay_sync_approval(db, thread_id, emit)
+            is True
+        )
+    async with sessions() as db:
+        approval = await db.scalar(
+            select(Approval).where(Approval.thread_id == thread_id)
+        )
+
+    assert approval is not None
+    assert approval.action == "relay_shadow_sync"
+    assert approval.reason == "允许本任务自动同步影子快照到 VPS？"
+    assert prepared == [approval.id]
+    assert emitted[0][1]["action"] == "relay_shadow_sync"
     await engine.dispose()

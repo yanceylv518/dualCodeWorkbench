@@ -34,6 +34,8 @@ from .models import (
     Workspace,
 )
 from .scheduler import scheduler
+from .relay_service import RelayRemoteSpec, cleanup_shadow_ref
+from .runtime_settings import agent_settings_store
 from .schemas import MessageCreate, MessageRetry, ThreadCreate, ThreadUpdate, WorkspaceCreate, WorkspaceProvision, WorkspaceRead
 from .workspace_remote import WorkspaceRemoteSettings, workspace_remote_store
 
@@ -227,6 +229,7 @@ async def remove_thread(
     )
     if not thread:
         raise HTTPException(404, "项目与任务不匹配")
+    workspace = await db.get(Workspace, workspace_id)
     if thread.state in {
         RunState.PLANNING,
         RunState.WAITING_APPROVAL,
@@ -236,6 +239,36 @@ async def remove_thread(
         RunState.FALLBACK_TO_CODEX,
     }:
         raise HTTPException(409, "删除任务前请先停止当前运行")
+
+    if settings.smart_collaboration_enabled and workspace:
+        runtime = agent_settings_store.load()
+        remote = workspace_remote_store.get(workspace_id)
+        if runtime.claude_ssh_enabled and remote.vps_repo_path:
+            warnings = await cleanup_shadow_ref(
+                Path(workspace.path),
+                workspace_id=workspace_id,
+                thread_id=thread_id,
+                remote_spec=RelayRemoteSpec(
+                    host=runtime.claude_ssh_host,
+                    username=runtime.claude_ssh_username,
+                    port=runtime.claude_ssh_port,
+                    repository_path=remote.vps_repo_path,
+                    known_hosts=runtime.claude_ssh_known_hosts,
+                    client_key=runtime.claude_ssh_client_key,
+                ),
+            )
+            db.add(
+                AuditLog(
+                    workspace_id=workspace_id,
+                    thread_id=thread_id,
+                    event=(
+                        "relay.cleanup.warning"
+                        if warnings
+                        else "relay.cleanup.succeeded"
+                    ),
+                    detail="；".join(warnings) if warnings else "影子 ref 已清理",
+                )
+            )
 
     for model in (
         ExecutionJob,

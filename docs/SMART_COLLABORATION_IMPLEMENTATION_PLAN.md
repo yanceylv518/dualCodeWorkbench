@@ -939,7 +939,7 @@ Claude review。
 
 ### C4-2 影子 ref 推送与每任务授权（R0-2 + R0-3）
 
-- [ ] `relay_service.py` 增加
+- [x] `relay_service.py` 增加
   `push_shadow_ref(repository, snapshot_sha, *, workspace_id, thread_id,
   remote_spec) -> None`：
   - 目标 ref 固定 `refs/dualcode/relay/{workspace_id}/{thread_id}`；ref 名
@@ -953,17 +953,22 @@ Claude review。
     `ClaudeSshConfig` 校验后的字段；known_hosts 缺失直接拒绝。
   - 推送失败抛含中文原因的异常（网络/权限/路径分类透传 stderr 摘要），
     由调用方展示并允许显式重试；**任何失败都不得改推 origin**。
-- [ ] 每任务授权（R0-3）：首次同步前创建 `relay_shadow_sync` 审批
+- [x] 每任务授权（R0-3）：首次同步前创建 `relay_shadow_sync` 审批
   （文案「允许本任务自动同步影子快照到 VPS？」），批准后本任务内复用，
   重启后经审计恢复——三者均复用既有「允许本任务」thread-scope 机制；
   同步成功/失败写审计（含 base/snapshot SHA 与 excluded 数量，不含文件内容）。
-- [ ] 清理：新增 `cleanup_shadow_ref(...)`——任务删除或接力结束时删除本地
+- [x] 清理：新增 `cleanup_shadow_ref(...)`——任务删除或接力结束时删除本地
   与 VPS 侧影子 ref（`push :<ref>` 删除远端、`update-ref -d` 删本地如有）；
   清理失败仅写警告审计，不阻塞主流程；接入现有任务删除链路。
 - **验收**（对应 R0-2/R0-3）：集成测试用本地裸仓模拟 VPS（file:// remote 或
   本地路径 remote 等价参数化路径）覆盖：成功推送、同 ref 二次覆盖、失败
   抛中文异常；授权测试覆盖首次审批、任务内复用、重启审计恢复；清理成功与
   失败告警各有测试；ref 名非法字符拒绝。
+- **验证结果（2026-07-29）**：固定 relay ref 经参数化 `git push --force`
+  推送，SSH 环境强制 known_hosts/strict host checking；本地裸仓覆盖首次与二次
+  覆盖、中文失败且不回退 origin、非法 ref、清理成功/告警。首次任务审批及审计
+  恢复均有测试，同步审计仅含 base/snapshot SHA 与 excluded 数量。专项 18 项、
+  后端全量 229 项、Ruff 与桌面端 TypeScript 通过，前端零 diff。
 
 ### C4-3 VPS 隔离 worktree 审查接线（R1-1）
 

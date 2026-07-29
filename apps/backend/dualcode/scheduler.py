@@ -125,6 +125,27 @@ class RunScheduler:
             return True
         return False
 
+    async def ensure_relay_sync_approval(self, db, thread_id: str, emit) -> bool:
+        """Require the first relay sync approval and reuse durable thread grants."""
+
+        action = "relay_shadow_sync"
+        if await self._has_thread_grant(db, thread_id, action):
+            return True
+        item = Approval(
+            thread_id=thread_id,
+            action=action,
+            reason="允许本任务自动同步影子快照到 VPS？",
+        )
+        db.add(item)
+        await db.flush()
+        approval_gate.prepare(item.id)
+        await db.commit()
+        await emit(
+            EventType.APPROVAL_REQUIRED,
+            {"id": item.id, "action": action, "reason": item.reason},
+        )
+        return await approval_gate.wait(item.id)
+
     async def _shared_memory_prompt(self, db, workspace: Workspace, thread: Thread) -> str:
         if not settings.smart_collaboration_enabled:
             return ""

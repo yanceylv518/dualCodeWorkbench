@@ -294,7 +294,11 @@ async def decide_approval(
     if not thread or not approval:
         raise HTTPException(404, "未找到待处理审批")
     approval.status = "APPROVED" if body.approved else "REJECTED"
-    if body.approved and body.scope == "thread" and approval.action in {"edit_files", "remote_edit_files"}:
+    if body.approved and body.scope == "thread" and approval.action in {
+        "edit_files",
+        "remote_edit_files",
+        "relay_shadow_sync",
+    }:
         scheduler.grant_for_thread(thread_id, approval.action)
     job = await decide_job(db, approval.id, body.approved)
     db.add(
