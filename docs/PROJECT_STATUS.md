@@ -1,5 +1,13 @@
 # DualCode Workbench 项目状态
 
+## 2026-07-29 智能协作 C2-R1 finding 主键修复
+
+- Review finding 数据库主键恢复使用本地 `uid`，不再把审查方每轮可能复用的
+  `F-1` 等展示编号直接作为持久化主键。
+- 新增两轮、两个 handoff 复用相同 reviewer finding id 的碰撞回归，验证两条记录
+  均成功持久化且主键、轮次、描述和来源互不覆盖。
+- C2-R1 专项 2 项通过；待全量门禁与独立 review 后关闭 C2。
+
 ## 2026-07-29 智能协作 C2-3 findings 持久化
 
 - 冻结 finding open/resolved 状态，新增 `CollaborationRun` 与 `ReviewFinding`

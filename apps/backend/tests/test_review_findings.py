@@ -84,8 +84,8 @@ async def test_persist_review_findings_maps_fields_and_audits_counts(session) ->
     await session.flush()
 
     assert len(records) == 2
-    first = await session.get(FindingRecord, "finding-1")
-    assert first is not None
+    first = records[0]
+    assert first.id != "finding-1"
     assert {
         "collaboration_run_id": first.collaboration_run_id,
         "round": first.round,
@@ -130,3 +130,79 @@ async def test_persist_review_findings_maps_fields_and_audits_counts(session) ->
         "blocking_count",
         "advisory_count",
     }
+
+
+@pytest.mark.asyncio
+async def test_reused_reviewer_finding_id_does_not_collide_across_handoffs(
+    session,
+) -> None:
+    workspace = Workspace(name="Project", path="/project")
+    session.add(workspace)
+    await session.flush()
+    thread = Thread(workspace_id=workspace.id, title="Task")
+    session.add(thread)
+    await session.flush()
+    handoffs = [
+        HandoffPackage(
+            workspace_id=workspace.id,
+            thread_id=thread.id,
+            recipient="claude",
+            purpose="review",
+        )
+        for _ in range(2)
+    ]
+    session.add_all(handoffs)
+    await session.flush()
+
+    def review(description: str) -> ReviewV1:
+        return ReviewV1.model_validate(
+            {
+                "schema": "review.v1",
+                "verdict": "blocking",
+                "summary": description,
+                "findings": [
+                    {
+                        "id": "F-1",
+                        "type": "regression",
+                        "severity": "blocking",
+                        "file": "app.py",
+                        "line": "10",
+                        "description": description,
+                        "acceptance": f"Resolve {description}",
+                    }
+                ],
+            }
+        )
+
+    first = await persist_review_findings(
+        session,
+        workspace_id=workspace.id,
+        thread_id=thread.id,
+        source_handoff_id=handoffs[0].id,
+        review=review("first round"),
+        round=1,
+    )
+    second = await persist_review_findings(
+        session,
+        workspace_id=workspace.id,
+        thread_id=thread.id,
+        source_handoff_id=handoffs[1].id,
+        review=review("second round"),
+        round=2,
+    )
+    await session.flush()
+
+    records = (
+        await session.scalars(select(FindingRecord).order_by(FindingRecord.round))
+    ).all()
+    assert len(records) == 2
+    assert first[0].id != second[0].id
+    assert {record.id for record in records} == {first[0].id, second[0].id}
+    assert [record.description for record in records] == [
+        "first round",
+        "second round",
+    ]
+    assert [record.source_handoff_id for record in records] == [
+        handoffs[0].id,
+        handoffs[1].id,
+    ]

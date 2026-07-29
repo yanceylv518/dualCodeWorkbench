@@ -21,7 +21,6 @@ async def persist_review_findings(
 ) -> list[ReviewFindingRecord]:
     records = [
         ReviewFindingRecord(
-            id=finding.id,
             collaboration_run_id=collaboration_run_id,
             round=round,
             type=finding.type,

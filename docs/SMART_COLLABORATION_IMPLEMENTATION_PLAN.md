@@ -791,11 +791,11 @@ diff）；GitHub Actions 双平台绿；开关默认关闭下现有交接 API pa
 
 ### C2-R1 finding 主键回落 uid（代码 + 测试，一个 commit）
 
-- [ ] `apps/backend/dualcode/review_findings.py`：删除 `ReviewFindingRecord(...)`
+- [x] `apps/backend/dualcode/review_findings.py`：删除 `ReviewFindingRecord(...)`
   构造中的 `id=finding.id` 一行，主键回落 `models.py` 的 `uid` 默认生成；
   审查方自拟编号不落库（§8.1 无对应列，未来如需要属受控 schema 变更），
   `description`/`acceptance` 已保留实质内容，不做其他改动。
-- [ ] `apps/backend/tests/test_review_findings.py`：新增测试——同一
+- [x] `apps/backend/tests/test_review_findings.py`：新增测试——同一
   workspace/thread 下两次 `persist_review_findings`（不同 `source_handoff_id`），
   两份 `ReviewV1` 各含 `id="F-1"` 的 finding，断言两次均持久化成功、共 2 条
   记录、主键互不相同且互不覆盖；如现有测试断言了 `record.id == "F-1"` 一并更新。
@@ -803,6 +803,8 @@ diff）；GitHub Actions 双平台绿；开关默认关闭下现有交接 API pa
   常态，现实现第二次持久化即主键 IntegrityError，C5 自动整改循环第二轮必然
   崩溃。
 - **验收**：新增碰撞测试与后端全量 pytest、Ruff 通过；GitHub Actions 双平台绿。
+  - 2026-07-29：同一任务两轮审查复用 `F-1` 的专项测试通过，两条记录使用独立
+    uid 且描述、轮次与 source handoff 互不覆盖；审查方编号不再作为数据库主键。
 - **验证结果（2026-07-29）**：新增两类稳定事件名、严格 detail 模型及返回未入库
   `AuditLog` 的纯构建器；构建前复用冻结的跃迁与路由查表校验。evidence 摘要函数
   仅提升为公开复用点，detail 全部字符串统一单行化并限制为最多 200 字符。
