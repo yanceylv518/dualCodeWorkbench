@@ -108,11 +108,73 @@ def test_assistant_thinking_is_normalized_as_reasoning_delta() -> None:
     ]
     assert events[0].event == "delta"
     assert events[0].item == {
-        "id": "claude-reasoning-0",
+        "id": "claude-reasoning-1-0",
         "type": "reasoning",
         "text": "先检查项目结构",
     }
     assert events[1].text == "检查完成"
+
+
+def test_reasoning_fallback_ids_are_unique_across_assistant_messages() -> None:
+    parser = ClaudeStreamParser()
+
+    first = parser.feed(
+        json.dumps(
+            {
+                "type": "assistant",
+                "session_id": "session-thinking-sequence",
+                "message": {
+                    "content": [
+                        {"type": "thinking", "thinking": "先读取项目"},
+                    ]
+                },
+            },
+            ensure_ascii=False,
+        )
+    )
+    second = parser.feed(
+        json.dumps(
+            {
+                "type": "assistant",
+                "session_id": "session-thinking-sequence",
+                "message": {
+                    "content": [
+                        {"type": "thinking", "thinking": "再检查变更"},
+                    ]
+                },
+            },
+            ensure_ascii=False,
+        )
+    )
+
+    first_id = first[0].item["id"]
+    second_id = second[0].item["id"]
+    assert first_id == "claude-reasoning-1-0"
+    assert second_id == "claude-reasoning-2-0"
+    assert first_id != second_id
+
+
+def test_reasoning_prefers_native_block_id() -> None:
+    events = ClaudeStreamParser().feed(
+        json.dumps(
+            {
+                "type": "assistant",
+                "session_id": "session-native-reasoning-id",
+                "message": {
+                    "content": [
+                        {
+                            "type": "thinking",
+                            "id": "native-reasoning-id",
+                            "thinking": "使用原生标识",
+                        }
+                    ]
+                },
+            },
+            ensure_ascii=False,
+        )
+    )
+
+    assert events[0].item["id"] == "native-reasoning-id"
 
 
 def test_redacted_thinking_is_terminal_diagnostic_without_content_leakage() -> None:

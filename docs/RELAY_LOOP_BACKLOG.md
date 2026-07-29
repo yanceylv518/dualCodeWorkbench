@@ -222,3 +222,5 @@ stream-json 按整条 assistant 消息吐出，思考与正文都是「憋完一
   回退 ID 改为 `claude-reasoning-{message_seq}-{block_index}`；补一条「两条 assistant
   消息各含 thinking → 产出两个不同 ID」的协议测试。注意 T2 的 partial 去重方案需
   沿用同一 ID 语义，避免返工两次。
+  - **验证结果（2026-07-29）**：已实现消息序号维度的回退 ID，并新增跨 assistant
+    消息唯一性及原生 ID 优先级测试；Claude stream 专项 10 项和 Ruff 通过。

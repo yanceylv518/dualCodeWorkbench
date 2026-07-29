@@ -1,5 +1,12 @@
 # DualCode Workbench 项目状态
 
+## 2026-07-29 智能协作 C-R2 reasoning ID 隔离
+
+- Claude thinking 块缺少原生 ID 时，回退 ID 现在包含 assistant 消息序号与块下标，避免同一轮多条 assistant 消息被错误拼接。
+- 新增跨消息唯一性和原生 block ID 优先级协议测试；Claude stream 专项 10 项、Ruff、桌面端 TypeScript 检查通过。
+- 后端全量验证为 123 通过、1 个既有失败：旧 CLI adapter 测试夹具的 `tool_use` 缺少 ID，与 C-R2 无关。
+- C-R1、C-R2 均已关闭；按清单停在 C0 前，等待 Claude review。
+
 ## 2026-07-29 智能协作 C-R1 规格归属冻结
 
 - 明确 `RELAY_LOOP_BACKLOG.md` 中 R0-1/R0-2/R0-3/R1-1 继续有效并归属 C4；旧 R1-2、R2、R3 规格分别由 C2、C5、C6 的权威协议取代，原文仅保留追溯。

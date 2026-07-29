@@ -559,19 +559,23 @@ collaboration.failed
 
 ### C-R2 关闭 T1-R1：reasoning 回退 ID 跨消息碰撞（代码 + 测试）
 
-- [ ] `apps/backend/dualcode/claude_stream.py`：`ClaudeStreamParser` 维护 assistant
+- [x] `apps/backend/dualcode/claude_stream.py`：`ClaudeStreamParser` 维护 assistant
   消息序号（每收到一条 `type=assistant` 消息自增），thinking 块回退 ID 由
   `claude-reasoning-{block_index}` 改为 `claude-reasoning-{message_seq}-{block_index}`；
   块自带 `id` 时仍优先使用原生 id。
-- [ ] `apps/backend/tests/test_claude_stream.py`：更新现有断言（`:111` 的
+- [x] `apps/backend/tests/test_claude_stream.py`：更新现有断言（`:111` 的
   `claude-reasoning-0`），并新增协议测试：「两条 assistant 消息各含一个 thinking 块 →
   产出两个不同的 reasoning ID」，断言两个 ID 互不相等且各自稳定。
-- [ ] 本地 CLI 与 VPS SSH 两条路径共用该解析器，`test_cli_adapters.py` /
+- [x] 本地 CLI 与 VPS SSH 两条路径共用该解析器，`test_cli_adapters.py` /
   `test_ssh_adapter.py` 中如有引用旧 ID 的断言一并更新。
-- [ ] 完成后在 `docs/RELAY_LOOP_BACKLOG.md` T1 Review 记录的 T1-R1 条目下补验证结果。
+- [x] 完成后在 `docs/RELAY_LOOP_BACKLOG.md` T1 Review 记录的 T1-R1 条目下补验证结果。
 - **为什么**：VPS 路径默认开启工具，一轮多条 assistant 消息是常态，每条消息首个
   thinking 块共享 `claude-reasoning-0`，前端 store 对同 ID `delta` 直接字符串拼接，
   思考段会无分隔拼接并破坏活动时间线顺序（详见 T1 Review）。
 - **约束**：T2 的 partial 事件去重必须沿用同一 ID 语义（`message_seq` 维度），
   实施 T2 时不得再次变更 ID 形态。
 - **验收**：后端全量 pytest 与 Ruff 通过；协议测试覆盖跨消息 ID 唯一性。
+- **验证结果（2026-07-29）**：parser 已按 assistant 消息序号生成稳定回退 ID，并保留
+  原生 block id 优先级；Claude stream 专项 10 项和 Ruff 通过。后端全量为 123
+  通过、1 个既有失败：`test_claude_exposes_normalized_stream_events` 的旧夹具构造了
+  无 `id` 的 `tool_use`，与本条 reasoning ID 修复无关，留待对应 adapter 条目处理。

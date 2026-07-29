@@ -9,6 +9,7 @@ class ClaudeStreamParser:
     def __init__(self) -> None:
         self.session_id = ""
         self.emitted_text = False
+        self.assistant_message_seq = 0
 
     def feed(self, chunk: str) -> list[AgentStreamEvent]:
         try:
@@ -34,6 +35,8 @@ class ClaudeStreamParser:
             return events
 
         if event_type in {"assistant", "user"}:
+            if event_type == "assistant":
+                self.assistant_message_seq += 1
             message = payload.get("message")
             blocks = message.get("content", []) if isinstance(message, dict) else []
             for block_index, block in enumerate(blocks):
@@ -62,7 +65,10 @@ class ClaudeStreamParser:
                                 item={
                                     "id": str(
                                         block.get("id")
-                                        or f"claude-reasoning-{block_index}"
+                                        or (
+                                            "claude-reasoning-"
+                                            f"{self.assistant_message_seq}-{block_index}"
+                                        )
                                     ),
                                     "type": "reasoning",
                                     "text": thinking,
