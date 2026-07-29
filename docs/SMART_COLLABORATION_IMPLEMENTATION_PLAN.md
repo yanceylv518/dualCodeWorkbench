@@ -738,6 +738,40 @@ TypeScript 通过（前端应无 diff）；GitHub Actions 双平台绿；开关�
 
 ## Review 记录
 
+### C1 阶段 Review（2026-07-29，Claude）
+
+**结论：C1-1/C1-2/C1-3 全部通过，无返工项。C1 阶段关闭，可进入 C2。**
+
+逐项核查（独立复验）：
+
+- C1-1 ✓：三组事实枚举、`FACT_CONFIDENCE_RANK`、`MemoryFactContent`（500 字符，
+  常量旁注明与 evidence 200 的差异原因）冻结进协议模块；`MemoryFact` ORM 与
+  §8.1 逐列一致（`thread_id` 可空、自引用 `supersedes_id`、三个索引）；迁移
+  `0003_memory_facts` 仅新增表、含已存在防重入护栏与 downgrade；迁移测试覆盖
+  全新库、降级不触数据、补丁前/后升级保数据四条。
+- C1-2 ✓：覆盖规则双重校验（可信度不降级 + Agent unverified 不得覆盖
+  confirmed/verified，后者为显式冗余护栏，接受）；`mark_stale_for_commit` 仅
+  批量置 stale 不设 `invalidated_at`（stale 事实仍可注入并按最低优先丢弃，
+  语义正确）；快照生成幂等（同内容同 commit 不重写），TestRun 复用 C0-2 投影
+  summary，大字段禁入有测试；每次写入/覆盖/失效均产审计行，
+  `EVENT_MEMORY_CHANGE` 与 `MemoryChangeDetail` 按 C0-3 模式扩展并复用冻结枚举。
+- C1-3 ✓：`smart_collaboration_enabled` 默认 False，测试断言默认值与环境变量
+  开启两个方向；**开关关闭时 `_shared_memory_prompt` 直接返回空串、不发起任何
+  查询**（有专项测试），prompt 逐字节不变；开启时记忆段插在契约段与对话之间
+  （§3.3 顺序），Codex/Claude 共用 `_execute_chat` 单一 prompt 构建点，两 Agent
+  天然一致；预算丢弃从低可信度开始、confirmed 永不截断（超预算时保全并加
+  截断标记，符合"不得被截断"约束）均有专项测试。
+- §12 C1 验收场景 ✓：开启态集成测试断言上下文含已确认目标、当前 commit 与
+  未关闭风险。
+- 复验数据：后端全量 181 项（新增 20 项）、Ruff 通过；CI 双平台绿（`cd19801`）。
+
+**记录两处已接受的实现选择：**
+
+- stale 标记的审计 action 复用 `invalidated`（枚举未扩展）；若后续需要区分，
+  属受控协议变更，届时再议。
+- `summarize_single_line` 增加 `max_length` 参数以支撑 500 字符事实内容，
+  默认值不变，evidence 现有行为无回归。
+
 ### C0-3 Review 与 C0 阶段整体验收（2026-07-29，Claude）
 
 **结论：C0-3 通过，无返工项。C0 阶段（C0-1/C0-2/C0-3）整体关闭，可进入 C1。**
