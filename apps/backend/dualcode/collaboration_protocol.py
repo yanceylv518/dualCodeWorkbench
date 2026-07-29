@@ -11,7 +11,7 @@ from __future__ import annotations
 import enum
 from typing import Literal
 
-from pydantic import BaseModel, ConfigDict, Field
+from pydantic import BaseModel, ConfigDict, Field, field_validator
 
 
 class StrictModel(BaseModel):
@@ -21,6 +21,41 @@ class StrictModel(BaseModel):
         validate_by_alias=True,
         validate_by_name=True,
     )
+
+
+FactKind = Literal[
+    "requirement",
+    "decision",
+    "repository",
+    "evidence",
+    "risk",
+    "assumption",
+]
+FactSource = Literal["user", "git", "test", "codex", "claude", "system"]
+FactConfidence = Literal["confirmed", "verified", "unverified", "stale"]
+
+FACT_CONFIDENCE_RANK: dict[FactConfidence, int] = {
+    "confirmed": 3,
+    "verified": 2,
+    "unverified": 1,
+    "stale": 0,
+}
+
+# Memory facts may carry acceptance criteria, so their governed limit is
+# intentionally larger than the 200-character evidence summary limit.
+MEMORY_FACT_CONTENT_MAX_LENGTH = 500
+
+
+class MemoryFactContent(StrictModel):
+    content: str
+
+    @field_validator("content")
+    @classmethod
+    def normalize_content(cls, value: str) -> str:
+        # Local import avoids a module cycle: evidence reuses StrictModel.
+        from .evidence import summarize_single_line
+
+        return summarize_single_line(value, MEMORY_FACT_CONTENT_MAX_LENGTH)
 
 
 class HandoffTask(StrictModel):

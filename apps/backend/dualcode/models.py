@@ -110,6 +110,29 @@ class TaskContract(Base):
     updated_at: Mapped[datetime] = mapped_column(UTCDateTime(), default=utc_now, onupdate=utc_now)
 
 
+class MemoryFact(Base):
+    __tablename__ = "memory_facts"
+    id: Mapped[str] = mapped_column(String, primary_key=True, default=uid)
+    workspace_id: Mapped[str] = mapped_column(
+        ForeignKey("workspaces.id", ondelete="CASCADE"), index=True
+    )
+    thread_id: Mapped[str | None] = mapped_column(
+        ForeignKey("threads.id", ondelete="CASCADE"), nullable=True, index=True
+    )
+    kind: Mapped[str] = mapped_column(String(32))
+    content_json: Mapped[str] = mapped_column(Text)
+    source: Mapped[str] = mapped_column(String(32))
+    confidence: Mapped[str] = mapped_column(String(32), index=True)
+    commit_sha: Mapped[str | None] = mapped_column(String(64), nullable=True)
+    supersedes_id: Mapped[str | None] = mapped_column(
+        ForeignKey("memory_facts.id", ondelete="SET NULL"), nullable=True
+    )
+    created_at: Mapped[datetime] = mapped_column(UTCDateTime(), default=utc_now)
+    invalidated_at: Mapped[datetime | None] = mapped_column(
+        UTCDateTime(), nullable=True
+    )
+
+
 class HandoffPackage(Base):
     __tablename__ = "handoff_packages"
     id: Mapped[str] = mapped_column(String, primary_key=True, default=uid)

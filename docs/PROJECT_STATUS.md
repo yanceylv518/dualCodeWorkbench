@@ -1,5 +1,14 @@
 # DualCode Workbench 项目状态
 
+## 2026-07-29 智能协作 C1-1 共享事实契约与迁移
+
+- 冻结共享事实 kind/source/confidence 协议、可信度排序和 500 字符单行内容契约；
+  与 evidence 的 200 字符摘要边界保持明确区分。
+- 新增 `MemoryFact` ORM 与仅新增 `memory_facts` 表的 Alembic 迁移，覆盖项目级/
+  任务级事实、自引用覆盖关系、失效时间及查询索引。
+- 升级、降级和既有数据保留均通过；专项 11 项、后端全量 169 项、Ruff 与桌面端
+  TypeScript 通过。C1-1 已关闭，下一项为 C1-2 MemoryService。
+
 ## 2026-07-29 智能协作 C0-3 协作审计构建器
 
 - 新增 `collaboration.state_transition` 与 `collaboration.routing_decision` 两类

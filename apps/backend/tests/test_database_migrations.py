@@ -1,13 +1,31 @@
 from pathlib import Path
 
+from alembic import command
+from alembic.config import Config
 from sqlalchemy import create_engine, inspect, text
 
+from dualcode import database_migrations
 from dualcode.database_migrations import upgrade_database
 from dualcode.models import Base
 
 
 def _url(path: Path) -> str:
     return f"sqlite:///{path.as_posix()}"
+
+
+def _downgrade_database(path: Path, revision: str) -> None:
+    config = Config()
+    config.set_main_option(
+        "script_location",
+        str(Path(database_migrations.__file__).with_name("alembic")),
+    )
+    engine = create_engine(_url(path))
+    try:
+        with engine.begin() as connection:
+            config.attributes["connection"] = connection
+            command.downgrade(config, revision)
+    finally:
+        engine.dispose()
 
 
 def test_empty_database_upgrades_to_current_schema(tmp_path: Path) -> None:
@@ -18,7 +36,61 @@ def test_empty_database_upgrades_to_current_schema(tmp_path: Path) -> None:
     try:
         tables = set(inspect(engine).get_table_names())
         assert set(Base.metadata.tables).issubset(tables)
+        memory_indexes = {
+            item["name"] for item in inspect(engine).get_indexes("memory_facts")
+        }
+        assert {
+            "ix_memory_facts_workspace_id",
+            "ix_memory_facts_thread_id",
+            "ix_memory_facts_confidence",
+        }.issubset(memory_indexes)
         with engine.connect() as connection:
+            assert connection.scalar(text("SELECT version_num FROM alembic_version")) == (
+                "0003_memory_facts"
+            )
+    finally:
+        engine.dispose()
+
+
+def test_memory_facts_migration_downgrades_without_touching_existing_data(
+    tmp_path: Path,
+) -> None:
+    path = tmp_path / "downgrade.db"
+    upgrade_database(_url(path))
+    engine = create_engine(_url(path))
+    try:
+        with engine.begin() as connection:
+            connection.execute(
+                text(
+                    "INSERT INTO workspaces (id, name, path) "
+                    "VALUES ('workspace-1', 'Existing project', '/existing')"
+                )
+            )
+            connection.execute(
+                text(
+                    """INSERT INTO memory_facts (
+                        id, workspace_id, thread_id, kind, content_json,
+                        source, confidence, commit_sha, supersedes_id,
+                        created_at, invalidated_at
+                    ) VALUES (
+                        'fact-1', 'workspace-1', NULL, 'requirement',
+                        '{"content":"goal"}', 'user', 'confirmed',
+                        NULL, NULL, CURRENT_TIMESTAMP, NULL
+                    )"""
+                )
+            )
+    finally:
+        engine.dispose()
+
+    _downgrade_database(path, "0002_legacy_columns")
+
+    engine = create_engine(_url(path))
+    try:
+        assert "memory_facts" not in inspect(engine).get_table_names()
+        with engine.connect() as connection:
+            assert connection.scalar(
+                text("SELECT name FROM workspaces WHERE id = 'workspace-1'")
+            ) == "Existing project"
             assert connection.scalar(text("SELECT version_num FROM alembic_version")) == (
                 "0002_legacy_columns"
             )
@@ -127,7 +199,7 @@ def test_post_patch_database_is_stamped_without_data_loss(tmp_path: Path) -> Non
                 text("SELECT name FROM workspaces WHERE id = 'workspace-1'")
             ) == "Existing project"
             assert connection.scalar(text("SELECT version_num FROM alembic_version")) == (
-                "0002_legacy_columns"
+                "0003_memory_facts"
             )
     finally:
         engine.dispose()

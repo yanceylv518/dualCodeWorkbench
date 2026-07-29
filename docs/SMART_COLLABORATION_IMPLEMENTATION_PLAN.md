@@ -642,7 +642,7 @@ collaboration.failed
 
 ### C1-1 `memory_facts` 表与事实契约（迁移 + 模型 + 类型冻结）
 
-- [ ] `collaboration_protocol.py` 冻结事实枚举与内容契约（属受控协议变更）：
+- [x] `collaboration_protocol.py` 冻结事实枚举与内容契约（属受控协议变更）：
   `FactKind = Literal["requirement", "decision", "repository", "evidence",
   "risk", "assumption"]`、`FactSource = Literal["user", "git", "test", "codex",
   "claude", "system"]`、`FactConfidence = Literal["confirmed", "verified",
@@ -650,14 +650,16 @@ collaboration.failed
   `content: str`（经 `summarize_single_line` 治理，上限放宽为 500 字符以容纳
   验收标准类内容——在常量旁注明与 evidence 200 字符的差异原因）。
   可信度排序常量：`confirmed > verified > unverified > stale`。
-- [ ] `models.py` 新增 `MemoryFact` ORM：按 §8.1 全部列；`thread_id` 可空
+- [x] `models.py` 新增 `MemoryFact` ORM：按 §8.1 全部列；`thread_id` 可空
   （项目级事实）、`supersedes_id` 自引用外键、`invalidated_at` 可空、
   `created_at` 用现有 `UTCDateTime`/`utc_now`；`workspace_id`、`thread_id`、
   `confidence` 建索引。
-- [ ] Alembic 迁移仅新增 `memory_facts` 表；全新库与既有数据库升级均通过
+- [x] Alembic 迁移仅新增 `memory_facts` 表；全新库与既有数据库升级均通过
   （沿用 P3-1 的迁移测试模式）。
 - **验收**：迁移双向可用（升级保数据）；契约测试覆盖枚举拒绝非法值、content
   治理与 500 截断。
+  - 2026-07-29：专项 11 项、后端全量 169 项、Ruff 与桌面端 TypeScript
+    通过；升级/降级、索引、既有数据保留、非法枚举及 500 字符治理均已覆盖。
 
 ### C1-2 MemoryService：事实生成、覆盖规则、失效与审计
 

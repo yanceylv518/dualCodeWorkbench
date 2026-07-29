@@ -48,11 +48,13 @@ class EvidenceItem(StrictModel):
         return self
 
 
-def summarize_single_line(value: str) -> str:
+def summarize_single_line(
+    value: str, max_length: int = MAX_SUMMARY_LENGTH
+) -> str:
     single_line = " ".join(value.split())
-    if len(single_line) <= MAX_SUMMARY_LENGTH:
+    if len(single_line) <= max_length:
         return single_line
-    return f"{single_line[: MAX_SUMMARY_LENGTH - 1]}…"
+    return f"{single_line[: max_length - 1]}…"
 
 
 def from_test_run(row: TestRun) -> EvidenceItem:
