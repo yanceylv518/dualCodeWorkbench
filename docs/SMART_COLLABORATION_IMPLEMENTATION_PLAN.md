@@ -521,6 +521,55 @@ collaboration.failed
 
 ## Review 记录
 
+### C0-1 Review（2026-07-29，Claude）
+
+**结论：有条件通过。协议模型、路由矩阵与契约测试合格；跃迁表按 §5.1 示意图逐字
+转写，但该图相对 §5.3/§9.2/§11 欠规格，冻结出的状态机与同一文档矛盾。修复
+C0-1-R1 后 C0-1 关闭。这正是冻结阶段 review 要暴露的问题，不属执行偏差。**
+
+逐项核查（独立复验）：
+
+- `HandoffV2`/`ReviewV1` ✓：字段与 §6 逐一对应，`schema` 字面量、`purpose`/
+  `verdict`/finding `type`/`severity` 枚举、`extra="forbid"` 全部锁定；拒绝矩阵
+  测试覆盖缺字段、非法枚举、未知字段、schema 不匹配十种变体。
+- 路由矩阵 ✓：八行与 §4.2 逐字一致，复杂度条件五条冻结，未知类别抛异常，
+  重复查表结果一致。
+- `RunState` 关系 ✓：模块 docstring 写明两枚举不合并、不转换（关闭 review 建议项二）。
+- 零行为变更 ✓：全仓无运行时 import，仅测试引用；后端 145 项、Ruff、CI 双平台绿。
+
+**返工项（归属 C0-1）：**
+
+- **C0-1-R1｜跃迁表把挂起/裁决/阻塞态冻结成了死胡同，且取消与审批边覆盖不足，
+  与 §5.3、§9.2、§11 矛盾。** 现状（`collaboration_protocol.py:97`）：
+  `WAITING_APPROVAL`、`WAITING_USER`、`BLOCKED` 无任何出边，成为事实终态；三者
+  及 `CANCELLED` 仅能从 `REVIEWING` 进入。矛盾点：
+  1. §5.3.4 审批可发生在实现期间（安装、联网、Git 副作用），§11.4 影子同步首次
+     审批发生在 `SYNCING_REVIEW_SNAPSHOT`——但表中 `IMPLEMENTING`/`VERIFYING`/
+     `SYNCING_REVIEW_SNAPSHOT` 均无法进入 `WAITING_APPROVAL`。
+  2. §9.2 提供 resume/decisions API、RELAY 保护条款 4 规定「用户处理后循环续跑」
+     ——但挂起三态无出边，恢复语义在冻结契约中不存在。
+  3. 「用户可随时停止」（§9.2 cancel、RELAY 条款 4）——但 `IMPLEMENTING → CANCELLED`
+     等均为非法跃迁。
+  4. `test_collaboration_protocol.py:143` 将上述缺边断言为预期，把矛盾固化进契约。
+  修复顺序：**先改规格，再对齐代码**。§5.1 重写为显式跃迁表（放弃 ASCII 示意图
+  作为规格载体），建议按三类横切边补全：审批挂起边（`IMPLEMENTING`/`VERIFYING`/
+  `SYNCING_REVIEW_SNAPSHOT`/`REVIEWING` ⇄ `WAITING_APPROVAL`，出边回到挂起前状态，
+  挂起前状态记录在运行记录上）；用户裁决边（冲突/上限/无进展/预算进入
+  `WAITING_USER`，出边为继续目标态或 `CANCELLED`）；可恢复失败边（运行态 ⇄
+  `BLOCKED`，出边为恢复原态或 `CANCELLED`）；另全部非终态可进入 `CANCELLED`，
+  终态仅 `COMPLETED`/`CANCELLED`。同时显式决定 `DRAFT → READY` 直通是否允许
+  （建议：契约已满足 READY 门禁时允许跳过 `CLARIFYING`，对应 §1.1.6「简单任务
+  不为协作而协作」）。代码与测试随新表对齐，可达性测试保留，「非终态全覆盖」
+  断言改为对新表逐边断言。
+
+**建议项（不阻塞）：**
+
+- `ReviewFinding.line` 冻结为 `str | None`：可表达行区间（如 `"12-40"`），但消费方
+  不能按整数处理；在 C2 ReviewParser 落地时于字段 docstring 写明格式约定。
+- 路由矩阵以中文叙述串作字典键：作为 §4.2 的忠实数据冻结可接受；C3 实现
+  TaskClassifier 时应引入稳定 slug 枚举作为键、中文串降为展示标签，届时该变更
+  会显式表现为本模块 diff，接受 review。
+
 ### 方案验收（2026-07-28，Claude）
 
 **结论：有条件通过。方案方向、分阶段拆分和安全边界成立；修复 C-R1、C-R2 后方可进入 C0 实施。**
