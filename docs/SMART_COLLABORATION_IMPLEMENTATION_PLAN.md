@@ -925,6 +925,33 @@ Claude review。
 
 ## Review 记录
 
+### C3 阶段 Review（2026-07-29，Claude）
+
+**结论：C3-1/C3-2/C3-3 全部通过，无返工项。C3 阶段关闭，可进入 C4。**
+
+逐项核查（独立复验）：
+
+- C3-1 ✓：`RequestCategory` 八值 slug 冻结，`ROUTING_MATRIX` 键 slug 化、
+  中文降为 `label` 且八行映射逐行不变（契约测试同步更新）；分类器为模块级
+  有序规则表、首个命中生效、优先级与清单一致、未命中回落 `feature`；测试
+  覆盖逐类别、逐信号可分类、首个命中语义、确定性（同输入两次相等）与回落。
+- C3-2 ✓：`mode=smart` 在开关关闭时于消息 API 入口返回中文 422（「智能协作
+  尚未启用」），开启时分类 → 主 Agent 执行，完全复用现有单 Agent 路径；
+  路由决定经 C0-3 `build_routing_decision_audit` 首次运行时接线，system
+  消息展示「智能路由：{label} → {primary_agent}（原因）」；`dual_agent` 且
+  本轮 `COMPLETED` 时自动生成 PREPARED 审查交接（v2 payload、审计、system
+  提示），编译失败仅降级为 system 提示不使本轮失败；失败/取消轮不产生交接
+  （状态守卫）。
+- C3-3 ✓：单 Agent 类别轮后按真实 FileChange 数复核，>5 文件升级——升级
+  审计（reason 注明文件数）、system 提示、复用同一交接创建逻辑；≤5 与无
+  变更不触发均有测试；两时机判定语义已写入 §4.3。
+- 复验数据：后端全量 219 项（新增 21 项）、Ruff 通过；CI 双平台绿
+  （`f539dc6`）；前端零 diff。
+
+**记录一处已接受的确定性简化：** `qa` 类别的「最匹配单 Agent」在适配器映射
+中固定为 codex（`_agent_for_decision` 仅按 `Claude` 前缀分流）。首版确定性
+优先，接受；若后续需要按问题域挑选 Agent，属 TaskClassifier 的受控扩展。
+
 ### C2-R1 复验（2026-07-29，Claude）
 
 **结论：C2-R1 关闭，C2 阶段正式关闭，可进入 C3。**
