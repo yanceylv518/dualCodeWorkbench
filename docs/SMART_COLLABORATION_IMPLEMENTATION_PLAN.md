@@ -598,7 +598,7 @@ collaboration.failed
 > 编排器（C5）与分类器（C3）尚不存在，本条目只冻结审计事件的形状与合法性校验，
 > 不产生任何运行时审计写入；C3/C5 落地时直接调用本模块，不得另造事件格式。
 
-- [ ] 新增 `apps/backend/dualcode/collaboration_audit.py`：
+- [x] 新增 `apps/backend/dualcode/collaboration_audit.py`：
   - 事件名常量：`EVENT_STATE_TRANSITION = "collaboration.state_transition"`、
     `EVENT_ROUTING_DECISION = "collaboration.routing_decision"`。
   - 严格 detail 模型（复用 `collaboration_protocol.StrictModel` 配置）：
@@ -609,20 +609,20 @@ collaboration.failed
     `build_state_transition_audit(workspace_id, thread_id, detail) -> AuditLog`、
     `build_routing_decision_audit(workspace_id, thread_id, detail) -> AuditLog`；
     `detail` 序列化为 JSON 存入 `AuditLog.detail`，`event` 用上述常量。
-- [ ] 合法性校验内置于构建器：`build_state_transition_audit` 对
+- [x] 合法性校验内置于构建器：`build_state_transition_audit` 对
   `from_state → to_state` 按 `COLLABORATION_TRANSITIONS` 校验，非法跃迁抛
   `ValueError` 拒绝构建（防止未来编排器把非法跃迁写成看似正常的审计）；
   `build_routing_decision_audit` 对 `category` 按 `ROUTING_MATRIX` 校验，
   未知类别拒绝构建。
-- [ ] `reason` 与所有字符串字段沿用 evidence 的单行化 + 200 字符截断规则；
+- [x] `reason` 与所有字符串字段沿用 evidence 的单行化 + 200 字符截断规则；
   允许把 `evidence.py` 的 `_summary` 提升为模块公开函数（如
   `summarize_single_line`）供两处复用，除改名导出外不得顺手重构 evidence。
   detail 为严格模型意味着审计明细只含声明字段——凭据、完整 prompt、隐藏思维
   与附件内容在类型层面无处容身（对应 §11.6）。
-- [ ] 新增 `apps/backend/tests/test_collaboration_audit.py`：两类构建器的
+- [x] 新增 `apps/backend/tests/test_collaboration_audit.py`：两类构建器的
   event/workspace/thread/detail JSON 逐字段断言与 detail round-trip；非法跃迁
   拒绝构建；未知路由类别拒绝构建；`reason` 超长截断；detail 模型拒绝未知字段。
-- [ ] 零行为变更边界：不修改现有 API、scheduler、前端和数据库 schema
+- [x] 零行为变更边界：不修改现有 API、scheduler、前端和数据库 schema
   （`AuditLog` 表结构不变）；除测试外不新增任何 import 本模块的运行时代码。
 - **为什么**：§11.5 要求所有状态跃迁与路由决定写审计；先冻结事件名与 detail
   形状，C3/C5 的审计写入就只是「构建 + db.add」，格式不会随实现漂移，审计
@@ -630,6 +630,12 @@ collaboration.failed
 - **验收**：新契约测试全绿；后端全量 pytest、Ruff、桌面端 TypeScript 通过
   （前端应无 diff）；仍零运行时接线；GitHub Actions 双平台绿。完成后停下等
   Claude review；C0-3 通过后进行 C0 阶段整体验收。
+- **验证结果（2026-07-29）**：新增两类稳定事件名、严格 detail 模型及返回未入库
+  `AuditLog` 的纯构建器；构建前复用冻结的跃迁与路由查表校验。evidence 摘要函数
+  仅提升为公开复用点，detail 全部字符串统一单行化并限制为最多 200 字符。
+  专项测试 7 项、后端全量 161 项、Ruff 与桌面端 TypeScript 通过；除测试外无
+  运行时代码导入审计构建器，数据库 schema、API、scheduler 与前端均无改动。
+  GitHub Actions 双平台结果待本提交推送后由 Claude review 确认。
 - **验证结果（2026-07-29）**：新增严格 `EvidenceItem` 与四个纯 ORM 投影函数，
   摘要统一压成单行并限制为最多 200 字符；模型拒绝未知字段和 kind 字段错配。
   四类含标记大字段的源对象经投影后，序列化结果均不含 `output`、`diff` 或

@@ -1,5 +1,16 @@
 # DualCode Workbench 项目状态
 
+## 2026-07-29 智能协作 C0-3 协作审计构建器
+
+- 新增 `collaboration.state_transition` 与 `collaboration.routing_decision` 两类
+  稳定事件，以及严格、可 round-trip 的审计 detail 模型。
+- 两个纯构建器只返回未入库 `AuditLog`；状态事件先校验冻结跃迁表，路由事件先
+  校验冻结路由矩阵，非法输入不会生成看似正常的审计记录。
+- C0-2 摘要函数提升为公开复用点，detail 字符串统一单行化且最多 200 字符；
+  严格模型没有凭据、完整 prompt、隐藏思维或附件内容的承载字段。
+- 专项 7 项、后端全量 161 项、Ruff 与桌面端 TypeScript 通过。保持零运行时接线，
+  完成后停下等待 Claude review 与 C0 阶段整体验收。
+
 ## 2026-07-29 智能协作 C0-2 统一 evidence 投影
 
 - 新增严格 `EvidenceItem`，统一 `agent_run`、`handoff`、`test`、`file_change`

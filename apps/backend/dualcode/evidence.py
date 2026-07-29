@@ -48,7 +48,7 @@ class EvidenceItem(StrictModel):
         return self
 
 
-def _summary(value: str) -> str:
+def summarize_single_line(value: str) -> str:
     single_line = " ".join(value.split())
     if len(single_line) <= MAX_SUMMARY_LENGTH:
         return single_line
@@ -60,7 +60,7 @@ def from_test_run(row: TestRun) -> EvidenceItem:
         kind="test",
         source_id=row.id,
         thread_id=row.thread_id,
-        summary=_summary(f"{row.command} → exit {row.exit_code}"),
+        summary=summarize_single_line(f"{row.command} → exit {row.exit_code}"),
         command=row.command,
         exit_code=row.exit_code,
     )
@@ -71,7 +71,7 @@ def from_file_change(row: FileChange) -> EvidenceItem:
         kind="file_change",
         source_id=row.id,
         thread_id=row.thread_id,
-        summary=_summary(row.path),
+        summary=summarize_single_line(row.path),
         path=row.path,
     )
 
@@ -82,7 +82,7 @@ def from_agent_run(row: AgentRun) -> EvidenceItem:
         kind="agent_run",
         source_id=row.id,
         thread_id=row.thread_id,
-        summary=_summary(f"{row.agent} → {status}"),
+        summary=summarize_single_line(f"{row.agent} → {status}"),
         agent=row.agent,
         status=status,
     )
@@ -93,6 +93,6 @@ def from_handoff(row: HandoffPackage) -> EvidenceItem:
         kind="handoff",
         source_id=row.id,
         thread_id=row.thread_id,
-        summary=_summary(f"{row.recipient} ← {row.purpose} → {row.status}"),
+        summary=summarize_single_line(f"{row.recipient} ← {row.purpose} → {row.status}"),
         status=row.status,
     )
