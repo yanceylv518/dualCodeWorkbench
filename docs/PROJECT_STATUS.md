@@ -1,5 +1,14 @@
 # DualCode Workbench 项目状态
 
+## 2026-07-29 智能协作 C3-1 确定性任务分类
+
+- 路由矩阵键从中文展示文本迁移为八个稳定 slug，中文类别保留为
+  `RoutingRule.label`，既有主 Agent、协作者和流程映射保持不变。
+- 新增纯函数 `TaskClassifier`，使用冻结的有序关键词规则，未命中时保守回落
+  `feature`；`qa`/`style_fix` 保持单 Agent，其余类别进入双 Agent 路由。
+- 八类别中文样例、全部规则信号、优先级、确定性、默认回落与未知 slug 均有测试；
+  后端全量 210 项、Ruff 与桌面端 TypeScript 通过。下一项为 C3-2 smart 模式接线。
+
 ## 2026-07-29 智能协作 C2-R1 finding 主键修复
 
 - Review finding 数据库主键恢复使用本地 `uid`，不再把审查方每轮可能复用的

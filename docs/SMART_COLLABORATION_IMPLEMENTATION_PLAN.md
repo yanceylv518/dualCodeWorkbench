@@ -816,13 +816,13 @@ diff）；GitHub Actions 双平台绿；开关默认关闭下现有交接 API pa
 
 ### C3-1 路由矩阵 slug 化与 TaskClassifier（纯函数 + 表驱动测试）
 
-- [ ] `collaboration_protocol.py`（受控协议变更）：引入
+- [x] `collaboration_protocol.py`（受控协议变更）：引入
   `RequestCategory = Literal["qa", "style_fix", "feature", "product_design",
   "architecture", "bugfix", "security_high_risk", "test_build"]`；
   `ROUTING_MATRIX` 键改为 slug，`RoutingRule` 增加 `label: str` 保存原中文
   类别名（§4.2 八行中文串降为展示标签，映射关系逐行保持不变）；
   `route_for` 入参改为 slug；同步更新既有契约测试。
-- [ ] 新增 `apps/backend/dualcode/task_classifier.py`：
+- [x] 新增 `apps/backend/dualcode/task_classifier.py`：
   - `classify(prompt: str) -> RoutingDecision`，`RoutingDecision(StrictModel)`
     含 `category: RequestCategory`、`primary_agent`、`collaborator`、`process`、
     `label`、`dual_agent: bool`、`reasons: list[str]`（每条经
@@ -837,6 +837,10 @@ diff）；GitHub Actions 双平台绿；开关默认关闭下现有交接 API pa
 - **验收**：表驱动测试覆盖八类别各至少一条中文样例 prompt；同一输入调用两次
   结果完全相等（确定性断言）；未命中回落 `feature` 有断言；矩阵 slug 化后
   `route_for` 未知 slug 仍抛错。
+- **验证结果（2026-07-29）**：八类别 slug 路由与中文展示标签已冻结；
+  `TaskClassifier` 使用有序不可变规则表，逐信号、八类别中文样例、优先级、
+  确定性与 `feature` 保守回落均有测试覆盖。专项 41 项、后端全量 210 项、
+  Ruff 与桌面端 TypeScript 通过；API、scheduler 与前端均未改动。
 
 ### C3-2 `smart` 模式接线（路由执行 + 原因展示 + 审计首次接线）
 

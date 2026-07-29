@@ -41,7 +41,7 @@ def test_builds_state_transition_audit_and_round_trips_detail() -> None:
 
 def test_builds_routing_decision_audit_and_round_trips_detail() -> None:
     detail = RoutingDecisionDetail(
-        category="普通功能开发",
+        category="feature",
         primary_agent="Codex",
         collaborator="Claude",
         reason="requires implementation and review",
@@ -53,7 +53,7 @@ def test_builds_routing_decision_audit_and_round_trips_detail() -> None:
     assert row.thread_id == "thread-1"
     assert row.event == EVENT_ROUTING_DECISION
     assert json.loads(row.detail) == {
-        "category": "普通功能开发",
+        "category": "feature",
         "primary_agent": "Codex",
         "collaborator": "Claude",
         "reason": "requires implementation and review",
@@ -96,7 +96,7 @@ def test_detail_strings_are_single_line_and_truncated() -> None:
         reason=long_value,
     )
     routing_detail = RoutingDecisionDetail(
-        category="普通功能开发",
+        category="feature",
         primary_agent=long_value,
         collaborator=long_value,
         reason=long_value,
@@ -138,7 +138,7 @@ def test_detail_strings_are_single_line_and_truncated() -> None:
         (
             RoutingDecisionDetail,
             {
-                "category": "普通功能开发",
+                "category": "feature",
                 "primary_agent": "Codex",
                 "collaborator": "Claude",
                 "reason": "review required",

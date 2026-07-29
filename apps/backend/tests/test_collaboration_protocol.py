@@ -243,25 +243,41 @@ def test_every_documented_state_is_reachable_from_draft() -> None:
 
 def test_routing_matrix_matches_all_documented_rows() -> None:
     expected = {
-        "简单问答、解释": ("最匹配单 Agent", "无", "直接完成"),
-        "小型样式或单点修复": ("Codex", "按风险决定", "实现 → 验证"),
-        "普通功能开发": ("Codex", "Claude", "实现 → 审查 → 必要整改"),
-        "需求不清或产品设计": ("Claude", "Codex 可实现性复核", "澄清 → 确认 → 实现"),
-        "架构迁移": ("Claude", "Codex", "方案 → 可行性 → 实现 → 审查"),
-        "Bug 与故障恢复": ("Codex", "Claude", "根因 → 修复 → 回归审查"),
-        "安全、高风险、数据迁移": (
+        "qa": ("简单问答、解释", "最匹配单 Agent", "无", "直接完成"),
+        "style_fix": ("小型样式或单点修复", "Codex", "按风险决定", "实现 → 验证"),
+        "feature": ("普通功能开发", "Codex", "Claude", "实现 → 审查 → 必要整改"),
+        "product_design": (
+            "需求不清或产品设计",
+            "Claude",
+            "Codex 可实现性复核",
+            "澄清 → 确认 → 实现",
+        ),
+        "architecture": ("架构迁移", "Claude", "Codex", "方案 → 可行性 → 实现 → 审查"),
+        "bugfix": ("Bug 与故障恢复", "Codex", "Claude", "根因 → 修复 → 回归审查"),
+        "security_high_risk": (
+            "安全、高风险、数据迁移",
             "Claude 先审",
             "Codex 后执行",
             "风险审查 → 用户批准 → 实现",
         ),
-        "测试、构建、打包": ("Codex", "Claude 可验收", "执行 → 证据归档"),
+        "test_build": (
+            "测试、构建、打包",
+            "Codex",
+            "Claude 可验收",
+            "执行 → 证据归档",
+        ),
     }
 
     assert set(ROUTING_MATRIX) == set(expected)
     for category, values in expected.items():
         first = route_for(category)
         second = route_for(category)
-        assert (first.primary_agent, first.collaborator, first.process) == values
+        assert (
+            first.label,
+            first.primary_agent,
+            first.collaborator,
+            first.process,
+        ) == values
         assert first == second
 
 
@@ -272,4 +288,4 @@ def test_complexity_conditions_are_frozen() -> None:
 
 def test_unknown_route_raises() -> None:
     with pytest.raises(ValueError, match="Unknown request category"):
-        route_for("未知类别")
+        route_for("unknown")  # type: ignore[arg-type]

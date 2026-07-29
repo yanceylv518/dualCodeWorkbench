@@ -34,6 +34,16 @@ FactKind = Literal[
 FactSource = Literal["user", "git", "test", "codex", "claude", "system"]
 FactConfidence = Literal["confirmed", "verified", "unverified", "stale"]
 FindingStatus = Literal["open", "resolved"]
+RequestCategory = Literal[
+    "qa",
+    "style_fix",
+    "feature",
+    "product_design",
+    "architecture",
+    "bugfix",
+    "security_high_risk",
+    "test_build",
+]
 
 FACT_CONFIDENCE_RANK: dict[FactConfidence, int] = {
     "confirmed": 3,
@@ -239,38 +249,47 @@ def transition(current: CollaborationState, target: CollaborationState) -> Colla
 
 
 class RoutingRule(StrictModel):
+    label: str
     primary_agent: str
     collaborator: str
     process: str
 
 
-ROUTING_MATRIX: dict[str, RoutingRule] = {
-    "简单问答、解释": RoutingRule(
+ROUTING_MATRIX: dict[RequestCategory, RoutingRule] = {
+    "qa": RoutingRule(
+        label="简单问答、解释",
         primary_agent="最匹配单 Agent", collaborator="无", process="直接完成"
     ),
-    "小型样式或单点修复": RoutingRule(
+    "style_fix": RoutingRule(
+        label="小型样式或单点修复",
         primary_agent="Codex", collaborator="按风险决定", process="实现 → 验证"
     ),
-    "普通功能开发": RoutingRule(
+    "feature": RoutingRule(
+        label="普通功能开发",
         primary_agent="Codex", collaborator="Claude", process="实现 → 审查 → 必要整改"
     ),
-    "需求不清或产品设计": RoutingRule(
+    "product_design": RoutingRule(
+        label="需求不清或产品设计",
         primary_agent="Claude",
         collaborator="Codex 可实现性复核",
         process="澄清 → 确认 → 实现",
     ),
-    "架构迁移": RoutingRule(
+    "architecture": RoutingRule(
+        label="架构迁移",
         primary_agent="Claude", collaborator="Codex", process="方案 → 可行性 → 实现 → 审查"
     ),
-    "Bug 与故障恢复": RoutingRule(
+    "bugfix": RoutingRule(
+        label="Bug 与故障恢复",
         primary_agent="Codex", collaborator="Claude", process="根因 → 修复 → 回归审查"
     ),
-    "安全、高风险、数据迁移": RoutingRule(
+    "security_high_risk": RoutingRule(
+        label="安全、高风险、数据迁移",
         primary_agent="Claude 先审",
         collaborator="Codex 后执行",
         process="风险审查 → 用户批准 → 实现",
     ),
-    "测试、构建、打包": RoutingRule(
+    "test_build": RoutingRule(
+        label="测试、构建、打包",
         primary_agent="Codex", collaborator="Claude 可验收", process="执行 → 证据归档"
     ),
 }
@@ -291,7 +310,7 @@ SINGLE_AGENT_DEFAULT_CONDITIONS: tuple[str, ...] = (
 )
 
 
-def route_for(request_category: str) -> RoutingRule:
+def route_for(request_category: RequestCategory) -> RoutingRule:
     """Look up a frozen routing rule without classifying the request."""
 
     try:
