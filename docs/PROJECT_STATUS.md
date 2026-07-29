@@ -1,5 +1,14 @@
 # DualCode Workbench 项目状态
 
+## 2026-07-29 智能协作 C2-1 HandoffCompiler
+
+- 新增 `handoff.v2` 编译器，从任务契约、真实 Git HEAD/分支、变更文件和测试证据
+  生成冻结协议；C4 前 snapshot SHA 明确等于 base SHA。
+- 交接证据仅包含测试命令、退出码和短摘要，完整 diff/output 不进入 v2 payload；
+  claims 与 C2-3 前的 open findings 保持空列表。
+- 智能协作开关关闭时继续使用原 payload，开启时存储 v2；专项 14 项通过，下一项
+  为 C2-2 ReviewParser。
+
 ## 2026-07-29 智能协作 C1-3 共享记忆上下文注入
 
 - 新增默认关闭、可由环境变量开启的智能协作开关；关闭时共享记忆路径零数据库

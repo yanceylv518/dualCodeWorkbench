@@ -42,6 +42,8 @@ from .schemas import ApprovalDecision, GovernanceUpdate, HandoffCreate, TaskCont
 from .api_jobs import _execute_retry_job
 from .api_runtime import git_tasks as _git_tasks, json_list as _json_list
 from .handoff_prompt import handoff_prompt as _handoff_prompt
+from .handoff_compiler import compile_handoff_v2
+from .config import settings
 
 router = APIRouter(prefix="/api")
 
@@ -103,7 +105,19 @@ async def prepare_handoff(workspace_id: str, thread_id: str, body: HandoffCreate
     if not workspace or not thread:
         raise HTTPException(404, "项目与任务不匹配")
     try:
-        payload = await _handoff_payload(db, workspace, thread_id)
+        if settings.smart_collaboration_enabled:
+            payload = (
+                await compile_handoff_v2(
+                    db,
+                    workspace,
+                    thread,
+                    purpose=body.purpose,
+                    sender="codex" if body.recipient == "claude" else "claude",
+                    recipient=body.recipient,
+                )
+            ).model_dump(by_alias=True)
+        else:
+            payload = await _handoff_payload(db, workspace, thread_id)
     except GitError as exc:
         raise HTTPException(400, f"无法生成交接包：{exc}") from exc
     item = HandoffPackage(workspace_id=workspace_id, thread_id=thread_id, recipient=body.recipient,

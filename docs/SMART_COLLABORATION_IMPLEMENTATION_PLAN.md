@@ -721,7 +721,7 @@ TypeScript 通过（前端应无 diff）；GitHub Actions 双平台绿；开关�
 
 ### C2-1 HandoffCompiler：编译并存储 `handoff.v2`
 
-- [ ] 新增 `apps/backend/dualcode/handoff_compiler.py`：
+- [x] 新增 `apps/backend/dualcode/handoff_compiler.py`：
   `compile_handoff_v2(db, workspace, thread, *, purpose, sender, recipient)
   -> HandoffV2`，从真实数据构建并经冻结模型校验：
   - `task`：TaskContract 的 goal/non_goals/acceptance/constraints。
@@ -734,11 +734,13 @@ TypeScript 通过（前端应无 diff）；GitHub Actions 双平台绿；开关�
   - `claims` 留空列表（Codex 主张在 C5 由编排器填入）；`risks` 取契约
     known_risks；`open_findings` 取该交接前未解决 finding 描述（C2-3 落地前
     可先留空列表并注明）。
-- [ ] `api_collaboration.py` 的 `prepare_handoff`：开关开启时 payload 存
+- [x] `api_collaboration.py` 的 `prepare_handoff`：开关开启时 payload 存
   `compile_handoff_v2(...).model_dump(by_alias=True)`；开关关闭时走现有
   `_handoff_payload` 且输出逐字节不变。
 - **验收**：编译器单元测试覆盖字段来源逐项断言、大字段（diff、output）禁入、
   模型校验失败传播；API 测试覆盖开关两态的 payload 形状。
+  - 2026-07-29：专项 14 项通过；真实契约、Git、FileChange 与 TestRun 来源逐项
+    覆盖，diff/output 禁入，关闭态保留 legacy payload，开启态持久化 handoff.v2。
 
 ### C2-2 ReviewParser：`review.v1` 确定性解析
 

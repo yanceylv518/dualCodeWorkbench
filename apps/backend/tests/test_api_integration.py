@@ -453,7 +453,11 @@ async def test_agent_diagnostics_report_independent_health(
 
 
 @pytest.mark.asyncio
-async def test_project_governance_and_task_contract_gate(api_client: httpx.AsyncClient, tmp_path: Path):
+async def test_project_governance_and_task_contract_gate(
+    api_client: httpx.AsyncClient,
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+):
     workspace, thread = await _workspace(api_client, tmp_path)
     prefix = f"/api/workspaces/{workspace['id']}/threads/{thread['id']}"
     initial = (await api_client.get(f"{prefix}/contract")).json()
@@ -484,6 +488,22 @@ async def test_project_governance_and_task_contract_gate(api_client: httpx.Async
     package = prepared.json()
     assert package["payload"]["contract"]["task_goal"] == "实现项目规则中心"
     assert "messages" not in package["payload"]
+
+    from dualcode.config import settings
+
+    monkeypatch.setattr(settings, "smart_collaboration_enabled", True)
+    v2_prepared = await api_client.post(
+        f"{prefix}/handoffs",
+        json={"recipient": "claude", "purpose": "review"},
+    )
+    assert v2_prepared.status_code == 201
+    v2_payload = v2_prepared.json()["payload"]
+    assert v2_payload["schema"] == "handoff.v2"
+    assert v2_payload["task"]["goal"] == "实现项目规则中心"
+    assert v2_payload["sender"] == "codex"
+    assert v2_payload["recipient"] == "claude"
+    assert "contract" not in v2_payload
+
     handoffs = (await api_client.get(f"{prefix}/handoffs")).json()
     assert handoffs[0]["recipient"] == "claude"
     assert handoffs[0]["status"] == "PREPARED"
