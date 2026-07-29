@@ -95,12 +95,50 @@ class CollaborationState(str, enum.Enum):
 
 
 COLLABORATION_TRANSITIONS: dict[CollaborationState, frozenset[CollaborationState]] = {
-    CollaborationState.DRAFT: frozenset({CollaborationState.CLARIFYING}),
-    CollaborationState.CLARIFYING: frozenset({CollaborationState.READY}),
-    CollaborationState.READY: frozenset({CollaborationState.IMPLEMENTING}),
-    CollaborationState.IMPLEMENTING: frozenset({CollaborationState.VERIFYING}),
-    CollaborationState.VERIFYING: frozenset({CollaborationState.SYNCING_REVIEW_SNAPSHOT}),
-    CollaborationState.SYNCING_REVIEW_SNAPSHOT: frozenset({CollaborationState.REVIEWING}),
+    CollaborationState.DRAFT: frozenset(
+        {
+            CollaborationState.CLARIFYING,
+            CollaborationState.READY,
+            CollaborationState.CANCELLED,
+        }
+    ),
+    CollaborationState.CLARIFYING: frozenset(
+        {
+            CollaborationState.READY,
+            CollaborationState.WAITING_USER,
+            CollaborationState.CANCELLED,
+        }
+    ),
+    CollaborationState.READY: frozenset(
+        {CollaborationState.IMPLEMENTING, CollaborationState.CANCELLED}
+    ),
+    CollaborationState.IMPLEMENTING: frozenset(
+        {
+            CollaborationState.VERIFYING,
+            CollaborationState.WAITING_APPROVAL,
+            CollaborationState.WAITING_USER,
+            CollaborationState.BLOCKED,
+            CollaborationState.CANCELLED,
+        }
+    ),
+    CollaborationState.VERIFYING: frozenset(
+        {
+            CollaborationState.SYNCING_REVIEW_SNAPSHOT,
+            CollaborationState.WAITING_APPROVAL,
+            CollaborationState.WAITING_USER,
+            CollaborationState.BLOCKED,
+            CollaborationState.CANCELLED,
+        }
+    ),
+    CollaborationState.SYNCING_REVIEW_SNAPSHOT: frozenset(
+        {
+            CollaborationState.REVIEWING,
+            CollaborationState.WAITING_APPROVAL,
+            CollaborationState.WAITING_USER,
+            CollaborationState.BLOCKED,
+            CollaborationState.CANCELLED,
+        }
+    ),
     CollaborationState.REVIEWING: frozenset(
         {
             CollaborationState.ACCEPTED,
@@ -111,9 +149,48 @@ COLLABORATION_TRANSITIONS: dict[CollaborationState, frozenset[CollaborationState
             CollaborationState.CANCELLED,
         }
     ),
-    CollaborationState.ACCEPTED: frozenset({CollaborationState.COMPLETED}),
-    CollaborationState.CHANGES_REQUESTED: frozenset({CollaborationState.FIXING}),
-    CollaborationState.FIXING: frozenset({CollaborationState.VERIFYING}),
+    CollaborationState.ACCEPTED: frozenset(
+        {CollaborationState.COMPLETED, CollaborationState.CANCELLED}
+    ),
+    CollaborationState.CHANGES_REQUESTED: frozenset(
+        {CollaborationState.FIXING, CollaborationState.CANCELLED}
+    ),
+    CollaborationState.FIXING: frozenset(
+        {
+            CollaborationState.VERIFYING,
+            CollaborationState.WAITING_APPROVAL,
+            CollaborationState.WAITING_USER,
+            CollaborationState.BLOCKED,
+            CollaborationState.CANCELLED,
+        }
+    ),
+    CollaborationState.WAITING_APPROVAL: frozenset(
+        {
+            CollaborationState.IMPLEMENTING,
+            CollaborationState.VERIFYING,
+            CollaborationState.SYNCING_REVIEW_SNAPSHOT,
+            CollaborationState.REVIEWING,
+            CollaborationState.FIXING,
+            CollaborationState.CANCELLED,
+        }
+    ),
+    CollaborationState.WAITING_USER: frozenset(
+        {
+            CollaborationState.READY,
+            CollaborationState.FIXING,
+            CollaborationState.CANCELLED,
+        }
+    ),
+    CollaborationState.BLOCKED: frozenset(
+        {
+            CollaborationState.IMPLEMENTING,
+            CollaborationState.VERIFYING,
+            CollaborationState.SYNCING_REVIEW_SNAPSHOT,
+            CollaborationState.REVIEWING,
+            CollaborationState.FIXING,
+            CollaborationState.CANCELLED,
+        }
+    ),
 }
 
 

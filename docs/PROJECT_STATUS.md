@@ -1,5 +1,14 @@
 # DualCode Workbench 项目状态
 
+## 2026-07-29 智能协作 C0-1-R1 权威跃迁表
+
+- §5.1 已从易产生歧义的 ASCII 图改为逐状态权威跃迁表，补齐审批挂起、用户裁决、
+  可恢复阻塞、随时取消和挂起后恢复的合法边；终态明确仅为 `COMPLETED`/`CANCELLED`。
+- `COLLABORATION_TRANSITIONS` 与规格逐边一致，契约测试直接对全部 13 个非终态的
+  完整目标集合断言，并增加挂起态误入完成态和终态出边的非法迁移覆盖。
+- 契约测试 22 项、后端全量 146 项、Ruff 与桌面端 TypeScript 通过；保持零运行时
+  接线，完成后停下等待 Claude review。
+
 ## 2026-07-29 智能协作 C0-1 协议与状态机冻结
 
 - 新增 `collaboration_protocol.py`，以严格 Pydantic 模型冻结 `handoff.v2`、

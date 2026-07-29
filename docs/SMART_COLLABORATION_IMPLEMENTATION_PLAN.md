@@ -137,21 +137,29 @@ CollaborationOrchestrator（确定性编排器）
 
 ### 5.1 状态
 
-```text
-DRAFT
-  → CLARIFYING
-  → READY
-  → IMPLEMENTING
-  → VERIFYING
-  → SYNCING_REVIEW_SNAPSHOT
-  → REVIEWING
-  ├── ACCEPTED → COMPLETED
-  ├── CHANGES_REQUESTED → FIXING → VERIFYING
-  ├── WAITING_APPROVAL
-  ├── WAITING_USER
-  ├── BLOCKED
-  └── CANCELLED
-```
+| 当前态 | 合法目标态 |
+|---|---|
+| DRAFT | CLARIFYING、READY、CANCELLED |
+| CLARIFYING | READY、WAITING_USER、CANCELLED |
+| READY | IMPLEMENTING、CANCELLED |
+| IMPLEMENTING | VERIFYING、WAITING_APPROVAL、WAITING_USER、BLOCKED、CANCELLED |
+| VERIFYING | SYNCING_REVIEW_SNAPSHOT、WAITING_APPROVAL、WAITING_USER、BLOCKED、CANCELLED |
+| SYNCING_REVIEW_SNAPSHOT | REVIEWING、WAITING_APPROVAL、WAITING_USER、BLOCKED、CANCELLED |
+| REVIEWING | ACCEPTED、CHANGES_REQUESTED、WAITING_APPROVAL、WAITING_USER、BLOCKED、CANCELLED |
+| ACCEPTED | COMPLETED、CANCELLED |
+| CHANGES_REQUESTED | FIXING、CANCELLED |
+| FIXING | VERIFYING、WAITING_APPROVAL、WAITING_USER、BLOCKED、CANCELLED |
+| WAITING_APPROVAL | IMPLEMENTING、VERIFYING、SYNCING_REVIEW_SNAPSHOT、REVIEWING、FIXING、CANCELLED |
+| WAITING_USER | READY、FIXING、CANCELLED |
+| BLOCKED | IMPLEMENTING、VERIFYING、SYNCING_REVIEW_SNAPSHOT、REVIEWING、FIXING、CANCELLED |
+| COMPLETED | （终态） |
+| CANCELLED | （终态） |
+
+`DRAFT → READY` 直通仅当任务契约已满足 READY 门禁（对应 §1.1.6）。
+`WAITING_APPROVAL`/`BLOCKED` 的出边表示回到挂起前状态；挂起前状态由未来
+`collaboration_runs` 记录，本表只约束合法目标集合。`WAITING_USER` 的出边对应
+用户三种裁决：调整范围后重入（READY）、直接整改（FIXING）、停止（CANCELLED）。
+终态仅 `COMPLETED`/`CANCELLED`。
 
 ### 5.2 阶段门禁
 
@@ -515,7 +523,7 @@ collaboration.failed
 > 规格与代码是同一冻结单元，本条目 docs 与 backend 改动允许同一 commit。
 > 以下跃迁表为权威规格；如需偏离，先在本条目下写明理由并等 review，再动手。
 
-- [ ] 方案 §5.1 重写为显式跃迁表（Markdown 表：当前态 → 合法目标态集合），
+- [x] 方案 §5.1 重写为显式跃迁表（Markdown 表：当前态 → 合法目标态集合），
   放弃 ASCII 示意图作为规格载体，按以下定义：
 
   | 当前态 | 合法目标态 |
@@ -541,9 +549,9 @@ collaboration.failed
   挂起前状态由未来 `collaboration_runs` 记录，表只约束合法集合；`WAITING_USER`
   出边对应用户三种裁决：调整范围后重入（READY）、直接整改（FIXING）、停止
   （CANCELLED）；终态仅 `COMPLETED`/`CANCELLED`。
-- [ ] `collaboration_protocol.py` 的 `COLLABORATION_TRANSITIONS` 按新表逐边对齐；
+- [x] `collaboration_protocol.py` 的 `COLLABORATION_TRANSITIONS` 按新表逐边对齐；
   `transition()` 行为不变。
-- [ ] `test_collaboration_protocol.py`：非终态覆盖断言更新为对新表逐边断言
+- [x] `test_collaboration_protocol.py`：非终态覆盖断言更新为对新表逐边断言
   （每个非终态列出完整目标集合，直接与上表对照）；保留全状态可达性测试与
   成功/整改路径测试；非法跃迁参数化补充挂起态误入终态（如
   `WAITING_APPROVAL → COMPLETED`）与终态出边用例。
@@ -552,6 +560,11 @@ collaboration.failed
   无矛盾的表为契约。
 - **验收**：契约测试与新表逐边一致并全绿；后端全量 pytest、Ruff 通过；
   仍零运行时接线；GitHub Actions 双平台绿。
+- **验证结果（2026-07-29）**：§5.1 已用权威 Markdown 跃迁表取代示意图并补齐
+  直通、挂起恢复、用户裁决与终态语义；后端常量逐边对齐，测试以完整目标集合
+  直接断言每个非终态，并覆盖 `WAITING_APPROVAL → COMPLETED` 及两个终态出边非法。
+  契约测试 22 项、后端全量 146 项、Ruff 与桌面端 TypeScript 通过；仍无运行时接线。
+  GitHub Actions 双平台结果待本提交推送后由 Claude review 确认。
 
 **Codex 执行结果（2026-07-29）**
 

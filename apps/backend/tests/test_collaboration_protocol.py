@@ -131,6 +131,7 @@ def test_fix_path_returns_to_verification() -> None:
     ("current", "target"),
     [
         (CollaborationState.DRAFT, CollaborationState.COMPLETED),
+        (CollaborationState.WAITING_APPROVAL, CollaborationState.COMPLETED),
         (CollaborationState.COMPLETED, CollaborationState.DRAFT),
         (CollaborationState.CANCELLED, CollaborationState.READY),
     ],
@@ -140,20 +141,91 @@ def test_illegal_transitions_raise(current: CollaborationState, target: Collabor
         transition(current, target)
 
 
-def test_transition_table_covers_every_non_terminal_documented_state() -> None:
-    expected_sources = {
-        CollaborationState.DRAFT,
-        CollaborationState.CLARIFYING,
-        CollaborationState.READY,
-        CollaborationState.IMPLEMENTING,
-        CollaborationState.VERIFYING,
-        CollaborationState.SYNCING_REVIEW_SNAPSHOT,
-        CollaborationState.REVIEWING,
-        CollaborationState.ACCEPTED,
-        CollaborationState.CHANGES_REQUESTED,
-        CollaborationState.FIXING,
+def test_transition_table_matches_authoritative_specification() -> None:
+    expected = {
+        CollaborationState.DRAFT: {
+            CollaborationState.CLARIFYING,
+            CollaborationState.READY,
+            CollaborationState.CANCELLED,
+        },
+        CollaborationState.CLARIFYING: {
+            CollaborationState.READY,
+            CollaborationState.WAITING_USER,
+            CollaborationState.CANCELLED,
+        },
+        CollaborationState.READY: {
+            CollaborationState.IMPLEMENTING,
+            CollaborationState.CANCELLED,
+        },
+        CollaborationState.IMPLEMENTING: {
+            CollaborationState.VERIFYING,
+            CollaborationState.WAITING_APPROVAL,
+            CollaborationState.WAITING_USER,
+            CollaborationState.BLOCKED,
+            CollaborationState.CANCELLED,
+        },
+        CollaborationState.VERIFYING: {
+            CollaborationState.SYNCING_REVIEW_SNAPSHOT,
+            CollaborationState.WAITING_APPROVAL,
+            CollaborationState.WAITING_USER,
+            CollaborationState.BLOCKED,
+            CollaborationState.CANCELLED,
+        },
+        CollaborationState.SYNCING_REVIEW_SNAPSHOT: {
+            CollaborationState.REVIEWING,
+            CollaborationState.WAITING_APPROVAL,
+            CollaborationState.WAITING_USER,
+            CollaborationState.BLOCKED,
+            CollaborationState.CANCELLED,
+        },
+        CollaborationState.REVIEWING: {
+            CollaborationState.ACCEPTED,
+            CollaborationState.CHANGES_REQUESTED,
+            CollaborationState.WAITING_APPROVAL,
+            CollaborationState.WAITING_USER,
+            CollaborationState.BLOCKED,
+            CollaborationState.CANCELLED,
+        },
+        CollaborationState.ACCEPTED: {
+            CollaborationState.COMPLETED,
+            CollaborationState.CANCELLED,
+        },
+        CollaborationState.CHANGES_REQUESTED: {
+            CollaborationState.FIXING,
+            CollaborationState.CANCELLED,
+        },
+        CollaborationState.FIXING: {
+            CollaborationState.VERIFYING,
+            CollaborationState.WAITING_APPROVAL,
+            CollaborationState.WAITING_USER,
+            CollaborationState.BLOCKED,
+            CollaborationState.CANCELLED,
+        },
+        CollaborationState.WAITING_APPROVAL: {
+            CollaborationState.IMPLEMENTING,
+            CollaborationState.VERIFYING,
+            CollaborationState.SYNCING_REVIEW_SNAPSHOT,
+            CollaborationState.REVIEWING,
+            CollaborationState.FIXING,
+            CollaborationState.CANCELLED,
+        },
+        CollaborationState.WAITING_USER: {
+            CollaborationState.READY,
+            CollaborationState.FIXING,
+            CollaborationState.CANCELLED,
+        },
+        CollaborationState.BLOCKED: {
+            CollaborationState.IMPLEMENTING,
+            CollaborationState.VERIFYING,
+            CollaborationState.SYNCING_REVIEW_SNAPSHOT,
+            CollaborationState.REVIEWING,
+            CollaborationState.FIXING,
+            CollaborationState.CANCELLED,
+        },
     }
-    assert set(COLLABORATION_TRANSITIONS) == expected_sources
+    assert {
+        current: set(targets) for current, targets in COLLABORATION_TRANSITIONS.items()
+    } == expected
 
 
 def test_every_documented_state_is_reachable_from_draft() -> None:
