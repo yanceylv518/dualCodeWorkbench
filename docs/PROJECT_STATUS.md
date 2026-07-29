@@ -1,5 +1,14 @@
 # DualCode Workbench 项目状态
 
+## 2026-07-29 智能协作 C3-2 smart 模式接线
+
+- 消息 API 接受 `smart`，功能开关关闭时在写入消息前返回中文 422；开启后由
+  `TaskClassifier` 选择既有 Codex/Claude 单 Agent 执行路径。
+- 路由决定写入结构化审计与行内 system 消息；双 Agent 类别仅在主 Agent 成功后
+  生成 `PREPARED` review 交接和提示，不自动发送，编译失败不拖垮主轮次。
+- qa 单 Agent、feature/architecture 双 Agent、显式模式零旁路，以及真实审计、
+  system 消息和 handoff 持久化均有测试；后端 216 项、Ruff、TypeScript 通过。
+
 ## 2026-07-29 智能协作 C3-1 确定性任务分类
 
 - 路由矩阵键从中文展示文本迁移为八个稳定 slug，中文类别保留为

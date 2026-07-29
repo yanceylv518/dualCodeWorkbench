@@ -267,6 +267,8 @@ async def remove_thread(
 async def create_message(
     workspace_id: str, thread_id: str, body: MessageCreate, db: AsyncSession = Depends(get_session)
 ):
+    if body.mode == "smart" and not settings.smart_collaboration_enabled:
+        raise HTTPException(422, "智能协作尚未启用")
     thread = await db.scalar(
         select(Thread).where(Thread.id == thread_id, Thread.workspace_id == workspace_id)
     )
@@ -429,4 +431,3 @@ async def retry_message(
     db.add(AuditLog(workspace_id=workspace_id, thread_id=thread_id, event=event, detail=f"message={message_id};run={run_id}"))
     await db.commit()
     return {"run_id": run_id}
-

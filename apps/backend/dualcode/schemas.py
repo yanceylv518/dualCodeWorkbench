@@ -4,7 +4,7 @@ from .models import RunState
 
 class MessageCreate(BaseModel):
     content: str = Field(default="", max_length=50_000)
-    mode: str = Field(default="codex", pattern="^(codex|claude)$")
+    mode: str = Field(default="codex", pattern="^(codex|claude|smart)$")
     attachment_ids: list[str] = Field(default_factory=list, max_length=8)
 
     @model_validator(mode="after")

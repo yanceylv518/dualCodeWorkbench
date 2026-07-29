@@ -162,6 +162,34 @@ async def test_editing_a_user_message_resends_and_persists_the_new_content(
 
 
 @pytest.mark.asyncio
+async def test_smart_message_is_accepted_when_feature_flag_is_enabled(
+    api_client: httpx.AsyncClient,
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+):
+    workspace, thread = await _workspace(api_client, tmp_path)
+    started: list[str] = []
+
+    async def fake_start(thread_id, prompt, mode, attachment_ids):
+        started.append(mode)
+        return "smart-run"
+
+    from dualcode import api_workspaces
+    from dualcode.config import settings
+
+    monkeypatch.setattr(settings, "smart_collaboration_enabled", True)
+    monkeypatch.setattr(api_workspaces.scheduler, "start", fake_start)
+    response = await api_client.post(
+        f"/api/workspaces/{workspace['id']}/threads/{thread['id']}/messages",
+        json={"content": "增加收藏功能", "mode": "smart"},
+    )
+
+    assert response.status_code == 202
+    assert response.json()["run_id"] == "smart-run"
+    assert started == ["smart"]
+
+
+@pytest.mark.asyncio
 async def test_thread_can_be_renamed_and_deleted_with_audit(
     api_client: httpx.AsyncClient, tmp_path: Path
 ):
@@ -407,6 +435,12 @@ async def test_attachment_diff_test_result_and_audit_chain(
         json={"content": "run the old pipeline", "mode": "collaboration"},
     )
     assert collaboration.status_code == 422
+    smart_disabled = await api_client.post(
+        f"{prefix}/messages",
+        json={"content": "智能处理这个需求", "mode": "smart"},
+    )
+    assert smart_disabled.status_code == 422
+    assert smart_disabled.json()["detail"] == "智能协作尚未启用"
 
     sessions = api_client._dualcode_test_sessions  # type: ignore[attr-defined]
     async with sessions() as db:

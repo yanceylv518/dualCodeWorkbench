@@ -17,6 +17,7 @@ from .approvals import approval_gate
 from .cli_adapters import ClaudeCliAdapter
 from .codex_app_server import CodexAppServerAdapter
 from .connections import manager
+from .collaboration_audit import RoutingDecisionDetail, build_routing_decision_audit
 from .context_budget import build_memory_section, build_recent_transcript, truncate_contract
 from .database import SessionLocal
 from .document_text import DOCX_MEDIA_TYPE, extract_docx_text
@@ -29,6 +30,7 @@ from .models import (
     Attachment,
     AuditLog,
     FileChange,
+    HandoffPackage,
     Message,
     MemoryFact,
     ProjectGovernance,
@@ -38,11 +40,13 @@ from .models import (
     Workspace,
 )
 from .config import settings
+from .handoff_compiler import compile_handoff_v2
 from .memory_service import snapshot_thread_facts
 from .ssh_adapter import ClaudeSshAdapter, ClaudeSshConfig
 from .runtime_settings import AgentSettings, agent_settings_store
 from .workspace_remote import derived_repository_path, workspace_remote_store
 from .test_executor import TestExecutor
+from .task_classifier import RoutingDecision, classify
 
 
 class RunScheduler:
@@ -166,7 +170,109 @@ class RunScheduler:
         attachment_ids: list[str],
     ) -> None:
         """Dispatch a single explicitly selected Agent turn."""
-        await self._execute_chat(thread_id, run_id, prompt, mode, attachment_ids)
+        if mode != "smart":
+            await self._execute_chat(thread_id, run_id, prompt, mode, attachment_ids)
+            return
+
+        decision = classify(prompt)
+        agent = self._agent_for_decision(decision)
+        await self._record_smart_route(thread_id, decision)
+        await self._execute_chat(thread_id, run_id, prompt, agent, attachment_ids)
+        if decision.dual_agent:
+            await self._prepare_review_handoff(thread_id, run_id, agent, decision)
+
+    @staticmethod
+    def _agent_for_decision(decision: RoutingDecision) -> str:
+        return "claude" if decision.primary_agent.startswith("Claude") else "codex"
+
+    async def _record_system_message(self, db, thread_id: str, content: str) -> None:
+        message = Message(thread_id=thread_id, role="system", content=content)
+        db.add(message)
+        await db.flush()
+        await manager.publish(
+            AgentEvent(
+                type=EventType.MESSAGE_CREATED,
+                thread_id=thread_id,
+                payload={"id": message.id, "role": "system", "content": content},
+            )
+        )
+
+    async def _record_smart_route(
+        self, thread_id: str, decision: RoutingDecision
+    ) -> None:
+        async with SessionLocal() as db:
+            thread = await db.get(Thread, thread_id)
+            if not thread:
+                return
+            db.add(
+                build_routing_decision_audit(
+                    thread.workspace_id,
+                    thread_id,
+                    RoutingDecisionDetail(
+                        category=decision.category,
+                        primary_agent=decision.primary_agent,
+                        collaborator=decision.collaborator,
+                        reason="；".join(decision.reasons),
+                    ),
+                )
+            )
+            reason = "；".join(decision.reasons)
+            await self._record_system_message(
+                db,
+                thread_id,
+                f"智能路由：{decision.label} → {decision.primary_agent}（{reason}）",
+            )
+            await db.commit()
+
+    async def _prepare_review_handoff(
+        self,
+        thread_id: str,
+        run_id: str,
+        agent: str,
+        decision: RoutingDecision,
+    ) -> None:
+        async with SessionLocal() as db:
+            thread = await db.get(Thread, thread_id)
+            run = await db.get(AgentRun, run_id)
+            workspace = await db.get(Workspace, thread.workspace_id) if thread else None
+            if not thread or not workspace or not run or run.state != RunState.COMPLETED:
+                return
+            recipient = "claude" if agent == "codex" else "codex"
+            try:
+                payload = await compile_handoff_v2(
+                    db,
+                    workspace,
+                    thread,
+                    purpose="review",
+                    sender=agent,
+                    recipient=recipient,
+                )
+                db.add(
+                    HandoffPackage(
+                        workspace_id=workspace.id,
+                        thread_id=thread_id,
+                        recipient=recipient,
+                        purpose="review",
+                        payload=payload.model_dump_json(by_alias=True),
+                        status="PREPARED",
+                    )
+                )
+                db.add(
+                    AuditLog(
+                        workspace_id=workspace.id,
+                        thread_id=thread_id,
+                        event="handoff.prepared",
+                        detail=(
+                            f"recipient={recipient};purpose=review;"
+                            f"category={decision.category}"
+                        ),
+                    )
+                )
+                message = f"已准备审查交接：{agent} → {recipient}"
+            except Exception as exc:
+                message = f"未能准备审查交接：{str(exc)[:160]}"
+            await self._record_system_message(db, thread_id, message)
+            await db.commit()
 
     async def _execute_chat(self, thread_id: str, run_id: str, prompt: str, agent: str, attachment_ids: list[str]) -> None:
         """Run one turn for the selected agent without advancing an orchestration pipeline."""

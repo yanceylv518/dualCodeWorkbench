@@ -844,10 +844,10 @@ diff）；GitHub Actions 双平台绿；开关默认关闭下现有交接 API pa
 
 ### C3-2 `smart` 模式接线（路由执行 + 原因展示 + 审计首次接线）
 
-- [ ] `schemas.py`：`MessageCreate.mode` 放开为 `^(codex|claude|smart)$`；
+- [x] `schemas.py`：`MessageCreate.mode` 放开为 `^(codex|claude|smart)$`；
   消息 API 在 `mode=smart` 且开关关闭时返回 422，错误内容为中文
   （如「智能协作尚未启用」），不改变 codex/claude 行为。
-- [ ] `scheduler.py`：`mode=smart` 时在 `_execute_chat` 前调用
+- [x] `scheduler.py`：`mode=smart` 时在 `_execute_chat` 前调用
   `classify(prompt)`，本轮以 `primary_agent`（映射到 codex/claude 适配器；
   `security_high_risk` 的「Claude 先审」映射为 claude）执行，复用现有单
   Agent 路径与所有审批/审计语义：
@@ -856,7 +856,7 @@ diff）；GitHub Actions 双平台绿；开关默认关闭下现有交接 API pa
   - 路由原因展示：向线程写入一条 system 消息（复用现有 system 事件通道与
     A8 行内灰字样式，前端无需改动），内容形如
     「智能路由：{label} → {primary_agent}（{原因摘要}）」。
-- [ ] 复杂任务创建审查阶段：`dual_agent=true` 时，本轮 Agent 正常完成后自动
+- [x] 复杂任务创建审查阶段：`dual_agent=true` 时，本轮 Agent 正常完成后自动
   调用 C2 `compile_handoff_v2` 生成并持久化 `PREPARED` 状态的审查交接
   （recipient 为协作者方向，purpose=`review`），写 `handoff.prepared` 审计，
   并追加 system 消息提示「已准备审查交接」；**不自动发送**（发送与整改循环
@@ -864,6 +864,11 @@ diff）；GitHub Actions 双平台绿；开关默认关闭下现有交接 API pa
 - **验收**：API 测试覆盖开关两态（关闭 422 中文、开启 smart 正常路由）；
   scheduler 测试覆盖 qa → 单 Agent 无交接、feature → 主 Agent 执行后自动
   出现 PREPARED 审查交接与两条 system 消息；路由审计行断言。
+- **验证结果（2026-07-29）**：`smart` 模式由功能开关守门，关闭返回中文 422；
+  开启后按确定性分类选择现有 Agent 适配器。路由决定与原因写入审计和 system
+  消息，复杂任务成功完成后仅准备、不发送 `review` 交接；编译失败降级为 system
+  提示。专项持久化验证 18 项、后端全量 216 项、Ruff 与桌面端 TypeScript 通过，
+  前端零 diff，显式 codex/claude 路径保持原分发。
 
 ### C3-3 事后 Diff 升级（补足 §4.3 判定时机）
 
