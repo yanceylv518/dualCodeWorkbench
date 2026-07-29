@@ -80,12 +80,16 @@ stream-json 按整条 assistant 消息吐出，思考与正文都是「憋完一
 
 ### R0-1 本地影子快照生成
 
-- [ ] 不触碰用户 index 与工作树：用临时 index（`GIT_INDEX_FILE` + `git add -A` +
+- [x] 不触碰用户 index 与工作树：用临时 index（`GIT_INDEX_FILE` + `git add -A` +
   `git commit-tree`）把当前工作区全部变更（含未提交、未暂存）固化为快照 commit，
   父指向当前 HEAD；记录 `base_sha` 与 `snapshot_sha` 到接力轮次记录。
-- [ ] 凭据防护规则（security.py 现有 glob 列表）在快照阶段生效：命中规则的文件
+- [x] 凭据防护规则（security.py 现有 glob 列表）在快照阶段生效：命中规则的文件
   不进入快照并在轮次记录中列出被排除项。
 - **验收**：单元测试覆盖「脏工作树快照后用户工作树/index/HEAD 零变化」「敏感文件被排除」。
+- **验证结果（2026-07-29）**：临时 index 快照覆盖 staged、unstaged、untracked
+  变更；快照前后 `status`、HEAD 与真实 index tree 逐值一致。`.env.local`
+  未进入快照 tree 且记录于 excluded_paths；空仓库返回中文错误。专项 7 项、
+  后端全量 221 项、Ruff 与桌面端 TypeScript 通过。
 
 ### R0-2 VPS 直连推送影子 ref
 

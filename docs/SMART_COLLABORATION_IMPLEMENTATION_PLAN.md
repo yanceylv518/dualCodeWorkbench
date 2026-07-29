@@ -910,9 +910,9 @@ Claude review。
 
 ### C4-1 RelayService 本地影子快照（R0-1 + 全长 SHA 收紧）
 
-- [ ] `git_service.py`：`run()` 增加可选 `env: dict[str, str] | None` 参数
+- [x] `git_service.py`：`run()` 增加可选 `env: dict[str, str] | None` 参数
   （与现有环境合并后传入子进程），无调用方传入时行为不变。
-- [ ] 新增 `apps/backend/dualcode/relay_service.py`：
+- [x] 新增 `apps/backend/dualcode/relay_service.py`：
   `create_shadow_snapshot(repository: Path) -> ShadowSnapshot`：
   - 用临时 `GIT_INDEX_FILE`（放系统临时目录，用后删除）+ `git add -A` +
     `git write-tree` + `git commit-tree`（父指向当前 HEAD）把工作区全部变更
@@ -925,12 +925,17 @@ Claude review。
     `git rev-parse HEAD` / `commit-tree` 输出的**全长 SHA**）、
     `excluded_paths: list[str]`。
   - 空仓库（无 HEAB）明确抛中文错误，不生成孤儿快照。
-- [ ] `handoff_compiler.py` 同步收紧：`base_sha` 改用
+- [x] `handoff_compiler.py` 同步收紧：`base_sha` 改用
   `rev-parse HEAD` 全长输出（关闭 C2 review 建议项）；相关测试更新。
 - **验收**（对应 R0-1）：单元测试断言——脏工作树（含未跟踪文件）快照后
   `git status`、`rev-parse HEAD`、真实 index 内容零变化；快照 commit 内容
   含未提交变更；命中凭据规则的文件不在快照 tree 中且列入 excluded_paths；
   全长 SHA 形状断言。
+- **验证结果（2026-07-29）**：`GitService.run` 支持合并环境变量且默认行为不变；
+  `RelayService` 使用临时 index 生成父指向 HEAD 的不可达快照 commit，并在 finally
+  清理 index/lock。测试覆盖 staged、unstaged、untracked、凭据排除、空仓库中文
+  错误及用户 status/HEAD/index 零变化；handoff 使用全长 SHA。专项 7 项、后端
+  全量 221 项、Ruff 与桌面端 TypeScript 通过，前端零 diff。
 
 ### C4-2 影子 ref 推送与每任务授权（R0-2 + R0-3）
 

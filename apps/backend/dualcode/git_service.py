@@ -1,4 +1,5 @@
 import asyncio
+import os
 import subprocess
 import re
 from dataclasses import dataclass
@@ -23,8 +24,17 @@ class GitService:
         self.managed_root = managed_root.resolve()
         self.managed_root.mkdir(parents=True, exist_ok=True)
 
-    async def run(self, repository: Path, *args: str, check: bool = True) -> GitResult:
+    async def run(
+        self,
+        repository: Path,
+        *args: str,
+        check: bool = True,
+        env: dict[str, str] | None = None,
+    ) -> GitResult:
         repository = repository.resolve(strict=True)
+        process_env = os.environ.copy()
+        if env:
+            process_env.update(env)
         process = await asyncio.create_subprocess_exec(
             "git",
             "-C",
@@ -33,6 +43,7 @@ class GitService:
             stdout=asyncio.subprocess.PIPE,
             stderr=asyncio.subprocess.PIPE,
             creationflags=getattr(subprocess, "CREATE_NO_WINDOW", 0),
+            env=process_env,
         )
         stdout, stderr = await process.communicate()
         result = GitResult(

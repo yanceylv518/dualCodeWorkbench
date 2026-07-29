@@ -341,6 +341,24 @@ async def _workspace(api_client: httpx.AsyncClient, tmp_path: Path) -> tuple[dic
     repository = tmp_path / "acceptance-repository"
     repository.mkdir()
     subprocess.run(["git", "init", "-b", "main", str(repository)], check=True, capture_output=True)
+    (repository / "README.md").write_text("integration repository\n", encoding="utf-8")
+    subprocess.run(["git", "-C", str(repository), "add", "README.md"], check=True)
+    subprocess.run(
+        [
+            "git",
+            "-C",
+            str(repository),
+            "-c",
+            "user.name=DualCode Test",
+            "-c",
+            "user.email=dualcode@example.invalid",
+            "commit",
+            "-m",
+            "initial",
+        ],
+        check=True,
+        capture_output=True,
+    )
     workspace = (await api_client.post("/api/workspaces", json={"path": str(repository)})).json()
     return workspace, workspace["threads"][0]
 

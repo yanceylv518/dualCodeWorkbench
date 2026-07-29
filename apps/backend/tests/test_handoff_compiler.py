@@ -54,7 +54,7 @@ def _repository(path) -> str:
     )
     return (
         subprocess.run(
-            ["git", "-C", str(path), "rev-parse", "--short=10", "HEAD"],
+            ["git", "-C", str(path), "rev-parse", "HEAD"],
             check=True,
             capture_output=True,
             text=True,
@@ -150,6 +150,7 @@ async def test_compile_handoff_v2_projects_real_sources_without_large_fields(
     }
     assert handoff.repository.base_sha == head
     assert handoff.repository.snapshot_sha == head
+    assert len(handoff.repository.base_sha) == 40
     assert handoff.repository.branch == "main"
     assert handoff.repository.changed_files == [
         "apps/backend/a.py",

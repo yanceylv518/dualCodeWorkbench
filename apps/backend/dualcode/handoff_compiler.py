@@ -71,10 +71,9 @@ async def compile_handoff_v2(
         )
     ).all()
     repository_path = Path(workspace.path)
-    repository = await GitService(repository_path.parent).repository_status(
-        repository_path
-    )
-    base_sha = str(repository["head"])
+    git = GitService(repository_path.parent)
+    repository = await git.repository_status(repository_path)
+    base_sha = (await git.run(repository_path, "rev-parse", "HEAD")).stdout.strip()
     changed_files = list(dict.fromkeys(item.path for item in changes))
     evidence = [
         HandoffEvidence(

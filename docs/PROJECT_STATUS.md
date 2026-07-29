@@ -1,5 +1,14 @@
 # DualCode Workbench 项目状态
 
+## 2026-07-29 智能协作 C4-1 本地影子快照
+
+- 新增 `RelayService.create_shadow_snapshot`，用临时 Git index 捕获 staged、
+  unstaged 与 untracked 变更，生成父指向当前 HEAD 的不可达快照 commit。
+- 快照前逐路径应用凭据规则并排除敏感文件；临时 index/lock 必定清理，真实
+  status、HEAD、index tree 保持不变，空仓库明确返回中文错误。
+- handoff base/snapshot SHA 收紧为全长值；专项 7 项、后端 221 项、Ruff 与
+  TypeScript 通过。下一项为 C4-2 影子 ref 推送、任务授权和清理。
+
 ## 2026-07-29 智能协作 C3-3 事后 Diff 升级
 
 - smart 单 Agent 轮次结束后按该轮真实 `FileChange` 复核；超过五个文件才升级为
