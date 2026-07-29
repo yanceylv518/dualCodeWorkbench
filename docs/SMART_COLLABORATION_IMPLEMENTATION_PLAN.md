@@ -1032,6 +1032,50 @@ Claude review。
 
 ## Review 记录
 
+### C4 阶段 Review（2026-07-29，Claude）
+
+**结论：C4-1/C4-2/C4-3 全部通过，无返工项。C4 阶段关闭，安全不变量逐条
+核验成立，可进入 C5。**
+
+安全不变量核验（独立复验，每条有对应测试）：
+
+- 用户本地零变化 ✓：临时 `GIT_INDEX_FILE` + `read-tree`/`add -A`/`write-tree`/
+  `commit-tree` 生成不可达快照 commit，测试断言脏工作树（含未跟踪文件）快照
+  前后 `status`、HEAD 与真实 index 逐值一致；临时 index 与 `.lock` 在 finally
+  清理。
+- 凭据防护先行 ✓：临时 index 路径逐一过 `CREDENTIAL_RULES`，命中者
+  `rm --cached` 移除并记入 `excluded_paths`；测试断言 `.env.local` 不在快照
+  tree 中；审计仅含 SHA 与排除计数，不含文件内容。
+- 只触碰专用 ref ✓：`refs/dualcode/relay/{workspace}/{thread}` 组件白名单
+  校验、快照 SHA 40 位校验先于执行；`--force` 仅作用于该 ref；失败抛中文
+  异常且测试断言无 origin 回退。
+- SSH 强校验 ✓：`GIT_SSH_COMMAND` 注入 `StrictHostKeyChecking=yes` +
+  known_hosts（缺失即拒绝）+ 可选 `-i` 私钥，`shlex.join` 构造；ssh URL 的
+  host/用户名/端口/绝对路径逐项校验；VPS 侧 worktree 命令 UUID/SHA/路径
+  三重校验后 `shlex.quote` 传参。
+- 每任务审批 ✓：首次同步创建 `relay_shadow_sync` 审批（文案与 R0-3 一致），
+  thread scope 复用既有「允许本任务」机制并支持重启审计恢复；同步成败均
+  写审计。
+- VPS 主仓零变化 ✓：审查在 `worktree add --detach` 的隔离目录执行，集成
+  测试断言审查前后 VPS 主仓 `HEAD` 与 `status` 不变；worktree 创建失败即
+  回收 + `prune`，成功失败路径都在 finally 清理；影子 ref 每轮结束即清双侧
+  （严于 R0-3 的任务结束清理）。
+
+功能核查：
+
+- C2 过渡语义关闭 ✓：交接 payload 的 `base_sha`/`snapshot_sha` 更新为真实
+  全长 SHA（含编译器收紧，关闭 C2 review 建议项）；快照或推送失败中止发送
+  并返回中文错误，绝不回退主仓审查（有测试）。
+- 隔离审查轮在 CLI 层强制只读（`--permission-mode plan --tools Read`）。
+- `RELAY_LOOP_BACKLOG.md` R0-1/R0-2/R0-3/R1-1 已勾选并填验证结果。
+- 复验数据：后端全量 232 项（新增 13 项专项）、Ruff 通过；CI 双平台绿
+  （`ab7b687`）；前端零 diff。
+
+**记录一处已接受的设计选择：** 隔离审查轮跳过常规 `remote_edit_files`
+每轮审批（`skip_remote_approval=True`）。依据：该轮已被任务级
+`relay_shadow_sync` 审批覆盖同步副作用，且审查本身在隔离 worktree 内以
+只读模式执行，符合 §11.2「只读无需审批」；未扩大任何写权限。
+
 ### C3 阶段 Review（2026-07-29，Claude）
 
 **结论：C3-1/C3-2/C3-3 全部通过，无返工项。C3 阶段关闭，可进入 C4。**
