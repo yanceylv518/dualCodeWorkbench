@@ -1,5 +1,13 @@
 # DualCode Workbench 项目状态
 
+## 2026-07-29 智能协作 C3-3 事后 Diff 升级
+
+- smart 单 Agent 轮次结束后按该轮真实 `FileChange` 复核；超过五个文件才升级为
+  双 Agent 审查，写升级审计与 system 提示并复用 C3-2 PREPARED 交接。
+- 五个及以下文件不升级，qa 零变更不产生升级副作用；§4.3 已明确事前文本分类、
+  事后真实 Diff 升级的判定时机。后端全量 219 项、Ruff 与桌面 TypeScript
+  通过；C3 三项已完成，现停止等待 Claude review。
+
 ## 2026-07-29 智能协作 C3-2 smart 模式接线
 
 - 消息 API 接受 `smart`，功能开关关闭时在写入消息前返回中文 422；开启后由

@@ -133,6 +133,10 @@ CollaborationOrchestrator（确定性编排器）
 
 只涉及解释、只读查询、文案或低风险局部样式时默认单 Agent。
 
+判定分为两个时机：事前按请求文本与上述路由矩阵分类；事后使用该轮真实 Diff
+按同一复杂度表复核。单 Agent 类别实际变更超过五个文件时升级为双 Agent 审查，
+不根据预估文件数提前伪造升级证据。
+
 ## 5. 协作状态机
 
 ### 5.1 状态
@@ -872,15 +876,19 @@ diff）；GitHub Actions 双平台绿；开关默认关闭下现有交接 API pa
 
 ### C3-3 事后 Diff 升级（补足 §4.3 判定时机）
 
-- [ ] `smart` 模式单 Agent 类别（`qa`/`style_fix`）的轮次结束后，用该轮已有的
+- [x] `smart` 模式单 Agent 类别（`qa`/`style_fix`）的轮次结束后，用该轮已有的
   真实 changed files 数据做事后复核：变更文件数 > 5（§4.3 阈值）时升级为
   需审查——自动创建 PREPARED 审查交接（同 C3-2 语义）、写一条
   `build_routing_decision_audit` 升级审计（`reasons` 注明「事后 Diff 升级：
   N 个文件」）与 system 提示；`qa` 类未产生变更时不触发任何升级逻辑。
-- [ ] 判定时机语义写入 §4.3：事前按请求文本分类，事后按实际 Diff 升级，
+- [x] 判定时机语义写入 §4.3：事前按请求文本分类，事后按实际 Diff 升级，
   两者共用同一阈值表（关闭方案 review 建议项三）。
 - **验收**：升级路径测试——style_fix 分类 + 6 个变更文件 → 出现审查交接与
   升级审计；≤5 个文件不触发；qa 无变更不触发。
+- **验证结果（2026-07-29）**：单 Agent smart 轮次完成后读取本轮持久化的真实
+  `FileChange`；6 个文件触发升级审计、system 提示与 PREPARED 审查交接，
+  5 个文件及 qa 零变更均不触发。专项 8 项、后端全量 219 项、Ruff 与桌面端
+  TypeScript 通过；前端零 diff。C3 到此停止，等待 Claude review。
 
 **C3 阶段验收**：路由矩阵表驱动测试与确定性断言全绿；后端全量 pytest、Ruff、
 桌面端 TypeScript 通过（前端零 diff）；GitHub Actions 双平台绿；开关默认关闭

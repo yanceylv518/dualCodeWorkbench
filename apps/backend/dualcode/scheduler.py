@@ -180,6 +180,8 @@ class RunScheduler:
         await self._execute_chat(thread_id, run_id, prompt, agent, attachment_ids)
         if decision.dual_agent:
             await self._prepare_review_handoff(thread_id, run_id, agent, decision)
+        else:
+            await self._upgrade_after_diff(thread_id, run_id, agent, decision)
 
     @staticmethod
     def _agent_for_decision(decision: RoutingDecision) -> str:
@@ -273,6 +275,48 @@ class RunScheduler:
                 message = f"未能准备审查交接：{str(exc)[:160]}"
             await self._record_system_message(db, thread_id, message)
             await db.commit()
+
+    async def _upgrade_after_diff(
+        self,
+        thread_id: str,
+        run_id: str,
+        agent: str,
+        decision: RoutingDecision,
+    ) -> bool:
+        async with SessionLocal() as db:
+            thread = await db.get(Thread, thread_id)
+            run = await db.get(AgentRun, run_id)
+            if not thread or not run or run.state != RunState.COMPLETED:
+                return False
+            changed_files = list(
+                await db.scalars(
+                    select(FileChange).where(FileChange.thread_id == thread_id)
+                )
+            )
+            changed_count = len(changed_files)
+            if changed_count <= 5:
+                return False
+            reason = f"事后 Diff 升级：{changed_count} 个文件"
+            db.add(
+                build_routing_decision_audit(
+                    thread.workspace_id,
+                    thread_id,
+                    RoutingDecisionDetail(
+                        category=decision.category,
+                        primary_agent=decision.primary_agent,
+                        collaborator=decision.collaborator,
+                        reason=reason,
+                    ),
+                )
+            )
+            await self._record_system_message(
+                db, thread_id, f"{reason}，已升级为双 Agent 审查"
+            )
+            await db.commit()
+        await self._prepare_review_handoff(
+            thread_id, run_id, agent, decision
+        )
+        return True
 
     async def _execute_chat(self, thread_id: str, run_id: str, prompt: str, agent: str, attachment_ids: list[str]) -> None:
         """Run one turn for the selected agent without advancing an orchestration pipeline."""

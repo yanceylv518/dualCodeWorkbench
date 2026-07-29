@@ -10,6 +10,7 @@ from dualcode.models import (
     AgentRun,
     AuditLog,
     Base,
+    FileChange,
     HandoffPackage,
     Message,
     RunState,
@@ -47,15 +48,21 @@ async def test_smart_mode_routes_and_only_prepares_required_review(
     async def prepare_handoff(thread_id, run_id, agent, decision):
         calls.append(("handoff", decision.category))
 
+    async def upgrade_after_diff(thread_id, run_id, agent, decision):
+        calls.append(("diff_check", decision.category))
+        return False
+
     monkeypatch.setattr(scheduler, "_record_smart_route", record_route)
     monkeypatch.setattr(scheduler, "_execute_chat", execute_chat)
     monkeypatch.setattr(scheduler, "_prepare_review_handoff", prepare_handoff)
+    monkeypatch.setattr(scheduler, "_upgrade_after_diff", upgrade_after_diff)
 
     await scheduler._execute("thread-1", "run-1", prompt, "smart", [])
 
     assert ("execute", expected_agent) in calls
     assert any(kind == "route" for kind, _ in calls)
     assert any(kind == "handoff" for kind, _ in calls) is expects_handoff
+    assert any(kind == "diff_check" for kind, _ in calls) is (not expects_handoff)
 
 
 @pytest.mark.asyncio
@@ -164,4 +171,97 @@ async def test_feature_route_persists_audit_system_messages_and_prepared_handoff
     assert handoff.status == "PREPARED"
     assert handoff.recipient == "claude"
     assert handoff.purpose == "review"
+    await engine.dispose()
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize(
+    ("category_prompt", "changed_count", "expected_upgrade"),
+    [
+        ("调整页面样式", 6, True),
+        ("调整页面样式", 5, False),
+        ("解释一下是什么", 0, False),
+    ],
+)
+async def test_single_agent_route_upgrades_only_above_diff_threshold(
+    tmp_path,
+    monkeypatch: pytest.MonkeyPatch,
+    category_prompt: str,
+    changed_count: int,
+    expected_upgrade: bool,
+) -> None:
+    engine = create_async_engine(
+        f"sqlite+aiosqlite:///{tmp_path / f'upgrade-{changed_count}.db'}"
+    )
+    async with engine.begin() as connection:
+        await connection.run_sync(Base.metadata.create_all)
+    sessions = async_sessionmaker(engine, expire_on_commit=False)
+    async with sessions() as db:
+        workspace = Workspace(name="Project", path=str(tmp_path))
+        db.add(workspace)
+        await db.flush()
+        thread = Thread(workspace_id=workspace.id, title="Task")
+        db.add(thread)
+        await db.flush()
+        db.add(
+            AgentRun(
+                id="run-1",
+                thread_id=thread.id,
+                agent="codex",
+                state=RunState.COMPLETED,
+            )
+        )
+        for index in range(changed_count):
+            db.add(
+                FileChange(
+                    thread_id=thread.id,
+                    path=f"src/file-{index}.py",
+                    diff="+change",
+                )
+            )
+        await db.commit()
+        thread_id = thread.id
+
+    monkeypatch.setattr("dualcode.scheduler.SessionLocal", sessions)
+
+    async def ignore_publish(event):
+        return None
+
+    prepared: list[str] = []
+
+    async def prepare_handoff(thread_id, run_id, agent, decision):
+        prepared.append(decision.category)
+
+    monkeypatch.setattr("dualcode.scheduler.manager.publish", ignore_publish)
+    scheduler = RunScheduler.__new__(RunScheduler)
+    monkeypatch.setattr(scheduler, "_prepare_review_handoff", prepare_handoff)
+    upgraded = await scheduler._upgrade_after_diff(
+        thread_id, "run-1", "codex", classify(category_prompt)
+    )
+
+    async with sessions() as db:
+        audits = list(
+            await db.scalars(
+                select(AuditLog).where(
+                    AuditLog.thread_id == thread_id,
+                    AuditLog.event == "collaboration.routing_decision",
+                )
+            )
+        )
+        system_messages = list(
+            await db.scalars(
+                select(Message).where(
+                    Message.thread_id == thread_id,
+                    Message.role == "system",
+                )
+            )
+        )
+
+    assert upgraded is expected_upgrade
+    assert bool(prepared) is expected_upgrade
+    assert bool(audits) is expected_upgrade
+    assert bool(system_messages) is expected_upgrade
+    if expected_upgrade:
+        assert "事后 Diff 升级：6 个文件" in audits[0].detail
+        assert "已升级为双 Agent 审查" in system_messages[0].content
     await engine.dispose()
