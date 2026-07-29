@@ -803,6 +803,80 @@ diff）；GitHub Actions 双平台绿；开关默认关闭下现有交接 API pa
   常态，现实现第二次持久化即主键 IntegrityError，C5 自动整改循环第二轮必然
   崩溃。
 - **验收**：新增碰撞测试与后端全量 pytest、Ruff 通过；GitHub Actions 双平台绿。
+
+---
+
+## C3 执行清单（交 Codex）
+
+> 执行约定沿用 `docs/REMEDIATION_BACKLOG.md` 全部规则。C3-1 → C3-2 → C3-3 按序
+> 执行、一条目一 commit；三条全部完成后停下等 Claude review，不进入 C4。
+> 全程受 `smart_collaboration_enabled` 守门：开关关闭时 `mode=smart` 返回明确
+> 中文 422，现有 codex/claude 模式行为逐字节不变；本阶段前端零 diff，`smart`
+> 模式仅经 API 供验收工作区使用（§10.1 入口属 C6）。
+
+### C3-1 路由矩阵 slug 化与 TaskClassifier（纯函数 + 表驱动测试）
+
+- [ ] `collaboration_protocol.py`（受控协议变更）：引入
+  `RequestCategory = Literal["qa", "style_fix", "feature", "product_design",
+  "architecture", "bugfix", "security_high_risk", "test_build"]`；
+  `ROUTING_MATRIX` 键改为 slug，`RoutingRule` 增加 `label: str` 保存原中文
+  类别名（§4.2 八行中文串降为展示标签，映射关系逐行保持不变）；
+  `route_for` 入参改为 slug；同步更新既有契约测试。
+- [ ] 新增 `apps/backend/dualcode/task_classifier.py`：
+  - `classify(prompt: str) -> RoutingDecision`，`RoutingDecision(StrictModel)`
+    含 `category: RequestCategory`、`primary_agent`、`collaborator`、`process`、
+    `label`、`dual_agent: bool`、`reasons: list[str]`（每条经
+    `summarize_single_line`）。
+  - 分类规则为模块级冻结的**有序规则表**（类别 → 关键词/信号集合），自上而下
+    首个命中生效；优先级固定为 `security_high_risk → architecture → bugfix →
+    test_build → product_design → style_fix → qa`，全部未命中回落 `feature`
+    （保守默认双 Agent，宁可多审查不可漏审查）；关键词集合由执行者拟定，
+    但必须是纯数据、可在测试中逐条引用。
+  - `dual_agent` 判定：按 §4.2 协作者列（`qa`、`style_fix` 为单 Agent，其余
+    双 Agent）；`reasons` 记录命中的规则与 §4.3 条件文本。
+- **验收**：表驱动测试覆盖八类别各至少一条中文样例 prompt；同一输入调用两次
+  结果完全相等（确定性断言）；未命中回落 `feature` 有断言；矩阵 slug 化后
+  `route_for` 未知 slug 仍抛错。
+
+### C3-2 `smart` 模式接线（路由执行 + 原因展示 + 审计首次接线）
+
+- [ ] `schemas.py`：`MessageCreate.mode` 放开为 `^(codex|claude|smart)$`；
+  消息 API 在 `mode=smart` 且开关关闭时返回 422，错误内容为中文
+  （如「智能协作尚未启用」），不改变 codex/claude 行为。
+- [ ] `scheduler.py`：`mode=smart` 时在 `_execute_chat` 前调用
+  `classify(prompt)`，本轮以 `primary_agent`（映射到 codex/claude 适配器；
+  `security_high_risk` 的「Claude 先审」映射为 claude）执行，复用现有单
+  Agent 路径与所有审批/审计语义：
+  - 路由决定经 C0-3 `build_routing_decision_audit` 写审计（该构建器首次
+    运行时接线），`reason` 取 `RoutingDecision.reasons` 拼接。
+  - 路由原因展示：向线程写入一条 system 消息（复用现有 system 事件通道与
+    A8 行内灰字样式，前端无需改动），内容形如
+    「智能路由：{label} → {primary_agent}（{原因摘要}）」。
+- [ ] 复杂任务创建审查阶段：`dual_agent=true` 时，本轮 Agent 正常完成后自动
+  调用 C2 `compile_handoff_v2` 生成并持久化 `PREPARED` 状态的审查交接
+  （recipient 为协作者方向，purpose=`review`），写 `handoff.prepared` 审计，
+  并追加 system 消息提示「已准备审查交接」；**不自动发送**（发送与整改循环
+  属 C5）；编译失败（如无 Git 仓库）仅记 system 提示，不使本轮失败。
+- **验收**：API 测试覆盖开关两态（关闭 422 中文、开启 smart 正常路由）；
+  scheduler 测试覆盖 qa → 单 Agent 无交接、feature → 主 Agent 执行后自动
+  出现 PREPARED 审查交接与两条 system 消息；路由审计行断言。
+
+### C3-3 事后 Diff 升级（补足 §4.3 判定时机）
+
+- [ ] `smart` 模式单 Agent 类别（`qa`/`style_fix`）的轮次结束后，用该轮已有的
+  真实 changed files 数据做事后复核：变更文件数 > 5（§4.3 阈值）时升级为
+  需审查——自动创建 PREPARED 审查交接（同 C3-2 语义）、写一条
+  `build_routing_decision_audit` 升级审计（`reasons` 注明「事后 Diff 升级：
+  N 个文件」）与 system 提示；`qa` 类未产生变更时不触发任何升级逻辑。
+- [ ] 判定时机语义写入 §4.3：事前按请求文本分类，事后按实际 Diff 升级，
+  两者共用同一阈值表（关闭方案 review 建议项三）。
+- **验收**：升级路径测试——style_fix 分类 + 6 个变更文件 → 出现审查交接与
+  升级审计；≤5 个文件不触发；qa 无变更不触发。
+
+**C3 阶段验收**：路由矩阵表驱动测试与确定性断言全绿；后端全量 pytest、Ruff、
+桌面端 TypeScript 通过（前端零 diff）；GitHub Actions 双平台绿；开关默认关闭
+下现有 codex/claude 模式零回归、`mode=smart` 明确 422。完成后停下等
+Claude review。
   - 2026-07-29：同一任务两轮审查复用 `F-1` 的专项测试通过，两条记录使用独立
     uid 且描述、轮次与 source handoff 互不覆盖；审查方编号不再作为数据库主键。
 - **验证结果（2026-07-29）**：新增两类稳定事件名、严格 detail 模型及返回未入库
