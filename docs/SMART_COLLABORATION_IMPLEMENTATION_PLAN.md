@@ -578,17 +578,20 @@ collaboration.failed
 
 ### C-R3 修复 `test_cli_adapters` 夹具与 tool_use 归并逻辑的失配（测试修正）
 
-- [ ] `apps/backend/tests/test_cli_adapters.py::test_claude_exposes_normalized_stream_events`：
+- [x] `apps/backend/tests/test_cli_adapters.py::test_claude_exposes_normalized_stream_events`：
   协议夹具的 `tool_use` 块补上 `id` 字段（如 `"id":"toolu-1"`），对齐真实 Claude
   stream-json 协议（`tool_use` 必含 `id`）；断言可同步补一条
   `events[2].item["id"] == "toolu-1"`，锁定归并所需的 ID 透传。
-- [ ] 不修改 `claude_stream.py` 的「无 `id`/`name` 即跳过」解析逻辑；如认为需要
+- [x] 不修改 `claude_stream.py` 的「无 `id`/`name` 即跳过」解析逻辑；如认为需要
   无 ID 降级路径，先在本条目下写明方案并等 review，再动手。
 - **为什么**：`a1d618d` 为 `tool_use`/`tool_result` 按 ID 归并引入跳过逻辑时未同步
   更新该测试，夹具缺 `id` 导致事件被丢弃、四事件序列断言失败；当时 Windows 全量
   pytest 受既有 ACL 故障阻塞未能发现，Linux 全量复验暴露（123 通过 / 1 失败，
   详见下方返工复验记录）。
 - **验收**：Linux 全量 pytest 全绿；Ruff 通过；GitHub Actions 双平台 CI 绿。
+- **验证结果（2026-07-29）**：测试夹具已补真实协议必填的 `tool_use.id`，并增加
+  ID 透传断言；未修改 `claude_stream.py`。本地后端全量 124 项、Ruff 与桌面端
+  TypeScript 检查通过，GitHub Actions 双平台结果待本提交推送后确认。
 
 ### 返工复验（2026-07-29，Claude）
 

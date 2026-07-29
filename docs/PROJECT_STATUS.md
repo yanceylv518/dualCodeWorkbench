@@ -1,5 +1,11 @@
 # DualCode Workbench 项目状态
 
+## 2026-07-29 智能协作 C-R3 CLI adapter 夹具修正
+
+- Claude CLI adapter 协议测试的 `tool_use` 夹具补齐真实 stream-json 协议必填的 `id`，并锁定 ID 原样透传。
+- 保持 parser 对缺少 `id` 或 `name` 的无效工具块直接跳过，不引入未经 review 的降级逻辑。
+- 后端全量 124 项、Ruff、桌面端 TypeScript 检查通过。
+
 ## 2026-07-29 智能协作 C-R2 reasoning ID 隔离
 
 - Claude thinking 块缺少原生 ID 时，回退 ID 现在包含 assistant 消息序号与块下标，避免同一轮多条 assistant 消息被错误拼接。
