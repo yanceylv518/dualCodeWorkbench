@@ -6,6 +6,8 @@
 - Ruff 0.16 升级保留为独立后续任务；本条不批量修改新规则命中的业务代码。
 - 本地 Ruff 0.15.21、后端 124 项、TypeScript、ESLint 和前端 78 项通过；Windows
   工作树 Prettier 检查仍受既有 CRLF 差异影响，最终以 CI 的 LF 检出结果验收。
+- 首次 CI 已确认双平台使用 Ruff 0.15.22，Ruff、后端测试、TypeScript、ESLint
+  全部通过；按 CI 输出机械格式化 3 个既有漂移文件后再次触发完整流水线。
 
 ## 2026-07-29 智能协作 C-R3 CLI adapter 夹具修正
 

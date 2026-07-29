@@ -190,10 +190,8 @@ const toolStep = (
         ? "执行命令"
         : kind === "file"
           ? "修改文件"
-          : toolLabels[toolName] ??
-              (item.type === "web_search"
-            ? "搜索资料"
-                : toolName || "调用工具"),
+          : (toolLabels[toolName] ??
+            (item.type === "web_search" ? "搜索资料" : toolName || "调用工具")),
     // 思考与工具输入都保留完整原文；工具行收起时只展示动作摘要。
     detail: raw,
     status: failed

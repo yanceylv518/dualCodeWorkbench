@@ -559,11 +559,11 @@ export default function App() {
                       message.activity?.status === "running" &&
                       message.activity.steps.length > 0,
                   ) && (
-                  <ProcessingCard
-                    state={thread.state}
-                    agent={store.activeAgent ?? store.mode}
-                    waitingApproval={Boolean(store.pendingApproval)}
-                  />
+                    <ProcessingCard
+                      state={thread.state}
+                      agent={store.activeAgent ?? store.mode}
+                      waitingApproval={Boolean(store.pendingApproval)}
+                    />
                   )}
                 {store.pendingApproval && (
                   <ApprovalCard
@@ -1107,10 +1107,7 @@ function ActivityCard({
                     <small>{activity.error}</small>
                   )}
                 </span>
-                <span
-                  className="tool-activity-status"
-                  aria-label={step.status}
-                >
+                <span className="tool-activity-status" aria-label={step.status}>
                   {step.status === "running" ? (
                     <LoaderCircle size={14} className="spin" />
                   ) : step.status === "completed" ? (

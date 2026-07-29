@@ -611,6 +611,9 @@ collaboration.failed
   Ruff 0.15.21；未修改任何被 Ruff 0.16 新规则命中的代码。后端 124 项、
   TypeScript、ESLint 和前端 78 项通过；Windows 工作树 Prettier 检查受既有 CRLF
   差异影响，GitHub Actions 双平台结果在本提交推送后确认。
+  首次 CI run `30413166268` 确认 Windows/Ubuntu 均安装 Ruff 0.15.22，且 Ruff、
+  后端 124 项、TypeScript、ESLint 全绿；随后暴露 `App.tsx`、`App.test.tsx`、
+  `store.ts` 三个既有 Prettier 漂移，已按 CI 输出机械格式化，未改变业务逻辑。
 
 ### 返工复验（2026-07-29，Claude）
 
