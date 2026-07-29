@@ -472,6 +472,44 @@ collaboration.failed
 
 ---
 
+## C0 执行清单（交 Codex）
+
+> 执行约定沿用 `docs/REMEDIATION_BACKLOG.md` 全部规则：一条目一 commit、附测试、
+> 禁止顺手重构、全量验证、完成后勾选并填写验证结果。按 §16 约定，本阶段先只执行
+> C0-1，完成后停下等 Claude review，不进入 C0-2/C0-3。
+
+### C0-1 冻结协议与状态机（纯类型与契约测试，零行为变更）
+
+- [ ] 新增 `apps/backend/dualcode/collaboration_protocol.py`（或等价单一模块），
+  用 Pydantic 固化四份规格，字段以本方案为唯一权威：
+  1. `HandoffV2`：§6 交接包全部字段；`schema` 字段字面量锁定 `"handoff.v2"`，
+     `purpose` 锁定 `implement|review|fix|verify` 枚举。
+  2. `ReviewV1` 与 `ReviewFinding`：§6 裁决全部字段；`verdict` 锁定
+     `pass|blocking|needs_user`，finding `type` 锁定六值英文枚举，`severity` 锁定
+     `blocking|advisory`。禁止额外未知字段静默通过（`extra="forbid"`）。
+  3. `CollaborationState` 枚举与跃迁表：§5.1 全部状态、§5.2 门禁对应的合法跃迁
+     集合，形式对齐现有 `state_machine.py` 的 `TRANSITIONS` 字典 + `transition()`
+     纯函数；非法跃迁抛出明确异常。
+  4. 路由矩阵：§4.2 八行矩阵与 §4.3 复杂度条件固化为模块级数据结构
+     （请求类别 → 主 Agent、协作者、流程），仅数据与查表函数，不实现分类器
+     （TaskClassifier 属 C3）。
+- [ ] 在模块 docstring 或注释中写明与现有 `RunState` 的关系：`CollaborationState`
+  是协作运行（未来 `collaboration_runs.state`）的独立枚举，描述跨 Agent 编排阶段；
+  `RunState` 继续描述单次 AgentRun 生命周期，两者不合并、不互相转换（对应
+  review 建议项二）。
+- [ ] 新增 `apps/backend/tests/test_collaboration_protocol.py` 契约测试，至少覆盖：
+  合法 handoff.v2 / review.v1 样例 round-trip；缺必填字段、非法枚举值、未知字段
+  均被拒绝；`schema` 字面量不匹配被拒绝；跃迁表全部合法路径可达 §5.1 终态、
+  非法跃迁（含 `COMPLETED`/`CANCELLED` 出边）抛异常；路由矩阵查表对 §4.2 逐行
+  断言、相同输入重复查表结果一致。
+- [ ] 零行为变更边界：不修改 scheduler、adapter、API、前端和数据库；不新增
+  Alembic 迁移（`collaboration_runs` 等表属 C1/C5）；不实现解析器与编排器。
+- **为什么**：C1-C6 的记忆、交接、路由和循环全部消费这四份规格；先以类型和契约
+  测试冻结，后续阶段对规格的任何改动都会显式表现为本模块与测试的 diff，接受
+  独立 review，避免实现过程中规格漂移。
+- **验收**：新契约测试全部通过；后端全量 pytest、Ruff、桌面端 TypeScript 通过
+  （前端应无 diff）；现有 Codex/Claude 单模式零回归；GitHub Actions 双平台绿。
+
 ## Review 记录
 
 ### 方案验收（2026-07-28，Claude）
