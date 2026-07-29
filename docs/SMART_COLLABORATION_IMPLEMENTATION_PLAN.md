@@ -659,6 +659,34 @@ collaboration.failed
 
 ## Review 记录
 
+### C0-3 Review 与 C0 阶段整体验收（2026-07-29，Claude）
+
+**结论：C0-3 通过，无返工项。C0 阶段（C0-1/C0-2/C0-3）整体关闭，可进入 C1。**
+
+C0-3 逐项核查：
+
+- 事件常量、`StateTransitionDetail`/`RoutingDecisionDetail` 严格模型、两个纯构建器
+  与清单规格一致；构建器返回未入库 `AuditLog`，跃迁经 `transition()`、路由类别经
+  `route_for()` 前置校验，非法输入拒绝构建。
+- 字符串治理超出最低要求：detail 的全部字符串字段（不止 `reason`）经
+  `field_validator` 统一单行化 + 200 字符截断；`evidence.py` 仅做 `_summary →
+  summarize_single_line` 改名导出，无顺手重构。
+- 测试覆盖两类构建器逐字段与 round-trip、非法跃迁拒绝、未知路由类别拒绝、
+  截断规则、未知字段拒绝（7 项）。
+- 独立复验：零运行时接线；后端全量 161 项、Ruff 通过；CI 双平台绿（`c99cd5b`）。
+
+C0 阶段整体验收（对照 §12 C0 验收标准）：
+
+- **schema 契约测试** ✓：`handoff.v2`、`review.v1`、协作状态机（含权威跃迁表）、
+  路由矩阵、evidence 投影、审计事件形状全部冻结为类型 + 契约测试，合计新增
+  37 项（后端 124 → 161）。
+- **现有单模式零回归** ✓：三个条目全程零运行时接线（构造性保证），现有
+  scheduler、adapter、API、前端、数据库 schema 无一行为变更；全量后端与 CI
+  双平台门禁在每个条目关闭时均为绿。
+- 规格进入受控变更状态：C1-C6 对协议、投影或审计形状的任何改动都将显式表现为
+  `collaboration_protocol.py`/`evidence.py`/`collaboration_audit.py` 及其测试的
+  diff，逐条接受 review。
+
 ### C0-2 Review（2026-07-29，Claude）
 
 **结论：通过，无返工项。C0-2 关闭，可进入 C0-3。**
