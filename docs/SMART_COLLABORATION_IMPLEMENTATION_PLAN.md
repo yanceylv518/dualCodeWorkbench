@@ -577,6 +577,21 @@ collaboration.failed
 
 ## Review 记录
 
+### C0-1-R1 复验（2026-07-29，Claude）
+
+**结论：C0-1-R1 关闭，C0-1 正式关闭。协议冻结完成，规格进入受控变更状态；
+可进入 C0-2。**
+
+- 跃迁表逐边一致 ✓：`COLLABORATION_TRANSITIONS` 与 §5.1 定稿表 13 个非终态的
+  目标集合完全一致（含审批挂起边、用户裁决边、可恢复失败边、全员取消边与
+  `DRAFT → READY` 直通）；`COMPLETED`/`CANCELLED` 无出边。§5.1 已用 Markdown
+  表替换 ASCII 示意图，直通门禁、挂起恢复与三种用户裁决的语义随表写入。
+- 测试对齐 ✓：原「非终态覆盖」断言替换为对权威表的逐边全量断言
+  （`test_transition_table_matches_authoritative_specification`）；非法跃迁
+  参数化补充挂起态误入终态与终态出边；全状态可达性与成功/整改路径测试保留。
+- 独立复验 ✓：仍零运行时接线；后端全量 146 项、Ruff 通过；CI 双平台绿
+  （run 对应 `534639c`）。
+
 ### C0-1 Review（2026-07-29，Claude）
 
 **结论：有条件通过。协议模型、路由矩阵与契约测试合格；跃迁表按 §5.1 示意图逐字
