@@ -563,14 +563,14 @@ collaboration.failed
 
 ### C0-2 统一 evidence 投影（纯函数 + 契约测试，零行为变更）
 
-- [ ] 新增 `apps/backend/dualcode/evidence.py`：定义 `EvidenceItem`
+- [x] 新增 `apps/backend/dualcode/evidence.py`：定义 `EvidenceItem`
   （继承/复用 `collaboration_protocol.StrictModel` 的严格配置）：
   - `kind: Literal["agent_run", "handoff", "test", "file_change"]`
   - `source_id`、`thread_id`：指回源记录，不复制大体量内容。
   - `summary: str`：单行人读摘要，超过 200 字符截断并以 `…` 结尾。
   - 按 kind 使用的可选字段：`command`/`exit_code`（test）、`path`（file_change）、
     `agent`/`status`（agent_run 与 handoff）；与 kind 不符的字段保持 `None`。
-- [ ] 同模块实现四个纯投影函数，输入为对应 ORM 行对象、输出 `EvidenceItem`，
+- [x] 同模块实现四个纯投影函数，输入为对应 ORM 行对象、输出 `EvidenceItem`，
   不做任何数据库查询或写入：
   - `from_test_run(TestRun)`：summary 形如 `"{command} → exit {exit_code}"`；
     `output` 不进入投影（凭 `source_id` 回查），只用于截断后的失败摘要可选补充。
@@ -579,12 +579,12 @@ collaboration.failed
     `after_diff` 全文禁止进入投影。
   - `from_handoff(HandoffPackage)`：summary 含 recipient、purpose 与 status；
     `payload` 全文禁止进入投影。
-- [ ] 大字段禁入是硬约束：投影结果任何字段不得包含 `diff`、`output`、`payload`
+- [x] 大字段禁入是硬约束：投影结果任何字段不得包含 `diff`、`output`、`payload`
   原文（防止后续上下文组装与审计误携带大体量或敏感内容），契约测试用含标记
   字符串的行对象断言标记不出现在投影 JSON 中。
-- [ ] 新增 `apps/backend/tests/test_evidence.py`：四类投影逐字段断言、200 字符
+- [x] 新增 `apps/backend/tests/test_evidence.py`：四类投影逐字段断言、200 字符
   截断断言、大字段禁入断言、`EvidenceItem` 拒绝未知字段断言。
-- [ ] 零行为变更边界：不修改现有 API、scheduler、前端和数据库；除测试外
+- [x] 零行为变更边界：不修改现有 API、scheduler、前端和数据库；除测试外
   不新增任何 import 该模块的运行时代码（EvidenceService 的查询与归并属 C1/C2）。
 - **为什么**：C1 记忆事实生成与 C2 交接编译都要消费同一份证据形状；先以纯函数
   冻结「哪些字段可进入投影、哪些必须留在源记录」，避免后续实现各自为政或把
@@ -592,6 +592,12 @@ collaboration.failed
 - **验收**：新契约测试全绿；后端全量 pytest、Ruff、桌面端 TypeScript 通过
   （前端应无 diff）；仍零运行时接线；GitHub Actions 双平台绿。完成后停下等
   Claude review，不进入 C0-3。
+- **验证结果（2026-07-29）**：新增严格 `EvidenceItem` 与四个纯 ORM 投影函数，
+  摘要统一压成单行并限制为最多 200 字符；模型拒绝未知字段和 kind 字段错配。
+  四类含标记大字段的源对象经投影后，序列化结果均不含 `output`、`diff` 或
+  `payload` 原文。专项测试 8 项、后端全量 154 项、Ruff 与桌面端 TypeScript
+  通过；除测试外无任何模块导入 evidence，仍为零运行时接线。GitHub Actions
+  双平台结果待本提交推送后由 Claude review 确认。
 - **验证结果（2026-07-29）**：§5.1 已用权威 Markdown 跃迁表取代示意图并补齐
   直通、挂起恢复、用户裁决与终态语义；后端常量逐边对齐，测试以完整目标集合
   直接断言每个非终态，并覆盖 `WAITING_APPROVAL → COMPLETED` 及两个终态出边非法。

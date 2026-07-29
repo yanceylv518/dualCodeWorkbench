@@ -1,5 +1,14 @@
 # DualCode Workbench 项目状态
 
+## 2026-07-29 智能协作 C0-2 统一 evidence 投影
+
+- 新增严格 `EvidenceItem`，统一 `agent_run`、`handoff`、`test`、`file_change`
+  四类证据的短摘要、源记录定位及按类型可用字段。
+- 四个纯投影函数不查询或写入数据库；摘要压成单行且最多 200 字符，源记录中的
+  `output`、`diff`、`payload`、before/after diff 均不进入投影。
+- 模型拒绝未知字段与 kind 字段错配；专项 8 项、后端全量 154 项、Ruff 和桌面端
+  TypeScript 通过。保持零运行时接线，完成后停下等待 Claude review。
+
 ## 2026-07-29 智能协作 C0-1-R1 权威跃迁表
 
 - §5.1 已从易产生歧义的 ASCII 图改为逐状态权威跃迁表，补齐审批挂起、用户裁决、
