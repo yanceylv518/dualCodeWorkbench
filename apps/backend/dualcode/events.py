@@ -15,6 +15,7 @@ class EventType(StrEnum):
     APPROVAL_REQUIRED = "approval.required"
     APPROVAL_DECIDED = "approval.decided"
     RUN_COMPLETED = "run.completed"
+    COLLABORATION_STAGE_CHANGED = "collaboration.stage_changed"
     ERROR = "error"
 
 

@@ -1,5 +1,14 @@
 # DualCode Workbench 项目状态
 
+## 2026-07-30 智能协作 C5-1 持久化编排器
+
+- 新增确定性 `collaboration_orchestrator`，创建 smart run 时依据 TaskContract
+  进入 READY，或在契约不完整时进入 CLARIFYING/WAITING_USER 并仅提示补全。
+- 所有状态变化统一通过冻结跃迁表校验，逐次写结构化审计并广播阶段摘要；挂起前状态
+  存入既有 budget JSON，支持审批/阻塞后回到准确来源状态。
+- 用户取消会先终止当前 Agent；sidecar 启动会把运行类状态标为 BLOCKED 并记录
+  “应用重启中断”，WAITING 状态保持不变且不自动重放副作用。下一项为 C5-2。
+
 ## 2026-07-29 智能协作 C4-3 VPS 隔离审查
 
 - review 交接在智能协作开启时执行完整影子链路：任务级首次审批、无侵入本地快照、

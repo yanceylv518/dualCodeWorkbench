@@ -7,6 +7,7 @@ from .api import router
 from .database import SessionLocal, engine, get_session
 from .diagnostics import build_diagnostic_snapshot
 from .execution_jobs import recover_execution_jobs
+from .collaboration_orchestrator import recover_interrupted_runs
 from .models import AgentRun, RunState, Thread
 from .database_migrations import upgrade_database
 from .seed import repair_legacy_labels
@@ -19,6 +20,9 @@ async def lifespan(app: FastAPI):
     upgrade_database(str(engine.url))
     async with SessionLocal() as session:
         app.state.recovered_jobs = await recover_execution_jobs(session)
+        app.state.recovered_collaboration_runs = (
+            await recover_interrupted_runs(session)
+        )
         active_states = [RunState.PLANNING, RunState.WAITING_APPROVAL, RunState.IMPLEMENTING, RunState.TESTING, RunState.REVIEWING, RunState.FALLBACK_TO_CODEX]
         await session.execute(update(Thread).where(Thread.state.in_(active_states)).values(state=RunState.CREATED))
         await session.execute(update(AgentRun).where(AgentRun.state.in_(active_states)).values(

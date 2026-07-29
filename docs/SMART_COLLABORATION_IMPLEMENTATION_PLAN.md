@@ -1016,7 +1016,7 @@ Claude review。
 
 ### C5-1 编排器核心：run 生命周期与持久化状态机
 
-- [ ] 新增 `apps/backend/dualcode/collaboration_orchestrator.py`：
+- [x] 新增 `apps/backend/dualcode/collaboration_orchestrator.py`：
   - `start_run(db, workspace, thread, *, decision: RoutingDecision) ->
     CollaborationRun`：创建 `collaboration_runs` 行（mode=`smart`、
     `max_rounds` 默认 3、`round=1`）；TaskContract 满足 READY 门禁（goal
@@ -1038,6 +1038,12 @@ Claude review。
     语义）；`WAITING_*` 保持原状态。
 - **验收**：状态机服务测试覆盖创建（直通与澄清两路）、合法/非法 advance、
   挂起-恢复回原状态、取消、启动恢复标记；每次跃迁有审计行断言。
+- **验证结果（2026-07-30）**：新增持久化编排器，`advance()` 是唯一状态写入口，
+  逐次复用冻结跃迁表并写结构化审计和 `collaboration.stage_changed` 摘要事件；
+  契约完整时 DRAFT→READY，缺失时 DRAFT→CLARIFYING→WAITING_USER 且只生成
+  system 提示、不调用 Agent。挂起前状态存入既有 `budget_json.resume_state`，
+  审批/阻塞恢复、异步 Agent 取消、启动时运行态统一 BLOCKED 且不重放副作用均有
+  专项测试。专项 6 项、后端全量、Ruff 与 TypeScript 验证结果见本提交状态记录。
 
 ### C5-2 阶段执行器：实现 → 验证 → 同步 → 审查 → 整改闭环
 
