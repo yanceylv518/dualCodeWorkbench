@@ -630,6 +630,78 @@ collaboration.failed
 - **验收**：新契约测试全绿；后端全量 pytest、Ruff、桌面端 TypeScript 通过
   （前端应无 diff）；仍零运行时接线；GitHub Actions 双平台绿。完成后停下等
   Claude review；C0-3 通过后进行 C0 阶段整体验收。
+
+---
+
+## C1 执行清单（交 Codex）
+
+> 执行约定沿用 `docs/REMEDIATION_BACKLOG.md` 全部规则。C1-1 → C1-2 → C1-3 按序
+> 执行、一条目一 commit；三条全部完成后停下等 Claude review，不进入 C2。
+> C1 是首个含 Alembic 迁移与运行时接线的阶段：迁移只新增表；运行时注入必须由
+> 新功能开关守门，开关默认关闭时现有行为零变化。
+
+### C1-1 `memory_facts` 表与事实契约（迁移 + 模型 + 类型冻结）
+
+- [ ] `collaboration_protocol.py` 冻结事实枚举与内容契约（属受控协议变更）：
+  `FactKind = Literal["requirement", "decision", "repository", "evidence",
+  "risk", "assumption"]`、`FactSource = Literal["user", "git", "test", "codex",
+  "claude", "system"]`、`FactConfidence = Literal["confirmed", "verified",
+  "unverified", "stale"]`；`MemoryFactContent(StrictModel)` 至少含
+  `content: str`（经 `summarize_single_line` 治理，上限放宽为 500 字符以容纳
+  验收标准类内容——在常量旁注明与 evidence 200 字符的差异原因）。
+  可信度排序常量：`confirmed > verified > unverified > stale`。
+- [ ] `models.py` 新增 `MemoryFact` ORM：按 §8.1 全部列；`thread_id` 可空
+  （项目级事实）、`supersedes_id` 自引用外键、`invalidated_at` 可空、
+  `created_at` 用现有 `UTCDateTime`/`utc_now`；`workspace_id`、`thread_id`、
+  `confidence` 建索引。
+- [ ] Alembic 迁移仅新增 `memory_facts` 表；全新库与既有数据库升级均通过
+  （沿用 P3-1 的迁移测试模式）。
+- **验收**：迁移双向可用（升级保数据）；契约测试覆盖枚举拒绝非法值、content
+  治理与 500 截断。
+
+### C1-2 MemoryService：事实生成、覆盖规则、失效与审计
+
+- [ ] 新增 `apps/backend/dualcode/memory_service.py`：
+  - `record_fact(...)`：写入事实；`supersedes_id` 指定时执行覆盖规则——新事实
+    可信度必须 ≥ 被覆盖事实（按 C1-1 排序），Agent 来源（codex/claude）的
+    `unverified` 事实不得覆盖 `confirmed`/`verified`，违规抛 `ValueError`；
+    被覆盖事实置 `invalidated_at`。
+  - `mark_stale_for_commit(thread_id, current_sha)`：`repository` 类且
+    `commit_sha` 与当前不符的未失效事实批量置 `confidence="stale"`（§3.2）。
+  - `snapshot_thread_facts(db, workspace, thread)`：从现有数据生成带来源事实——
+    TaskContract 的 goal/acceptance/risks → `requirement`/`risk`
+    （source=user, confirmed）；当前 Git commit → `repository`
+    （source=git, verified）；TestRun → `evidence`（source=test, verified，
+    复用 C0-2 `from_test_run` 投影的 summary，不落大字段）；幂等：同内容同
+    commit 的事实不重复写入。
+  - 审计（§11.5）：`collaboration_audit.py` 增加
+    `EVENT_MEMORY_CHANGE = "collaboration.memory_change"` 与
+    `MemoryChangeDetail(fact_id, kind, action: Literal["created", "superseded",
+    "invalidated"], source, confidence)` 构建器（属受控变更）；MemoryService
+    每次写入/覆盖/失效均 `db.add` 对应审计行。
+- **验收**：服务测试覆盖写入、合法与非法覆盖、stale 批量失效、快照生成幂等、
+  审计行逐字段；大字段（契约全文、diff、测试 output）不进入事实内容。
+
+### C1-3 上下文组装注入（预算 + 功能开关）
+
+- [ ] `config.py` 新增 `smart_collaboration_enabled: bool = False`（§14 开关，
+  环境变量可开）；`context_budget.py` 新增 `MEMORY_CHAR_BUDGET = 8_000` 与
+  `MEMORY_TRUNCATION_MARKER = "【共享记忆已截断】"`。
+- [ ] 新增纯函数 `build_memory_section(facts, budget)`（放 `context_budget.py`
+  或 memory_service，二选一并保持单一职责）：按 §3.3 顺序渲染——目标/验收 →
+  决策与规则 → 仓库基线 → 未关闭风险/阻塞 → 其余；超预算按可信度从低到高
+  丢弃（`stale`/`unverified` 先弃），`confirmed` 事实不得截断，溢出时插入
+  截断标记。
+- [ ] scheduler 接线：开关开启时，Codex 与 Claude 的每轮上下文在现有契约段
+  之后附加记忆段（两条路径同一实现）；开关关闭（默认）时不查询、不注入，
+  现有 prompt 逐字节不变。
+- **验收**：开关关闭时现有全部测试与 prompt 快照零变化；开关开启的集成测试
+  覆盖 §12 C1 验收场景——同任务先后调用两个 Agent，上下文均含已确认目标、
+  当前 commit 与未关闭风险；预算截断与 confirmed 保全有专项测试。
+
+**C1 阶段验收**：后端全量 pytest（含迁移、服务、注入专项）、Ruff、桌面端
+TypeScript 通过（前端应无 diff）；GitHub Actions 双平台绿；开关默认关闭下
+现有 Codex/Claude 单模式零回归。
 - **验证结果（2026-07-29）**：新增两类稳定事件名、严格 detail 模型及返回未入库
   `AuditLog` 的纯构建器；构建前复用冻结的跃迁与路由查表校验。evidence 摘要函数
   仅提升为公开复用点，detail 全部字符串统一单行化并限制为最多 200 字符。
