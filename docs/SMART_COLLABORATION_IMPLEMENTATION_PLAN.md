@@ -575,6 +575,32 @@ collaboration.failed
 - **约束**：T2 的 partial 事件去重必须沿用同一 ID 语义（`message_seq` 维度），
   实施 T2 时不得再次变更 ID 形态。
 - **验收**：后端全量 pytest 与 Ruff 通过；协议测试覆盖跨消息 ID 唯一性。
+
+### 返工复验（2026-07-29，Claude）
+
+**结论：C-R1、C-R2 均关闭，可进入 C0-1。全量复验暴露一项既有回归，立为 C-R3。**
+
+- C-R1 ✓：R1-2/R2-1/R2-2/R2-3/R3-1/R3-2 已逐条标注取代关系并保留原文；R0 系列与
+  R1-1 归属 C4、T2/T3 独立有效的声明就位；§12 C4 措辞与 §9.2 API 路径（含
+  `/api/collaboration-runs/{id}/...` 反查归属校验说明）均已修正。全文残留的
+  `RelayRun`、`mode=relay` 仅出现在 review 记录与已作废原文中，验收标准满足。
+- C-R2 ✓：`ClaudeStreamParser` 新增 `assistant_message_seq`，仅在 `assistant` 消息
+  自增；回退 ID 为 `claude-reasoning-{seq}-{block_index}`，原生块 `id` 仍优先。
+  新增跨消息唯一性与原生 ID 优先级两条协议测试，旧断言同步更新；
+  `test_cli_adapters.py` / `test_ssh_adapter.py` 经查无旧 ID 断言，无需改动。
+  独立复验：Claude stream 专项 10 项、Ruff 通过；T1-R1 验证结果已回填，T1 关闭。
+
+**新发现（不归属本次返工，立为 C-R3）：**
+
+- **C-R3｜`test_cli_adapters.py::test_claude_exposes_normalized_stream_events`
+  在 Linux 全量 pytest 下失败（123 通过 / 1 失败）。** 根因：`a1d618d`
+  （Claude 过程区对齐 Codex）为 `tool_use` 归并引入「无 `id` 或无 `name` 即跳过」
+  逻辑，但未同步更新该测试——其夹具的 `tool_use` 块缺少 `id` 字段，事件被丢弃，
+  断言的四事件序列缺第三项。当时验证仅跑了 Claude stream 专项 8 项（Windows 全量
+  pytest 受既有 ACL 故障阻塞，声明由 CI 补验），故漏检。修复方向：真实 Claude
+  stream-json 协议中 `tool_use` 块必含 `id`，应为测试夹具补上 `id` 字段以对齐
+  真实协议（而非放宽解析器）；如执行者认为需要无 ID 降级路径，先在本条目下写明
+  方案再动手。**验收**：Linux 全量 pytest 全绿；并确认 CI 双平台绿。
 - **验证结果（2026-07-29）**：parser 已按 assistant 消息序号生成稳定回退 ID，并保留
   原生 block id 优先级；Claude stream 专项 10 项和 Ruff 通过。后端全量为 123
   通过、1 个既有失败：`test_claude_exposes_normalized_stream_events` 的旧夹具构造了
