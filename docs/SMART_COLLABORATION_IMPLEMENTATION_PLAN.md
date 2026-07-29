@@ -510,6 +510,49 @@ collaboration.failed
 - **验收**：新契约测试全部通过；后端全量 pytest、Ruff、桌面端 TypeScript 通过
   （前端应无 diff）；现有 Codex/Claude 单模式零回归；GitHub Actions 双平台绿。
 
+### C0-1-R1 补全跃迁表挂起/裁决/失败/取消边（规格 + 代码 + 测试，一个 commit）
+
+> 规格与代码是同一冻结单元，本条目 docs 与 backend 改动允许同一 commit。
+> 以下跃迁表为权威规格；如需偏离，先在本条目下写明理由并等 review，再动手。
+
+- [ ] 方案 §5.1 重写为显式跃迁表（Markdown 表：当前态 → 合法目标态集合），
+  放弃 ASCII 示意图作为规格载体，按以下定义：
+
+  | 当前态 | 合法目标态 |
+  |---|---|
+  | DRAFT | CLARIFYING、READY、CANCELLED |
+  | CLARIFYING | READY、WAITING_USER、CANCELLED |
+  | READY | IMPLEMENTING、CANCELLED |
+  | IMPLEMENTING | VERIFYING、WAITING_APPROVAL、WAITING_USER、BLOCKED、CANCELLED |
+  | VERIFYING | SYNCING_REVIEW_SNAPSHOT、WAITING_APPROVAL、WAITING_USER、BLOCKED、CANCELLED |
+  | SYNCING_REVIEW_SNAPSHOT | REVIEWING、WAITING_APPROVAL、WAITING_USER、BLOCKED、CANCELLED |
+  | REVIEWING | ACCEPTED、CHANGES_REQUESTED、WAITING_APPROVAL、WAITING_USER、BLOCKED、CANCELLED |
+  | ACCEPTED | COMPLETED、CANCELLED |
+  | CHANGES_REQUESTED | FIXING、CANCELLED |
+  | FIXING | VERIFYING、WAITING_APPROVAL、WAITING_USER、BLOCKED、CANCELLED |
+  | WAITING_APPROVAL | IMPLEMENTING、VERIFYING、SYNCING_REVIEW_SNAPSHOT、REVIEWING、FIXING、CANCELLED |
+  | WAITING_USER | READY、FIXING、CANCELLED |
+  | BLOCKED | IMPLEMENTING、VERIFYING、SYNCING_REVIEW_SNAPSHOT、REVIEWING、FIXING、CANCELLED |
+  | COMPLETED | （终态） |
+  | CANCELLED | （终态） |
+
+  配套语义随表写入 §5.1：`DRAFT → READY` 直通仅当任务契约已满足 READY 门禁
+  （对应 §1.1.6）；`WAITING_APPROVAL`/`BLOCKED` 的出边语义是「回到挂起前状态」，
+  挂起前状态由未来 `collaboration_runs` 记录，表只约束合法集合；`WAITING_USER`
+  出边对应用户三种裁决：调整范围后重入（READY）、直接整改（FIXING）、停止
+  （CANCELLED）；终态仅 `COMPLETED`/`CANCELLED`。
+- [ ] `collaboration_protocol.py` 的 `COLLABORATION_TRANSITIONS` 按新表逐边对齐；
+  `transition()` 行为不变。
+- [ ] `test_collaboration_protocol.py`：非终态覆盖断言更新为对新表逐边断言
+  （每个非终态列出完整目标集合，直接与上表对照）；保留全状态可达性测试与
+  成功/整改路径测试；非法跃迁参数化补充挂起态误入终态（如
+  `WAITING_APPROVAL → COMPLETED`）与终态出边用例。
+- **为什么**：见 C0-1 Review 返工项 C0-1-R1——原表把挂起三态冻结为死胡同，
+  审批与取消边覆盖不足，与 §5.3、§9.2、§11 矛盾；C5 编排器实现前必须以
+  无矛盾的表为契约。
+- **验收**：契约测试与新表逐边一致并全绿；后端全量 pytest、Ruff 通过；
+  仍零运行时接线；GitHub Actions 双平台绿。
+
 **Codex 执行结果（2026-07-29）**
 
 - 已新增严格 Pydantic 协议、独立协作状态机、八行路由矩阵与复杂度条件；未接入任何
