@@ -817,6 +817,45 @@ diff）；GitHub Actions 双平台绿；开关默认关闭下现有交接 API pa
 
 ## Review 记录
 
+### C2 阶段 Review（2026-07-29，Claude）
+
+**结论：有条件通过。C2-1、C2-2 合格；C2-3 存在一处必须返工的持久化缺陷
+（C2-R1），修复后 C2 关闭。**
+
+逐项核查（独立复验）：
+
+- C2-1 ✓：`compile_handoff_v2` 字段来源与清单逐项一致——`snapshot_sha` 暂取
+  `base_sha` 并有注释、`diff_stats={"files": N}`、TestRun 走 C0-2 投影且
+  `output` 禁入、`open_findings` 直接联查未解决 finding（C2-3 同阶段落地，
+  未用留空过渡，合理）；`prepare_handoff` 开关关闭走原 `_handoff_payload`
+  逐字节不变、开启存 v2（API 测试覆盖两态形状断言）。
+- C2-2 ✓：四类 outcome 确定性齐备；围栏优先、裸 JSON 用带字符串/转义感知的
+  括号扫描器提取；多候选取最后一个通过校验者、全败按最后候选归类；原文完整
+  保留、error 单行 200 截断、`parsed ⇔ review 非空` 有模型级校验。
+- C2-3 结构 ✓：`CollaborationRun`/`ReviewFinding` ORM 与 §8.1 逐列一致，
+  0004 迁移两表一次建齐（SQLite 外键约束理由成立）；`EVENT_REVIEW_VERDICT`
+  审计只记 verdict 与数量、finding 描述不入 detail。
+- 复验数据：后端全量 197 项（新增 16 项）、Ruff 通过；CI 双平台绿（`a9bf476`）。
+
+**返工项（归属 C2-3）：**
+
+- **C2-R1｜审查方提供的 `finding.id` 被直接用作 `review_findings` 主键，
+  跨审查必然主键冲突。** `review_findings.py:24` 以 `id=finding.id` 覆盖
+  `uid` 默认值；`review.v1` 的 finding id 是审查方自拟编号（方案示例即
+  `"F-1"`），不同轮次/不同交接的审查复用相同编号是常态。失败场景：同一任务
+  两轮审查各含 `id="F-1"` 的 finding，第二次 `persist_review_findings` 触发
+  主键 IntegrityError，C5 自动整改循环第二轮即崩溃。修复：删除 `id=finding.id`
+  一行，主键回落 `uid` 默认生成；审查方编号不落库（§8.1 无对应列，如未来
+  需要属受控 schema 变更），description/acceptance 已保留实质内容；补一条
+  「两次持久化各含相同 reviewer 编号的 finding 均成功且互不覆盖」的测试。
+
+**建议项（不阻塞，记入 C4 前提）：**
+
+- `base_sha` 复用 `repository_status` 的 `--short=10` 短 SHA，空仓库时为空
+  字符串。C4 影子 ref 与 `resolved_by_snapshot_sha` 需要全长 SHA 精确锚定，
+  实施 C4 时应改为 `rev-parse HEAD` 全长输出（属受控协议语义收紧），本阶段
+  不动。
+
 ### C1 阶段 Review（2026-07-29，Claude）
 
 **结论：C1-1/C1-2/C1-3 全部通过，无返工项。C1 阶段关闭，可进入 C2。**
