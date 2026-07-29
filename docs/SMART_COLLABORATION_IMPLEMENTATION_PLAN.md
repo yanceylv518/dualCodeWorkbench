@@ -1001,6 +1001,110 @@ Claude review。
 diff）；GitHub Actions 双平台绿；`RELAY_LOOP_BACKLOG.md` R0-1/R0-2/R0-3/R1-1
 勾选并填验证结果；安全不变量清单逐条自查写入验证结果。完成后停下等
 Claude review。
+
+---
+
+## C5 执行清单（交 Codex）
+
+> 执行约定沿用 `docs/REMEDIATION_BACKLOG.md` 全部规则。C5-1 → C5-4 按序执行、
+> 一条目一 commit；全部完成后停下等 Claude review，不进入 C6。
+> 全程受 `smart_collaboration_enabled` 守门。C5 只组装已冻结的构件：状态机与
+> 跃迁表（C0-1）、审计构建器（C0-3）、记忆（C1）、编译器/解析器/findings
+> （C2）、分类器（C3）、影子同步与隔离审查（C4）；对任何冻结件的修改都属
+> 受控协议变更，必须在条目下写明理由。约束：编排器是确定性状态机，不引入
+> 第三个自由决策模型；正式 Git 写操作仍走既有审批，循环无权发起。
+
+### C5-1 编排器核心：run 生命周期与持久化状态机
+
+- [ ] 新增 `apps/backend/dualcode/collaboration_orchestrator.py`：
+  - `start_run(db, workspace, thread, *, decision: RoutingDecision) ->
+    CollaborationRun`：创建 `collaboration_runs` 行（mode=`smart`、
+    `max_rounds` 默认 3、`round=1`）；TaskContract 满足 READY 门禁（goal
+    非空且 acceptance 非空）时 `DRAFT → READY` 直通，否则 `DRAFT →
+    CLARIFYING`（首版 CLARIFYING 仅生成一条 system 消息请用户补全契约并
+    转 `WAITING_USER`，不调用 Agent）。
+  - `advance(run, target, *, reason)`：唯一状态写入口——经冻结
+    `collaboration_protocol.transition()` 校验，写 `collaboration_runs.state`，
+    经 C0-3 `build_state_transition_audit` 写审计（该构建器首次接线，
+    `run_id`/`round`/`reason` 填实值），并广播 §9.3
+    `collaboration.stage_changed` 事件（摘要 + ID，不带 Agent 原文）。
+  - 挂起前状态记录：`WAITING_APPROVAL`/`BLOCKED` 进入时把来源状态存入
+    `budget_json`（或新增列，二选一并说明），恢复时按 §5.1 出边回原状态。
+  - 用户取消：任何非终态可 `→ CANCELLED`（复用现有取消链路终止进行中的
+    Agent 轮）。
+  - 启动恢复：sidecar 启动时将处于运行类状态（IMPLEMENTING/VERIFYING/
+    SYNCING_REVIEW_SNAPSHOT/REVIEWING/FIXING）的 run 标记 `→ BLOCKED`
+    （error=「应用重启中断」），不自动重放任何副作用（对齐 ExecutionJob
+    语义）；`WAITING_*` 保持原状态。
+- **验收**：状态机服务测试覆盖创建（直通与澄清两路）、合法/非法 advance、
+  挂起-恢复回原状态、取消、启动恢复标记；每次跃迁有审计行断言。
+
+### C5-2 阶段执行器：实现 → 验证 → 同步 → 审查 → 整改闭环
+
+- [ ] 编排器驱动各阶段，全部复用既有单轮语义：
+  - `IMPLEMENTING`：Codex 轮（现有 `_execute_chat`），轮内出现审批时 run
+    `→ WAITING_APPROVAL`，审批处理后回 `IMPLEMENTING` 续跑（复用现有
+    approval_gate，不重复造挂起机制）。
+  - `VERIFYING`：已配置测试命令时经现有 TestExecutor 执行并留 TestRun
+    证据；未配置时记 system 提示后直接进入同步（不伪造测试记录）。
+  - `SYNCING_REVIEW_SNAPSHOT`：复用 C4 快照 + 推送（含首次
+    `relay_shadow_sync` 审批）；失败 `→ BLOCKED`（中文 error）。
+  - `REVIEWING`：复用 C4 隔离 worktree 只读审查轮；审查提示词在既有交接
+    提示后追加强制要求——自然语言结论后输出 ```json 围栏的 `review.v1`
+    裁决（字段与 §6 一致，用中文描述 finding）；轮结束用 C2-2
+    `parse_review` 解析。
+  - 裁决分派：`pass` → `ACCEPTED → COMPLETED`（收官 system 消息汇总各轮）；
+    `blocking` → 持久化 findings（C2-3，关联 `collaboration_run_id` 与
+    round）→ `CHANGES_REQUESTED → FIXING`；`needs_user` 或解析失败
+    （`no_json`/`invalid_json`/`schema_mismatch`）→ `WAITING_USER`，原文
+    以 system 消息完整展示，不猜测裁决。
+  - `FIXING`：blocking findings 按 severity 排序编译为 Codex 整改提示
+    （含 file/line/description/acceptance），执行 Codex 轮后回
+    `VERIFYING`；上一轮 findings 作为下轮审查输入中的「上轮遗留」，审查
+    确认修复的 finding 置 `resolved` 并记 `resolved_by_snapshot_sha`。
+- [ ] `scheduler` 接线：`mode=smart` 且 `dual_agent=true` 时改走编排器全
+  循环（替换 C3-2 的「只准备不发送」行为，相关测试同步更新并在条目下注明）；
+  单 Agent 类别与 C3-3 事后升级保持现有「准备交接不自动发送」语义不变
+  （统一并入循环属 C6 决策）。
+- **验收**：阶段执行器测试（mock Agent 适配器 + 本地裸仓伪 VPS）覆盖
+  pass 直通收官、blocking → 整改提示编译内容断言、needs_user 与三类解析
+  失败进 `WAITING_USER` 且原文保留、finding resolve 生命周期。
+
+### C5-3 停止条件与 §9.2 API / §9.3 事件
+
+- [ ] 停止条件按 §5.3 落地：整改（FIXING）最多 2 轮、总轮次上限取
+  `max_rounds`（默认 3）——到限且仍 blocking → `WAITING_USER`（展示未解决
+  findings 列表）；无进展检测——连续两轮 `FileChange` 集合、TestRun 数与
+  open findings 均无变化 → `WAITING_USER`（reason=无进展）；Agent 失活/
+  VPS 不可达 → `BLOCKED`（可恢复，不无限重试）。
+- [ ] §9.2 API（挂 `/api` 前缀，`/api/collaboration-runs/{id}/*` 反查 run
+  归属并校验 workspace/thread）：
+  `POST .../threads/{tid}/collaboration-runs`（入参仅目标与可选模式；开关
+  关闭 422 中文）、`GET .../collaboration-runs/current`、
+  `POST /api/collaboration-runs/{id}/pause|resume|cancel|decisions`、
+  `GET /api/collaboration-runs/{id}/findings`。`decisions` 入参为
+  `{"action": "reenter"|"fix"|"cancel", "note": str}` 映射 `WAITING_USER`
+  三出边（READY/FIXING/CANCELLED）。
+- [ ] §9.3 事件全集接线（started/stage_changed/agent_changed/
+  handoff_prepared/review_completed/findings_updated/waiting_user/
+  completed/failed），只携带摘要与 ID。
+- **验收**：上限、无进展、失活三类停止各有测试；API 测试覆盖开关两态、
+  归属校验拒绝跨 thread 访问、decisions 三出边；事件序列断言。
+
+### C5-4 六条 E2E 与阶段验收
+
+- [ ] §12 C5 六条 E2E（mock 适配器 + 本地裸仓伪 VPS，全部经 API 入口驱动）：
+  1. 通过：实现 → 审查 pass → COMPLETED。
+  2. 一次整改：blocking → FIXING → 复验 → pass → COMPLETED。
+  3. 达到上限：连续 blocking 到 `max_rounds` → WAITING_USER + findings 列表。
+  4. 等待审批：实现轮触发审批 → WAITING_APPROVAL → 批准 → 续跑至完成。
+  5. 用户取消：REVIEWING 中 cancel → CANCELLED，Agent 轮被终止，影子 ref
+     已清理。
+  6. 重启恢复：IMPLEMENTING 中模拟重启 → BLOCKED（错误注明重启中断）→
+     resume 回 IMPLEMENTING 续跑，无副作用重放。
+- **验收**：六条 E2E 全绿；后端全量 pytest、Ruff、桌面端 TypeScript 通过
+  （前端零 diff，§10 UI 属 C6）；GitHub Actions 双平台绿；开关默认关闭下
+  现有全部模式零回归。完成后停下等 Claude review。
   - 2026-07-29：同一任务两轮审查复用 `F-1` 的专项测试通过，两条记录使用独立
     uid 且描述、轮次与 source handoff 互不覆盖；审查方编号不再作为数据库主键。
 - **验证结果（2026-07-29）**：新增两类稳定事件名、严格 detail 模型及返回未入库
