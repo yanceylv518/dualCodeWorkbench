@@ -136,6 +136,83 @@
     var(--text-xs)/1.6 Consolas,
     monospace;
 }
+.handoff-list {
+  margin: 6px 0;
+  padding-left: 18px;
+  color: var(--text-secondary);
+}
+.handoff-list li + li {
+  margin-top: 4px;
+}
+.handoff-section code,
+.handoff-findings code {
+  overflow-wrap: anywhere;
+  color: var(--text-secondary);
+  font-family: Consolas, monospace;
+}
+.handoff-evidence {
+  display: grid;
+  grid-template-columns: auto 1fr;
+  gap: 6px 8px;
+  margin-top: 8px;
+  border: 1px solid var(--border-subtle);
+  border-radius: 6px;
+  padding: 8px;
+}
+.handoff-evidence p {
+  grid-column: 1 / -1;
+  margin: 0;
+  color: var(--text-muted);
+}
+.handoff-findings {
+  margin: 0 12px 12px;
+  border: 1px solid var(--border-subtle);
+  border-radius: 8px;
+  background: var(--surface-1);
+  padding: 11px;
+}
+.handoff-findings > header,
+.finding > header {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+}
+.handoff-findings > header {
+  justify-content: space-between;
+}
+.handoff-findings > header span,
+.finding > header span {
+  color: var(--text-muted);
+  font-size: var(--text-xs);
+}
+.finding {
+  margin-top: 9px;
+  border-left: 2px solid var(--danger);
+  padding: 4px 0 4px 9px;
+}
+.finding.resolved {
+  border-left-color: var(--success);
+  opacity: 0.72;
+}
+.finding p {
+  margin: 7px 0 4px;
+  color: var(--text-primary);
+}
+.finding small {
+  color: var(--text-muted);
+}
+.finding-severity {
+  border-radius: 999px;
+  padding: 2px 6px;
+}
+.finding-severity.blocking {
+  background: color-mix(in srgb, var(--danger) 18%, transparent);
+  color: var(--danger) !important;
+}
+.finding-severity.advisory {
+  background: color-mix(in srgb, var(--warning) 18%, transparent);
+  color: var(--warning) !important;
+}
 .handoff-empty {
   margin: 8px 0;
   color: #7f8a95;

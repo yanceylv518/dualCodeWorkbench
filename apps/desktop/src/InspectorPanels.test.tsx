@@ -18,6 +18,8 @@ vi.mock("./api", () => ({
   listHandoffs: vi.fn(),
   prepareHandoff: vi.fn(),
   sendHandoff: vi.fn(),
+  fetchCurrentCollaboration: vi.fn(),
+  fetchCollaborationFindings: vi.fn(),
 }));
 
 const contract = {
@@ -64,7 +66,11 @@ const handoff = {
 };
 
 describe("inspector panels", () => {
-  beforeEach(() => vi.clearAllMocks());
+  beforeEach(() => {
+    vi.clearAllMocks();
+    vi.mocked(api.fetchCurrentCollaboration).mockResolvedValue(undefined);
+    vi.mocked(api.fetchCollaborationFindings).mockResolvedValue([]);
+  });
   afterEach(cleanup);
 
   it("loads and saves the project contract", async () => {
@@ -118,7 +124,7 @@ describe("inspector panels", () => {
       await screen.findByRole("button", { name: "准备 Claude 审查包" }),
     );
     expect(await screen.findByText("交给 Claude 独立审查")).toBeTruthy();
-    expect(screen.getByText("1 个文件、+2/-1 行")).toBeTruthy();
+    expect(screen.getByText("1 个文件，+2/-1 行")).toBeTruthy();
     expect(screen.getByText("测试证据")).toBeTruthy();
     expect(screen.queryByText(/"contract":/)).toBeNull();
     fireEvent.click(screen.getByRole("button", { name: "确认发送" }));

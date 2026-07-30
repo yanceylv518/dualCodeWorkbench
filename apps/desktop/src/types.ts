@@ -182,16 +182,72 @@ export interface HandoffPackage {
   recipient: "codex" | "claude";
   purpose: "verify" | "review";
   status: "PREPARED" | "SENT";
-  payload: {
-    contract: Record<string, unknown>;
-    repository: {
-      branch: string;
-      head: string;
-      upstream: string;
-      changed_files: string[];
-    };
-    diff: string;
-    tests: { command: string; exit_code: number; output: string }[];
-  };
+  payload:
+    | {
+        schema: "handoff.v2";
+        purpose: "implement" | "review" | "fix" | "verify";
+        sender: string;
+        recipient: string;
+        task: {
+          goal: string;
+          non_goals: string[];
+          acceptance: string[];
+          constraints: string[];
+        };
+        repository: {
+          base_sha: string;
+          snapshot_sha: string;
+          branch: string;
+          changed_files: string[];
+          diff_stats: Record<string, number>;
+        };
+        claims: string[];
+        evidence: {
+          type: string;
+          command: string;
+          exit_code: number;
+          summary: string;
+        }[];
+        open_findings: string[];
+        risks: string[];
+        requested_action: string;
+      }
+    | {
+        schema?: undefined;
+        contract: Record<string, unknown>;
+        repository: {
+          branch: string;
+          head: string;
+          upstream: string;
+          changed_files: string[];
+        };
+        diff: string;
+        tests: { command: string; exit_code: number; output: string }[];
+      };
   created_at?: string;
+}
+
+export interface CollaborationRun {
+  id: string;
+  workspace_id: string;
+  thread_id: string;
+  mode: "smart";
+  state: string;
+  current_agent: string;
+  round: number;
+  max_rounds: number;
+  error?: string | null;
+}
+
+export interface CollaborationFinding {
+  id: string;
+  collaboration_run_id: string;
+  round: number;
+  type: string;
+  severity: "blocking" | "advisory";
+  status: "open" | "resolved";
+  file?: string | null;
+  line?: string | null;
+  description: string;
+  acceptance: string;
 }

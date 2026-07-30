@@ -1134,18 +1134,23 @@ Claude review。
 
 ### C6-1 v2 交接预览与 findings/证据视图
 
-- [ ] `HandoffPanel.tsx`：识别 `payload.schema === "handoff.v2"` 时按结构化
+- [x] `HandoffPanel.tsx`：识别 `payload.schema === "handoff.v2"` 时按结构化
   视图渲染——任务契约（goal/non_goals/acceptance/constraints）、仓库基线
   （branch、`base_sha`/`snapshot_sha` 短显 + 悬浮全长、changed_files、
   diff_stats）、测试证据列表（command/exit_code/summary）、open_findings
   与 risks；不展示裸 JSON。legacy payload 渲染路径保持不变（开关关闭态
   回归）。
-- [ ] 检查器新增 findings 视图（挂在「交接」或「状态」下，执行者定并说明）：
+- [x] 检查器新增 findings 视图（挂在「交接」或「状态」下，执行者定并说明）：
   经 `GET /api/collaboration-runs/{id}/findings` 展示当前 run 的 finding
   列表——type/severity 徽标、file:line、描述、验收标准、状态（open/
   resolved）；空态明确文案。
 - **验收**：组件测试覆盖 v2 结构化渲染、legacy 回归、findings 列表与空态；
   TypeScript、严格 ESLint、Prettier 通过。
+- **验证结果（2026-07-30）**：findings 视图挂在「交接」页，与交接快照和审查证据
+  保持同一信息域；v2 payload 以任务契约、完整 SHA 悬浮、diff 统计、测试证据、
+  open findings 与风险分区展示，legacy 路径保持原结构。新增 3 项组件测试，前端
+  全量 81 项、TypeScript、严格 ESLint、改动文件 Prettier、后端 258 项与 Ruff
+  全部通过。
 
 ### C6-2 统一协作阶段时间线（消息流内）
 

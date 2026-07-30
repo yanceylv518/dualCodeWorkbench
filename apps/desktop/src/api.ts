@@ -1,6 +1,8 @@
 import type {
   AgentModelCatalog,
   AgentSettings,
+  CollaborationFinding,
+  CollaborationRun,
   ExecutionJob,
   GitStatus,
   HandoffPackage,
@@ -321,6 +323,33 @@ export async function sendHandoff(
     { method: "POST" },
   );
   if (!r.ok) throw await responseError(r);
+}
+
+export async function fetchCurrentCollaboration(
+  workspaceId: string,
+  threadId: string,
+): Promise<CollaborationRun | undefined> {
+  const r = await fetch(
+    `${API}/workspaces/${workspaceId}/threads/${threadId}/collaboration-runs/current`,
+  );
+  if (r.status === 404) return undefined;
+  if (!r.ok) throw await responseError(r);
+  return r.json();
+}
+
+export async function fetchCollaborationFindings(
+  workspaceId: string,
+  threadId: string,
+  runId: string,
+): Promise<CollaborationFinding[]> {
+  const r = await fetch(`${API}/collaboration-runs/${runId}/findings`, {
+    headers: {
+      "X-DualCode-Workspace-Id": workspaceId,
+      "X-DualCode-Thread-Id": threadId,
+    },
+  });
+  if (!r.ok) throw await responseError(r);
+  return r.json();
 }
 export async function decideApproval(
   workspaceId: string,
