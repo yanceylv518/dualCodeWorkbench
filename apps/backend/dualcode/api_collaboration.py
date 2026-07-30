@@ -1,11 +1,13 @@
 import asyncio
 import json
+from dataclasses import dataclass
 from pathlib import Path
 from fastapi import (
     APIRouter,
     Depends,
     Header,
     HTTPException,
+    Query,
 )
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -64,6 +66,28 @@ from .task_classifier import classify
 from .runtime_settings import is_smart_collaboration_enabled
 
 router = APIRouter(prefix="/api")
+
+
+@dataclass(frozen=True)
+class CollaborationScope:
+    workspace_id: str
+    thread_id: str
+
+
+def _collaboration_scope(
+    workspace_query: str | None = Query(default=None, alias="workspace_id"),
+    thread_query: str | None = Query(default=None, alias="thread_id"),
+    workspace_header: str | None = Header(
+        default=None, alias="X-DualCode-Workspace-Id"
+    ),
+    thread_header: str | None = Header(default=None, alias="X-DualCode-Thread-Id"),
+) -> CollaborationScope:
+    """Accept query context for WebView calls while preserving header clients."""
+    workspace_id = workspace_query or workspace_header
+    thread_id = thread_query or thread_header
+    if not workspace_id or not thread_id:
+        raise HTTPException(422, "协作请求缺少项目或任务上下文")
+    return CollaborationScope(workspace_id=workspace_id, thread_id=thread_id)
 
 
 def _collaboration_payload(run: CollaborationRun) -> dict[str, object]:
@@ -425,10 +449,10 @@ async def current_collaboration_run(
 @router.post("/collaboration-runs/{run_id}/pause")
 async def pause_collaboration_run(
     run_id: str,
-    workspace_id: str = Header(alias="X-DualCode-Workspace-Id"),
-    thread_id: str = Header(alias="X-DualCode-Thread-Id"),
+    scope: CollaborationScope = Depends(_collaboration_scope),
     db: AsyncSession = Depends(get_session),
 ):
+    workspace_id, thread_id = scope.workspace_id, scope.thread_id
     run = await _owned_collaboration_run(db, run_id, workspace_id, thread_id)
     await scheduler.cancel(thread_id)
     try:
@@ -445,10 +469,10 @@ async def pause_collaboration_run(
 @router.post("/collaboration-runs/{run_id}/resume")
 async def resume_collaboration_run(
     run_id: str,
-    workspace_id: str = Header(alias="X-DualCode-Workspace-Id"),
-    thread_id: str = Header(alias="X-DualCode-Thread-Id"),
+    scope: CollaborationScope = Depends(_collaboration_scope),
     db: AsyncSession = Depends(get_session),
 ):
+    workspace_id, thread_id = scope.workspace_id, scope.thread_id
     run = await _owned_collaboration_run(db, run_id, workspace_id, thread_id)
     try:
         await resume_collaboration(db, run, reason="用户恢复协作运行")
@@ -468,10 +492,10 @@ async def resume_collaboration_run(
 @router.post("/collaboration-runs/{run_id}/cancel")
 async def cancel_collaboration_run(
     run_id: str,
-    workspace_id: str = Header(alias="X-DualCode-Workspace-Id"),
-    thread_id: str = Header(alias="X-DualCode-Thread-Id"),
+    scope: CollaborationScope = Depends(_collaboration_scope),
     db: AsyncSession = Depends(get_session),
 ):
+    workspace_id, thread_id = scope.workspace_id, scope.thread_id
     run = await _owned_collaboration_run(db, run_id, workspace_id, thread_id)
     try:
         await cancel_collaboration(
@@ -488,10 +512,10 @@ async def cancel_collaboration_run(
 async def decide_collaboration_run(
     run_id: str,
     body: CollaborationDecision,
-    workspace_id: str = Header(alias="X-DualCode-Workspace-Id"),
-    thread_id: str = Header(alias="X-DualCode-Thread-Id"),
+    scope: CollaborationScope = Depends(_collaboration_scope),
     db: AsyncSession = Depends(get_session),
 ):
+    workspace_id, thread_id = scope.workspace_id, scope.thread_id
     run = await _owned_collaboration_run(db, run_id, workspace_id, thread_id)
     if run.state != CollaborationState.WAITING_USER.value:
         raise HTTPException(409, "当前协作运行不在等待用户决策状态")
@@ -525,10 +549,10 @@ async def decide_collaboration_run(
 @router.get("/collaboration-runs/{run_id}/findings")
 async def collaboration_run_findings(
     run_id: str,
-    workspace_id: str = Header(alias="X-DualCode-Workspace-Id"),
-    thread_id: str = Header(alias="X-DualCode-Thread-Id"),
+    scope: CollaborationScope = Depends(_collaboration_scope),
     db: AsyncSession = Depends(get_session),
 ):
+    workspace_id, thread_id = scope.workspace_id, scope.thread_id
     run = await _owned_collaboration_run(db, run_id, workspace_id, thread_id)
     findings = (
         await db.scalars(

@@ -33,7 +33,7 @@ async def lifespan(app: FastAPI):
     yield
 
 
-app = FastAPI(title="DualCode Workbench API", version="0.1.7", lifespan=lifespan)
+app = FastAPI(title="DualCode Workbench API", version="0.1.8", lifespan=lifespan)
 app.add_middleware(
     CORSMiddleware,
     allow_origins=[

@@ -509,7 +509,7 @@ async def test_collaboration_decisions_cover_waiting_user_exits(
         run_id = run.id
     response = await api_client.post(
         f"/api/collaboration-runs/{run_id}/decisions",
-        headers=_collaboration_headers(workspace["id"], thread["id"]),
+        params={"workspace_id": workspace["id"], "thread_id": thread["id"]},
         json={"action": action, "note": "用户选择"},
     )
     assert response.status_code == 200

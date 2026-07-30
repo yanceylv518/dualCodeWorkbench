@@ -337,25 +337,21 @@ export async function fetchCurrentCollaboration(
   return r.json();
 }
 
+const collaborationScope = (workspaceId: string, threadId: string) =>
+  new URLSearchParams({ workspace_id: workspaceId, thread_id: threadId });
+
 export async function fetchCollaborationFindings(
   workspaceId: string,
   threadId: string,
   runId: string,
 ): Promise<CollaborationFinding[]> {
-  const r = await fetch(`${API}/collaboration-runs/${runId}/findings`, {
-    headers: {
-      "X-DualCode-Workspace-Id": workspaceId,
-      "X-DualCode-Thread-Id": threadId,
-    },
-  });
+  const scope = collaborationScope(workspaceId, threadId);
+  const r = await fetch(
+    `${API}/collaboration-runs/${runId}/findings?${scope}`,
+  );
   if (!r.ok) throw await responseError(r);
   return r.json();
 }
-
-const collaborationHeaders = (workspaceId: string, threadId: string) => ({
-  "X-DualCode-Workspace-Id": workspaceId,
-  "X-DualCode-Thread-Id": threadId,
-});
 
 export async function decideCollaboration(
   workspaceId: string,
@@ -364,14 +360,17 @@ export async function decideCollaboration(
   action: "reenter" | "fix" | "cancel",
   note = "",
 ): Promise<CollaborationRun> {
-  const r = await fetch(`${API}/collaboration-runs/${runId}/decisions`, {
-    method: "POST",
-    headers: {
-      "Content-Type": "application/json",
-      ...collaborationHeaders(workspaceId, threadId),
+  const scope = collaborationScope(workspaceId, threadId);
+  const r = await fetch(
+    `${API}/collaboration-runs/${runId}/decisions?${scope}`,
+    {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({ action, note }),
     },
-    body: JSON.stringify({ action, note }),
-  });
+  );
   if (!r.ok) throw await responseError(r);
   return r.json();
 }
@@ -381,9 +380,9 @@ export async function resumeCollaboration(
   threadId: string,
   runId: string,
 ): Promise<CollaborationRun> {
-  const r = await fetch(`${API}/collaboration-runs/${runId}/resume`, {
+  const scope = collaborationScope(workspaceId, threadId);
+  const r = await fetch(`${API}/collaboration-runs/${runId}/resume?${scope}`, {
     method: "POST",
-    headers: collaborationHeaders(workspaceId, threadId),
   });
   if (!r.ok) throw await responseError(r);
   return r.json();
@@ -394,9 +393,9 @@ export async function cancelCollaboration(
   threadId: string,
   runId: string,
 ): Promise<CollaborationRun> {
-  const r = await fetch(`${API}/collaboration-runs/${runId}/cancel`, {
+  const scope = collaborationScope(workspaceId, threadId);
+  const r = await fetch(`${API}/collaboration-runs/${runId}/cancel?${scope}`, {
     method: "POST",
-    headers: collaborationHeaders(workspaceId, threadId),
   });
   if (!r.ok) throw await responseError(r);
   return r.json();
