@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import inspect
 import json
+from dataclasses import dataclass
 from collections.abc import Awaitable, Callable
 from datetime import datetime, timezone
 
@@ -20,11 +21,14 @@ from .events import AgentEvent, EventType
 from .models import (
     CollaborationRun,
     Message,
+    ReviewFinding,
     TaskContract,
     Thread,
     Workspace,
 )
 from .task_classifier import RoutingDecision
+from .review_findings import persist_review_findings
+from .review_parser import parse_review
 
 RUNNING_STATES = frozenset(
     {
@@ -41,6 +45,230 @@ TERMINAL_STATES = frozenset(
 SUSPENDED_STATES = frozenset(
     {CollaborationState.WAITING_APPROVAL, CollaborationState.BLOCKED}
 )
+
+
+@dataclass(frozen=True)
+class SnapshotEvidence:
+    base_sha: str
+    snapshot_sha: str
+
+
+@dataclass(frozen=True)
+class ReviewTurnResult:
+    raw_text: str
+    source_handoff_id: str
+
+
+@dataclass(frozen=True)
+class StageCallbacks:
+    """Injected side effects; the orchestrator owns only deterministic policy."""
+
+    run_codex: Callable[[str, CollaborationState], Awaitable[object]]
+    run_tests: Callable[[], Awaitable[bool | None]]
+    sync_snapshot: Callable[[], Awaitable[SnapshotEvidence]]
+    run_review: Callable[[str, SnapshotEvidence], Awaitable[ReviewTurnResult]]
+    record_system: Callable[[str], Awaitable[None]]
+
+
+_REVIEW_SUFFIX = """
+
+After the natural-language review, output exactly one fenced ```json object
+matching review.v1. Use Chinese finding descriptions. Required shape:
+{"schema":"review.v1","verdict":"pass|blocking|needs_user","summary":"...",
+"findings":[{"id":"F-1","type":"missing|partial|regression|risk|architecture|evidence",
+"severity":"blocking|advisory","file":null,"line":null,
+"description":"...","acceptance":"..."}]}
+""".strip()
+
+
+def _turn_failure(result: object) -> str:
+    status = str(getattr(result, "status", "failed"))
+    if status == "completed":
+        return ""
+    return str(getattr(result, "error", "") or f"Agent 轮次未完成（{status}）")
+
+
+def _finding_key(item: object) -> tuple[str, str, str, str, str]:
+    return (
+        str(getattr(item, "type", "")),
+        str(getattr(item, "file", "") or ""),
+        str(getattr(item, "line", "") or ""),
+        str(getattr(item, "description", "")).strip(),
+        str(getattr(item, "acceptance", "")).strip(),
+    )
+
+
+async def _open_blocking_findings(
+    db: AsyncSession, run: CollaborationRun
+) -> list[ReviewFinding]:
+    return list(
+        (
+            await db.scalars(
+                select(ReviewFinding)
+                .where(
+                    ReviewFinding.collaboration_run_id == run.id,
+                    ReviewFinding.status == "open",
+                    ReviewFinding.severity == "blocking",
+                )
+                .order_by(
+                    ReviewFinding.type,
+                    ReviewFinding.file,
+                    ReviewFinding.line,
+                    ReviewFinding.id,
+                )
+            )
+        ).all()
+    )
+
+
+def _fix_prompt(findings: list[ReviewFinding]) -> str:
+    rows = ["修复以下阻断审查问题。不得使用临时、演示或绕过方案："]
+    for index, item in enumerate(findings, 1):
+        location = item.file or "未指定文件"
+        if item.line:
+            location += f":{item.line}"
+        rows.extend(
+            [
+                f"{index}. [{item.type}] {location}",
+                f"   问题：{item.description}",
+                f"   验收：{item.acceptance}",
+            ]
+        )
+    return "\n".join(rows)
+
+
+async def _resolve_absent_findings(
+    db: AsyncSession,
+    run: CollaborationRun,
+    review_findings: list[object],
+) -> None:
+    """Resolve prior findings that the next independent review no longer reports."""
+
+    current_keys = {_finding_key(item) for item in review_findings}
+    old = await _open_blocking_findings(db, run)
+    for item in old:
+        if item.round < run.round and _finding_key(item) not in current_keys:
+            item.status = "resolved"
+            item.resolved_by_snapshot_sha = run.snapshot_sha
+
+
+async def execute_pipeline(
+    db: AsyncSession,
+    run: CollaborationRun,
+    *,
+    initial_prompt: str,
+    callbacks: StageCallbacks,
+) -> CollaborationRun:
+    """Execute one C5 collaboration loop using injected, already-approved effects."""
+
+    if CollaborationState(run.state) is CollaborationState.READY:
+        await advance(
+            db, run, CollaborationState.IMPLEMENTING, reason="开始 Codex 实现轮次"
+        )
+
+    while CollaborationState(run.state) in {
+        CollaborationState.IMPLEMENTING,
+        CollaborationState.VERIFYING,
+        CollaborationState.SYNCING_REVIEW_SNAPSHOT,
+        CollaborationState.REVIEWING,
+        CollaborationState.CHANGES_REQUESTED,
+        CollaborationState.FIXING,
+        CollaborationState.ACCEPTED,
+    }:
+        state = CollaborationState(run.state)
+        if state is CollaborationState.IMPLEMENTING:
+            turn = await callbacks.run_codex(initial_prompt, state)
+            if error := _turn_failure(turn):
+                run.error = error
+                return await advance(db, run, CollaborationState.BLOCKED, reason=error)
+            await advance(db, run, CollaborationState.VERIFYING, reason="实现轮次完成")
+        elif state is CollaborationState.VERIFYING:
+            verified = await callbacks.run_tests()
+            if verified is None:
+                await callbacks.record_system("尚未配置测试命令，本轮未生成测试证据。")
+            elif not verified:
+                run.error = "验证失败，请检查测试输出"
+                return await advance(
+                    db, run, CollaborationState.BLOCKED, reason=run.error
+                )
+            await advance(
+                db,
+                run,
+                CollaborationState.SYNCING_REVIEW_SNAPSHOT,
+                reason="验证阶段完成",
+            )
+        elif state is CollaborationState.SYNCING_REVIEW_SNAPSHOT:
+            try:
+                snapshot = await callbacks.sync_snapshot()
+            except Exception as exc:
+                run.error = f"审查快照同步失败：{str(exc)[:240]}"
+                return await advance(
+                    db, run, CollaborationState.BLOCKED, reason=run.error
+                )
+            run.base_sha = snapshot.base_sha
+            run.snapshot_sha = snapshot.snapshot_sha
+            await advance(
+                db, run, CollaborationState.REVIEWING, reason="审查快照已同步"
+            )
+        elif state is CollaborationState.REVIEWING:
+            snapshot = SnapshotEvidence(run.base_sha or "", run.snapshot_sha or "")
+            review_turn = await callbacks.run_review(_REVIEW_SUFFIX, snapshot)
+            parsed = parse_review(review_turn.raw_text)
+            if parsed.outcome != "parsed" or parsed.review is None:
+                await callbacks.record_system(review_turn.raw_text)
+                return await advance(
+                    db,
+                    run,
+                    CollaborationState.WAITING_USER,
+                    reason=f"审查裁决解析失败：{parsed.outcome}",
+                )
+            review = parsed.review
+            await _resolve_absent_findings(db, run, list(review.findings))
+            await persist_review_findings(
+                db,
+                workspace_id=run.workspace_id,
+                thread_id=run.thread_id,
+                source_handoff_id=review_turn.source_handoff_id,
+                review=review,
+                collaboration_run_id=run.id,
+                round=run.round,
+            )
+            if review.verdict == "needs_user":
+                await callbacks.record_system(review_turn.raw_text)
+                return await advance(
+                    db, run, CollaborationState.WAITING_USER, reason=review.summary
+                )
+            if review.verdict == "blocking":
+                await advance(
+                    db,
+                    run,
+                    CollaborationState.CHANGES_REQUESTED,
+                    reason=review.summary,
+                )
+            else:
+                await advance(
+                    db, run, CollaborationState.ACCEPTED, reason=review.summary
+                )
+        elif state is CollaborationState.CHANGES_REQUESTED:
+            await advance(
+                db, run, CollaborationState.FIXING, reason="编译阻断问题整改提示"
+            )
+        elif state is CollaborationState.FIXING:
+            findings = await _open_blocking_findings(db, run)
+            turn = await callbacks.run_codex(_fix_prompt(findings), state)
+            if error := _turn_failure(turn):
+                run.error = error
+                return await advance(db, run, CollaborationState.BLOCKED, reason=error)
+            run.round += 1
+            await advance(db, run, CollaborationState.VERIFYING, reason="整改轮次完成")
+        else:
+            await callbacks.record_system(
+                f"智能协作已完成，共经过 {run.round} 轮审查。"
+            )
+            await advance(
+                db, run, CollaborationState.COMPLETED, reason="审查已通过"
+            )
+    return run
 
 
 def _budget(run: CollaborationRun) -> dict[str, object]:
@@ -247,4 +475,3 @@ async def recover_interrupted_runs(db: AsyncSession) -> list[str]:
         )
         recovered.append(run.id)
     return recovered
-

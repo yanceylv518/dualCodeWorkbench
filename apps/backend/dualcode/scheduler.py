@@ -2,6 +2,8 @@ import asyncio
 import hashlib
 import json
 import uuid
+from collections.abc import Awaitable, Callable
+from dataclasses import dataclass
 from pathlib import Path, PurePosixPath
 
 from sqlalchemy import select
@@ -18,6 +20,16 @@ from .cli_adapters import ClaudeCliAdapter
 from .codex_app_server import CodexAppServerAdapter
 from .connections import manager
 from .collaboration_audit import RoutingDecisionDetail, build_routing_decision_audit
+from .collaboration_orchestrator import (
+    ReviewTurnResult,
+    SnapshotEvidence,
+    StageCallbacks,
+    advance as advance_collaboration,
+    execute_pipeline,
+    resume as resume_collaboration,
+    start_run as start_collaboration_run,
+)
+from .collaboration_protocol import CollaborationState
 from .context_budget import build_memory_section, build_recent_transcript, truncate_contract
 from .database import SessionLocal
 from .document_text import DOCX_MEDIA_TYPE, extract_docx_text
@@ -37,6 +49,7 @@ from .models import (
     RunState,
     Thread,
     TaskContract,
+    TestRun,
     Workspace,
 )
 from .config import settings
@@ -53,8 +66,19 @@ from .relay_service import (
 from .ssh_adapter import ClaudeSshAdapter, ClaudeSshConfig
 from .runtime_settings import AgentSettings, agent_settings_store
 from .workspace_remote import derived_repository_path, workspace_remote_store
-from .test_executor import TestExecutor
+from .test_executor import TestCommand, TestExecutor
 from .task_classifier import RoutingDecision, classify
+
+
+@dataclass(frozen=True)
+class AgentTurnResult:
+    agent_run_id: str
+    status: str
+    content: str = ""
+    error: str = ""
+
+
+ApprovalLifecycle = Callable[[str, str, bool | None], Awaitable[None]]
 
 
 class RunScheduler:
@@ -133,7 +157,13 @@ class RunScheduler:
             return True
         return False
 
-    async def ensure_relay_sync_approval(self, db, thread_id: str, emit) -> bool:
+    async def ensure_relay_sync_approval(
+        self,
+        db,
+        thread_id: str,
+        emit,
+        approval_lifecycle: ApprovalLifecycle | None = None,
+    ) -> bool:
         """Require the first relay sync approval and reuse durable thread grants."""
 
         action = "relay_shadow_sync"
@@ -152,7 +182,12 @@ class RunScheduler:
             EventType.APPROVAL_REQUIRED,
             {"id": item.id, "action": action, "reason": item.reason},
         )
-        return await approval_gate.wait(item.id)
+        if approval_lifecycle:
+            await approval_lifecycle(action, item.reason, None)
+        approved = await approval_gate.wait(item.id)
+        if approval_lifecycle:
+            await approval_lifecycle(action, item.reason, approved)
+        return approved
 
     async def _shared_memory_prompt(self, db, workspace: Workspace, thread: Thread) -> str:
         if not settings.smart_collaboration_enabled:
@@ -376,11 +411,267 @@ class RunScheduler:
         decision = classify(prompt)
         agent = self._agent_for_decision(decision)
         await self._record_smart_route(thread_id, decision)
-        await self._execute_chat(thread_id, run_id, prompt, agent, attachment_ids)
         if decision.dual_agent:
-            await self._prepare_review_handoff(thread_id, run_id, agent, decision)
-        else:
-            await self._upgrade_after_diff(thread_id, run_id, agent, decision)
+            await self._execute_smart_collaboration(
+                thread_id, prompt, attachment_ids, decision
+            )
+            return
+        await self._execute_chat(thread_id, run_id, prompt, agent, attachment_ids)
+        await self._upgrade_after_diff(thread_id, run_id, agent, decision)
+
+    async def _execute_smart_collaboration(
+        self,
+        thread_id: str,
+        prompt: str,
+        attachment_ids: list[str],
+        decision: RoutingDecision,
+    ) -> None:
+        """Run the C5 implementation/review loop with existing side effects."""
+
+        async with SessionLocal() as db:
+            thread = await db.get(Thread, thread_id)
+            workspace = (
+                await db.get(Workspace, thread.workspace_id) if thread else None
+            )
+            if not thread or not workspace:
+                return
+            collaboration = await start_collaboration_run(
+                db, workspace, thread, decision=decision
+            )
+            await db.commit()
+            if collaboration.state != CollaborationState.READY.value:
+                return
+
+            async def emit(kind: EventType, payload: dict[str, object]) -> None:
+                await manager.publish(
+                    AgentEvent(
+                        type=kind,
+                        thread_id=thread_id,
+                        run_id=collaboration.id,
+                        payload=payload,
+                    )
+                )
+
+            async def approval_lifecycle(
+                action: str, reason: str, approved: bool | None
+            ) -> None:
+                del action
+                if approved is None:
+                    await advance_collaboration(
+                        db,
+                        collaboration,
+                        CollaborationState.WAITING_APPROVAL,
+                        reason=reason,
+                    )
+                elif approved:
+                    await resume_collaboration(
+                        db, collaboration, reason="审批通过，继续当前阶段"
+                    )
+                else:
+                    await resume_collaboration(
+                        db, collaboration, reason="审批未通过，结束当前操作"
+                    )
+                await db.commit()
+
+            async def run_codex(
+                current_prompt: str, stage: CollaborationState
+            ) -> AgentTurnResult:
+                collaboration.current_agent = "codex"
+                await db.commit()
+                return await self._execute_chat(
+                    thread_id,
+                    str(uuid.uuid4()),
+                    current_prompt,
+                    "codex",
+                    attachment_ids if stage is CollaborationState.IMPLEMENTING else [],
+                    approval_lifecycle=approval_lifecycle,
+                )
+
+            async def run_tests() -> bool | None:
+                runtime = agent_settings_store.load()
+                if not runtime.test_executable:
+                    return None
+
+                async def on_output(channel: str, text: str) -> None:
+                    await emit(
+                        EventType.TERMINAL_OUTPUT,
+                        {"channel": channel, "text": text},
+                    )
+
+                result = await self._tests.execute(
+                    command=TestCommand(
+                        executable=Path(runtime.test_executable),
+                        arguments=tuple(runtime.test_arguments),
+                        cwd=Path(workspace.path),
+                    ),
+                    allowed_root=Path(workspace.path),
+                    on_output=on_output,
+                )
+                db.add(
+                    TestRun(
+                        thread_id=thread_id,
+                        command=" ".join(result.command)[:500],
+                        output=(result.stdout + result.stderr),
+                        exit_code=result.exit_code,
+                    )
+                )
+                await db.commit()
+                return result.exit_code == 0 and not result.timed_out
+
+            async def sync_snapshot() -> SnapshotEvidence:
+                remote_settings = workspace_remote_store.get(workspace.id)
+                remote_path = remote_settings.vps_repo_path or derived_repository_path(
+                    self.runtime.claude_ssh_projects_root,
+                    remote_settings.remote_url,
+                    workspace.name,
+                )
+                if not remote_path:
+                    raise ValueError("尚未配置或发现 VPS 仓库路径")
+                if not await self.ensure_relay_sync_approval(
+                    db,
+                    thread_id,
+                    emit,
+                    approval_lifecycle=approval_lifecycle,
+                ):
+                    raise PermissionError("用户未批准影子快照同步")
+                repository = Path(workspace.path).resolve(strict=True)
+                snapshot = await create_shadow_snapshot(repository)
+                try:
+                    await push_shadow_ref(
+                        repository,
+                        snapshot.snapshot_sha,
+                        workspace_id=workspace.id,
+                        thread_id=thread_id,
+                        remote_spec=self._relay_remote_spec(remote_path),
+                    )
+                except Exception as exc:
+                    db.add(
+                        build_relay_sync_audit(
+                            workspace_id=workspace.id,
+                            thread_id=thread_id,
+                            snapshot=snapshot,
+                            succeeded=False,
+                            error=str(exc),
+                        )
+                    )
+                    await db.commit()
+                    raise
+                db.add(
+                    build_relay_sync_audit(
+                        workspace_id=workspace.id,
+                        thread_id=thread_id,
+                        snapshot=snapshot,
+                        succeeded=True,
+                    )
+                )
+                await db.commit()
+                return SnapshotEvidence(snapshot.base_sha, snapshot.snapshot_sha)
+
+            async def run_review(
+                prompt_suffix: str, snapshot: SnapshotEvidence
+            ) -> ReviewTurnResult:
+                if not isinstance(self._claude, ClaudeSshAdapter):
+                    raise ValueError("智能审查要求已配置可用的 VPS Claude SSH")
+                remote_settings = workspace_remote_store.get(workspace.id)
+                remote_path = remote_settings.vps_repo_path or derived_repository_path(
+                    self.runtime.claude_ssh_projects_root,
+                    remote_settings.remote_url,
+                    workspace.name,
+                )
+                if not remote_path:
+                    raise ValueError("尚未配置或发现 VPS 仓库路径")
+                payload = await compile_handoff_v2(
+                    db,
+                    workspace,
+                    thread,
+                    purpose="review",
+                    sender="codex",
+                    recipient="claude",
+                )
+                payload.repository.base_sha = snapshot.base_sha
+                payload.repository.snapshot_sha = snapshot.snapshot_sha
+                package = HandoffPackage(
+                    workspace_id=workspace.id,
+                    thread_id=thread_id,
+                    recipient="claude",
+                    purpose="review",
+                    payload=payload.model_dump_json(by_alias=True),
+                    status="PREPARED",
+                )
+                db.add(package)
+                await db.flush()
+                await db.commit()
+                worktree = None
+                repository = Path(workspace.path).resolve(strict=True)
+                remote_spec = self._relay_remote_spec(remote_path)
+                try:
+                    worktree = await self._claude.create_review_worktree(
+                        PurePosixPath(remote_path),
+                        thread_id=thread_id,
+                        run_id=collaboration.id,
+                        snapshot_sha=snapshot.snapshot_sha,
+                    )
+                    collaboration.current_agent = "claude"
+                    package.status = "SENT"
+                    await db.commit()
+                    result = await self._execute_chat(
+                        thread_id,
+                        str(uuid.uuid4()),
+                        f"{handoff_prompt(package)}\n\n{prompt_suffix}",
+                        "claude",
+                        [],
+                        remote_workspace_path=str(worktree.path),
+                        allow_remote_write=False,
+                        skip_remote_approval=True,
+                    )
+                    if result.status != "completed":
+                        raise RuntimeError(result.error or "Claude 审查轮次未完成")
+                    return ReviewTurnResult(result.content, package.id)
+                finally:
+                    if worktree:
+                        await self._claude.remove_review_worktree(worktree)
+                    await cleanup_shadow_ref(
+                        repository,
+                        workspace_id=workspace.id,
+                        thread_id=thread_id,
+                        remote_spec=remote_spec,
+                    )
+
+            async def record_system(text: str) -> None:
+                await self._record_system_message(db, thread_id, text)
+                await db.commit()
+
+            callbacks = StageCallbacks(
+                run_codex=run_codex,
+                run_tests=run_tests,
+                sync_snapshot=sync_snapshot,
+                run_review=run_review,
+                record_system=record_system,
+            )
+            try:
+                await execute_pipeline(
+                    db,
+                    collaboration,
+                    initial_prompt=prompt,
+                    callbacks=callbacks,
+                )
+                await db.commit()
+            except Exception as exc:
+                if collaboration.state not in {
+                    CollaborationState.BLOCKED.value,
+                    CollaborationState.WAITING_USER.value,
+                    CollaborationState.CANCELLED.value,
+                    CollaborationState.COMPLETED.value,
+                }:
+                    collaboration.error = str(exc)[:500]
+                    await advance_collaboration(
+                        db,
+                        collaboration,
+                        CollaborationState.BLOCKED,
+                        reason=f"协作阶段失败：{str(exc)[:200]}",
+                    )
+                    await db.commit()
+                await emit(EventType.ERROR, {"message": str(exc)[:300]})
 
     @staticmethod
     def _agent_for_decision(decision: RoutingDecision) -> str:
@@ -528,15 +819,16 @@ class RunScheduler:
         remote_workspace_path: str | None = None,
         allow_remote_write: bool | None = None,
         skip_remote_approval: bool = False,
-    ) -> None:
+        approval_lifecycle: ApprovalLifecycle | None = None,
+    ) -> AgentTurnResult:
         """Run one turn for the selected agent without advancing an orchestration pipeline."""
         async with SessionLocal() as db:
             thread = await db.scalar(select(Thread).where(Thread.id == thread_id))
             if not thread:
-                return
+                return AgentTurnResult(run_id, "failed", error="未找到任务会话")
             workspace = await db.get(Workspace, thread.workspace_id)
             if not workspace:
-                return
+                return AgentTurnResult(run_id, "failed", error="未找到项目")
             run_state = RunState.IMPLEMENTING if agent == "codex" else RunState.PLANNING
             selected_model = (self.runtime.codex_model or "cli-default") if agent == "codex" else self.runtime.claude_model
             run = AgentRun(id=run_id, thread_id=thread_id, agent=agent, state=run_state)
@@ -566,7 +858,12 @@ class RunScheduler:
                 approval_gate.prepare(item.id)
                 await db.commit()
                 await emit(EventType.APPROVAL_REQUIRED, {"id": item.id, "action": action, "reason": reason})
-                return await approval_gate.wait(item.id)
+                if approval_lifecycle:
+                    await approval_lifecycle(action, reason, None)
+                approved = await approval_gate.wait(item.id)
+                if approval_lifecycle:
+                    await approval_lifecycle(action, reason, approved)
+                return approved
 
             await emit(EventType.RUN_STATE_CHANGED, {"state": run_state.value, "agent": agent})
             try:
@@ -588,7 +885,7 @@ class RunScheduler:
                     run.state = RunState.CANCELLED
                     await db.commit()
                     await emit(EventType.RUN_STATE_CHANGED, {"state": RunState.CREATED.value})
-                    return
+                    return AgentTurnResult(run_id, "cancelled")
                 recent = await db.stream_scalars(
                     select(Message).where(Message.thread_id == thread_id).order_by(Message.created_at.desc())
                 )
@@ -712,11 +1009,13 @@ class RunScheduler:
                 await emit(EventType.MESSAGE_CREATED, {"role": agent, "content": response.content})
                 await emit(EventType.RUN_STATE_CHANGED, {"state": RunState.CREATED.value})
                 await emit(EventType.RUN_COMPLETED, {"status": "idle", "agent": agent})
+                return AgentTurnResult(run_id, "completed", content=response.content)
             except asyncio.CancelledError:
                 thread.state = RunState.CREATED
                 run.state = RunState.CANCELLED
                 await db.commit()
                 await emit(EventType.RUN_STATE_CHANGED, {"state": RunState.CREATED.value})
+                return AgentTurnResult(run_id, "cancelled")
             except Exception as exc:
                 thread.state = RunState.CREATED
                 run.state = RunState.FAILED
@@ -725,6 +1024,7 @@ class RunScheduler:
                 await db.commit()
                 await emit(EventType.ERROR, {"message": error_message})
                 await emit(EventType.RUN_STATE_CHANGED, {"state": RunState.CREATED.value})
+                return AgentTurnResult(run_id, "failed", error=error_message)
 
     async def _stream_agent(self, adapter, request: AgentRequest, agent: str, emit) -> AgentResponse:
         session_id = ""

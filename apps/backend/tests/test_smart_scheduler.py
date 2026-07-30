@@ -24,18 +24,18 @@ from dualcode.task_classifier import classify
 
 @pytest.mark.asyncio
 @pytest.mark.parametrize(
-    ("prompt", "expected_agent", "expects_handoff"),
+    ("prompt", "expected_agent", "expects_collaboration"),
     [
         ("解释一下这个字段是什么", "codex", False),
         ("增加项目收藏功能", "codex", True),
         ("设计新的系统架构", "claude", True),
     ],
 )
-async def test_smart_mode_routes_and_only_prepares_required_review(
+async def test_smart_mode_routes_dual_agent_through_collaboration_loop(
     monkeypatch: pytest.MonkeyPatch,
     prompt: str,
     expected_agent: str,
-    expects_handoff: bool,
+    expects_collaboration: bool,
 ) -> None:
     scheduler = RunScheduler.__new__(RunScheduler)
     calls: list[tuple[str, object]] = []
@@ -46,8 +46,8 @@ async def test_smart_mode_routes_and_only_prepares_required_review(
     async def execute_chat(thread_id, run_id, current_prompt, agent, attachment_ids):
         calls.append(("execute", agent))
 
-    async def prepare_handoff(thread_id, run_id, agent, decision):
-        calls.append(("handoff", decision.category))
+    async def execute_collaboration(thread_id, current_prompt, attachment_ids, decision):
+        calls.append(("collaboration", decision.category))
 
     async def upgrade_after_diff(thread_id, run_id, agent, decision):
         calls.append(("diff_check", decision.category))
@@ -55,15 +55,21 @@ async def test_smart_mode_routes_and_only_prepares_required_review(
 
     monkeypatch.setattr(scheduler, "_record_smart_route", record_route)
     monkeypatch.setattr(scheduler, "_execute_chat", execute_chat)
-    monkeypatch.setattr(scheduler, "_prepare_review_handoff", prepare_handoff)
+    monkeypatch.setattr(
+        scheduler, "_execute_smart_collaboration", execute_collaboration
+    )
     monkeypatch.setattr(scheduler, "_upgrade_after_diff", upgrade_after_diff)
 
     await scheduler._execute("thread-1", "run-1", prompt, "smart", [])
 
-    assert ("execute", expected_agent) in calls
     assert any(kind == "route" for kind, _ in calls)
-    assert any(kind == "handoff" for kind, _ in calls) is expects_handoff
-    assert any(kind == "diff_check" for kind, _ in calls) is (not expects_handoff)
+    assert any(kind == "collaboration" for kind, _ in calls) is expects_collaboration
+    assert any(kind == "execute" for kind, _ in calls) is (not expects_collaboration)
+    assert any(kind == "diff_check" for kind, _ in calls) is (
+        not expects_collaboration
+    )
+    if not expects_collaboration:
+        assert ("execute", expected_agent) in calls
 
 
 @pytest.mark.asyncio
@@ -344,12 +350,18 @@ async def test_first_relay_sync_requests_task_approval(
 
     prepared: list[str] = []
     emitted: list[tuple[object, dict[str, object]]] = []
+    lifecycle: list[bool | None] = []
 
     async def approve(approval_id: str) -> bool:
         return True
 
     async def emit(kind, payload):
         emitted.append((kind, payload))
+
+    async def approval_lifecycle(action, reason, approved):
+        assert action == "relay_shadow_sync"
+        assert reason
+        lifecycle.append(approved)
 
     monkeypatch.setattr(
         "dualcode.scheduler.approval_gate.prepare", prepared.append
@@ -359,7 +371,12 @@ async def test_first_relay_sync_requests_task_approval(
     scheduler._thread_grants = set()
     async with sessions() as db:
         assert (
-            await scheduler.ensure_relay_sync_approval(db, thread_id, emit)
+            await scheduler.ensure_relay_sync_approval(
+                db,
+                thread_id,
+                emit,
+                approval_lifecycle=approval_lifecycle,
+            )
             is True
         )
     async with sessions() as db:
@@ -372,4 +389,5 @@ async def test_first_relay_sync_requests_task_approval(
     assert approval.reason == "允许本任务自动同步影子快照到 VPS？"
     assert prepared == [approval.id]
     assert emitted[0][1]["action"] == "relay_shadow_sync"
+    assert lifecycle == [None, True]
     await engine.dispose()

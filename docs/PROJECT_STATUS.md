@@ -1,5 +1,16 @@
 # DualCode Workbench 项目状态
 
+## 2026-07-30 智能协作 C5-2 自动整改闭环
+
+- 新增确定性阶段执行器，串联 Codex 实现、测试证据、C4 影子快照同步、
+  Claude 隔离审查、结构化裁决和 Codex 整改复验。
+- 双 Agent `smart` 路由已替换 C3-2 的“只准备交接”行为；单 Agent 路由和
+  C3-3 事后 Diff 升级继续保持原语义。
+- 审查解析失败和 `needs_user` 保留原文并停在 `WAITING_USER`；阻断 finding
+  跨轮持久化，复审未再出现时标记 resolved 并记录快照 SHA。
+- 阶段/调度专项 21 项、后端全量 243 项、前端 78 项、Ruff 与 TypeScript
+  全部通过。下一项为 C5-3 停止条件、协作 API 与事件全集。
+
 ## 2026-07-30 智能协作 C5-1 持久化编排器
 
 - 新增确定性 `collaboration_orchestrator`，创建 smart run 时依据 TaskContract

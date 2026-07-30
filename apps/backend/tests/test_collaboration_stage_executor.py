@@ -1,0 +1,224 @@
+from __future__ import annotations
+
+import json
+from dataclasses import dataclass
+
+import pytest
+from sqlalchemy import select
+from sqlalchemy.ext.asyncio import async_sessionmaker, create_async_engine
+
+from dualcode.collaboration_orchestrator import (
+    ReviewTurnResult,
+    SnapshotEvidence,
+    StageCallbacks,
+    execute_pipeline,
+)
+from dualcode.collaboration_protocol import CollaborationState
+from dualcode.models import (
+    Base,
+    CollaborationRun,
+    HandoffPackage,
+    ReviewFinding,
+    Thread,
+    Workspace,
+)
+
+
+@dataclass(frozen=True)
+class Turn:
+    status: str = "completed"
+    content: str = ""
+    error: str = ""
+
+
+@pytest.fixture
+async def stage_context(tmp_path, monkeypatch: pytest.MonkeyPatch):
+    async def publish(_event):
+        return None
+
+    monkeypatch.setattr(
+        "dualcode.collaboration_orchestrator.manager.publish", publish
+    )
+    engine = create_async_engine(
+        f"sqlite+aiosqlite:///{tmp_path / 'stages.db'}"
+    )
+    async with engine.begin() as connection:
+        await connection.run_sync(Base.metadata.create_all)
+    sessions = async_sessionmaker(engine, expire_on_commit=False)
+    async with sessions() as db:
+        workspace = Workspace(name="Project", path=str(tmp_path))
+        db.add(workspace)
+        await db.flush()
+        thread = Thread(workspace_id=workspace.id, title="Task")
+        db.add(thread)
+        await db.flush()
+        run = CollaborationRun(
+            workspace_id=workspace.id,
+            thread_id=thread.id,
+            mode="smart",
+            state=CollaborationState.READY.value,
+            current_agent="codex",
+            round=1,
+            max_rounds=3,
+        )
+        db.add(run)
+        await db.flush()
+        yield db, workspace, thread, run
+    await engine.dispose()
+
+
+def _review(verdict: str, findings: list[dict] | None = None) -> str:
+    return (
+        "审查结论。\n```json\n"
+        + json.dumps(
+            {
+                "schema": "review.v1",
+                "verdict": verdict,
+                "summary": f"{verdict} summary",
+                "findings": findings or [],
+            },
+            ensure_ascii=False,
+        )
+        + "\n```"
+    )
+
+
+@pytest.mark.asyncio
+async def test_pass_completes_all_stages(stage_context):
+    db, _workspace, _thread, run = stage_context
+    systems: list[str] = []
+    callbacks = StageCallbacks(
+        run_codex=lambda _prompt, _stage: _async(Turn()),
+        run_tests=lambda: _async(True),
+        sync_snapshot=lambda: _async(SnapshotEvidence("a" * 40, "b" * 40)),
+        run_review=lambda suffix, _snapshot: _async(
+            ReviewTurnResult(_review("pass"), "unused")
+        ),
+        record_system=lambda text: _append(systems, text),
+    )
+
+    result = await execute_pipeline(
+        db, run, initial_prompt="implement", callbacks=callbacks
+    )
+
+    assert result.state == CollaborationState.COMPLETED.value
+    assert result.snapshot_sha == "b" * 40
+    assert systems == ["智能协作已完成，共经过 1 轮审查。"]
+
+
+@pytest.mark.asyncio
+async def test_blocking_compiles_fix_prompt_and_resolves_after_pass(stage_context):
+    db, workspace, thread, run = stage_context
+    package = HandoffPackage(
+        workspace_id=workspace.id,
+        thread_id=thread.id,
+        recipient="claude",
+        purpose="review",
+    )
+    db.add(package)
+    await db.flush()
+    prompts: list[tuple[str, CollaborationState]] = []
+    reviews = iter(
+        [
+            _review(
+                "blocking",
+                [
+                    {
+                        "id": "F-1",
+                        "type": "architecture",
+                        "severity": "blocking",
+                        "file": "src/app.py",
+                        "line": "12",
+                        "description": "使用了临时存储",
+                        "acceptance": "改为正式持久化",
+                    }
+                ],
+            ),
+            _review("pass"),
+        ]
+    )
+
+    async def codex(prompt, stage):
+        prompts.append((prompt, stage))
+        return Turn()
+
+    callbacks = StageCallbacks(
+        run_codex=codex,
+        run_tests=lambda: _async(True),
+        sync_snapshot=lambda: _async(SnapshotEvidence("a" * 40, "b" * 40)),
+        run_review=lambda _suffix, _snapshot: _async(
+            ReviewTurnResult(next(reviews), package.id)
+        ),
+        record_system=lambda _text: _async(None),
+    )
+    result = await execute_pipeline(
+        db, run, initial_prompt="implement", callbacks=callbacks
+    )
+    finding = await db.scalar(
+        select(ReviewFinding).where(
+            ReviewFinding.collaboration_run_id == run.id
+        )
+    )
+
+    assert result.state == CollaborationState.COMPLETED.value
+    assert result.round == 2
+    assert prompts[1][1] is CollaborationState.FIXING
+    assert "src/app.py:12" in prompts[1][0]
+    assert "使用了临时存储" in prompts[1][0]
+    assert "改为正式持久化" in prompts[1][0]
+    assert finding is not None
+    assert finding.status == "resolved"
+    assert finding.resolved_by_snapshot_sha == "b" * 40
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize("raw", ["没有 JSON", "```json\n{x}\n```"])
+async def test_parse_failure_waits_and_preserves_raw(stage_context, raw):
+    db, _workspace, _thread, run = stage_context
+    systems: list[str] = []
+    callbacks = StageCallbacks(
+        run_codex=lambda _prompt, _stage: _async(Turn()),
+        run_tests=lambda: _async(None),
+        sync_snapshot=lambda: _async(SnapshotEvidence("a" * 40, "b" * 40)),
+        run_review=lambda _suffix, _snapshot: _async(
+            ReviewTurnResult(raw, "unused")
+        ),
+        record_system=lambda text: _append(systems, text),
+    )
+    result = await execute_pipeline(
+        db, run, initial_prompt="implement", callbacks=callbacks
+    )
+
+    assert result.state == CollaborationState.WAITING_USER.value
+    assert systems[-1] == raw
+
+
+@pytest.mark.asyncio
+async def test_needs_user_waits_and_preserves_raw(stage_context):
+    db, _workspace, _thread, run = stage_context
+    raw = _review("needs_user")
+    systems: list[str] = []
+    callbacks = StageCallbacks(
+        run_codex=lambda _prompt, _stage: _async(Turn()),
+        run_tests=lambda: _async(True),
+        sync_snapshot=lambda: _async(SnapshotEvidence("a" * 40, "b" * 40)),
+        run_review=lambda _suffix, _snapshot: _async(
+            ReviewTurnResult(raw, "unused")
+        ),
+        record_system=lambda text: _append(systems, text),
+    )
+    result = await execute_pipeline(
+        db, run, initial_prompt="implement", callbacks=callbacks
+    )
+
+    assert result.state == CollaborationState.WAITING_USER.value
+    assert systems == [raw]
+
+
+async def _async(value):
+    return value
+
+
+async def _append(items: list[str], value: str):
+    items.append(value)
+

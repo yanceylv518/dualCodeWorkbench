@@ -1047,7 +1047,7 @@ Claude review。
 
 ### C5-2 阶段执行器：实现 → 验证 → 同步 → 审查 → 整改闭环
 
-- [ ] 编排器驱动各阶段，全部复用既有单轮语义：
+- [x] 编排器驱动各阶段，全部复用既有单轮语义：
   - `IMPLEMENTING`：Codex 轮（现有 `_execute_chat`），轮内出现审批时 run
     `→ WAITING_APPROVAL`，审批处理后回 `IMPLEMENTING` 续跑（复用现有
     approval_gate，不重复造挂起机制）。
@@ -1068,13 +1068,19 @@ Claude review。
     （含 file/line/description/acceptance），执行 Codex 轮后回
     `VERIFYING`；上一轮 findings 作为下轮审查输入中的「上轮遗留」，审查
     确认修复的 finding 置 `resolved` 并记 `resolved_by_snapshot_sha`。
-- [ ] `scheduler` 接线：`mode=smart` 且 `dual_agent=true` 时改走编排器全
+- [x] `scheduler` 接线：`mode=smart` 且 `dual_agent=true` 时改走编排器全
   循环（替换 C3-2 的「只准备不发送」行为，相关测试同步更新并在条目下注明）；
   单 Agent 类别与 C3-3 事后升级保持现有「准备交接不自动发送」语义不变
   （统一并入循环属 C6 决策）。
 - **验收**：阶段执行器测试（mock Agent 适配器 + 本地裸仓伪 VPS）覆盖
   pass 直通收官、blocking → 整改提示编译内容断言、needs_user 与三类解析
   失败进 `WAITING_USER` 且原文保留、finding resolve 生命周期。
+- **验证结果（2026-07-30）**：新增确定性阶段执行器与注入式副作用边界，完成
+  Codex 实现、真实 TestExecutor 证据、C4 影子快照同步、VPS 隔离审查、
+  `review.v1` 解析、阻断 finding 整改及跨轮 resolved 生命周期；双 Agent
+  `smart` 路由已从「只准备交接」切换为自动闭环，单 Agent 与事后升级语义保持。
+  阶段/调度专项 21 项、后端全量 243 项、前端 78 项、Ruff 与 TypeScript
+  全部通过。
 
 ### C5-3 停止条件与 §9.2 API / §9.3 事件
 
