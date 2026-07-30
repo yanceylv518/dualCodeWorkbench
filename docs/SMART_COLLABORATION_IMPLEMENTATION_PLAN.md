@@ -1304,6 +1304,22 @@ Claude review。
 
 ## Review 记录
 
+### C6-3b-R1 复验（2026-07-30，Claude）
+
+**结论：C6-3b-R1 关闭，C6-3b 正式关闭。安装包就绪，进入 C6-4 真实验收
+（等待用户执行五项验收清单）。**
+
+- 格式修复 ✓：两文件 Prettier 通过，CI 双平台恢复全绿（`9c748c2`、
+  `14d414b`、`4542351` 连续三次 success）。
+- 超出返工范围的收尾合规 ✓：`config.py` 环境变量字段彻底删除（采用原
+  清单首选项，播种妥协随之消除，验证结果已注明）；后端版本与 FastAPI/
+  codex clientInfo/pyproject 对齐 0.1.7；capabilities 刷新逻辑下沉为
+  `store.refreshCapabilities` 并补 store 测试。均属条目相关收尾，接受。
+- 回填 ✓：C6-3b 与 C6-3b-R1 复选框、验证结果完整。
+- 安装包 ✓：0.1.7 MSI/NSIS 以全绿提交重建，新 SHA-256 已记录，旧校验和
+  标注作废。
+- 独立复验：后端全量 258 项、Ruff 通过。
+
 ### C6-3b Review（2026-07-30，Claude）
 
 **结论：有条件通过。功能实现正确，返工项 C6-3b-R1（CI 格式失败 + 清单
