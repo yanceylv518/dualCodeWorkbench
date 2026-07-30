@@ -1192,7 +1192,7 @@ Claude review。
 
 ### C6-4 产品化构建与真实验收（需用户配合）
 
-- [ ] 构建：Vite 生产构建、Windows sidecar、Tauri release 与安装包；
+- [x] 构建：Vite 生产构建、Windows sidecar、Tauri release 与安装包；
   版本号递增避免与旧安装混淆。
 - [ ] 真实验收清单（在验收工作区开启开关，用户执行并逐项回填结果）：
   1. 安装包全新安装后，用户仅输入目标，智能协作完成一项真实跨文件功能
@@ -1207,6 +1207,12 @@ Claude review。
   智能协作（§14 顺序约束）；该 commit 前需 Claude review 放行。
 - **验收**：构建产物齐全；真实验收五项逐条回填；默认切换 commit 单独
   review。完成后进行 C6 阶段与整体方案（§15 完成定义）终审。
+- **构建结果（2026-07-30）**：版本递增为 `0.1.7`；Vite、Windows sidecar、
+  Tauri release、MSI 与 NSIS 均构建成功。NSIS SHA-256：
+  `3A21255AB29257B07A110280A3D2A6682EFBC4C1AE86DC5181BC32B57B4720F6`；
+  MSI SHA-256：
+  `8D70E454EC41EBA04E72AC976BEF07CC203ECE5D75D825C75E56C3B43A2F3631`。
+  真实验收五项与默认入口切换仍待用户执行和确认。
 - **验证结果（2026-07-30）**：新增六条 HTTP API 驱动 E2E，使用可控 Agent
   回调与本地裸仓伪 VPS，覆盖直接通过、一次整改、整改到限、审批后续跑、审查中
   取消并清理影子 ref、重启阻塞后恢复且不重放。六条专项、后端全量 258 项、前端

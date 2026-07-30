@@ -9,14 +9,17 @@ from fastapi import (
 from sqlalchemy.ext.asyncio import AsyncSession
 from .cli_adapters import ClaudeCliAdapter
 from .codex_app_server import CodexAppServerAdapter
-from .config import settings
 from .database import get_session
 from .models import (
     AuditLog,
 )
 from .scheduler import scheduler
 from .ssh_adapter import ClaudeSshAdapter, ClaudeSshConfig
-from .runtime_settings import AgentSettings, agent_settings_store
+from .runtime_settings import (
+    AgentSettings,
+    agent_settings_store,
+    is_smart_collaboration_enabled,
+)
 
 # Compatibility name retained for integrations that patch the health adapter.
 CodexCliAdapter = CodexAppServerAdapter
@@ -26,7 +29,7 @@ router = APIRouter(prefix="/api")
 @router.get("/capabilities")
 async def capabilities():
     return {
-        "smart_collaboration_enabled": settings.smart_collaboration_enabled,
+        "smart_collaboration_enabled": is_smart_collaboration_enabled(),
     }
 
 
@@ -149,6 +152,7 @@ async def update_agent_settings(value: AgentSettings, db: AsyncSession = Depends
             event="agent.settings.updated",
             detail=(
                 f"real={value.enable_real_agents};ssh={value.claude_ssh_enabled};"
+                f"smart={value.smart_collaboration_enabled};"
                 f"codex={value.codex_executable};codex_model={value.codex_model or 'default'};"
                 f"codex_effort={value.codex_reasoning_effort};claude={value.claude_executable};"
                 f"claude_model={value.claude_model or 'default'};claude_effort={value.claude_reasoning_effort}"

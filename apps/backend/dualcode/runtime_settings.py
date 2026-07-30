@@ -9,6 +9,9 @@ from .config import settings
 
 class AgentSettings(BaseModel):
     enable_real_agents: bool = True
+    smart_collaboration_enabled: bool = Field(
+        default_factory=lambda: settings.smart_collaboration_enabled
+    )
     codex_executable: str = "codex"
     codex_model: str = ""
     codex_reasoning_effort: str = "medium"
@@ -139,3 +142,8 @@ class AgentSettingsStore:
 
 
 agent_settings_store = AgentSettingsStore()
+
+
+def is_smart_collaboration_enabled() -> bool:
+    """Return the persisted runtime flag used by every smart-collaboration gate."""
+    return agent_settings_store.load().smart_collaboration_enabled

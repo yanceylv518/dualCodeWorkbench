@@ -704,7 +704,7 @@ async def test_capabilities_exposes_smart_collaboration_flag(
 ):
     from dualcode import api_agents as api
 
-    monkeypatch.setattr(api.settings, "smart_collaboration_enabled", True)
+    monkeypatch.setattr(api, "is_smart_collaboration_enabled", lambda: True)
     response = await api_client.get("/api/capabilities")
     assert response.status_code == 200
     assert response.json() == {"smart_collaboration_enabled": True}

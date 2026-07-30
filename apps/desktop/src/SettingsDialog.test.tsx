@@ -14,6 +14,7 @@ import type { AgentSettings } from "./types";
 
 const settings: AgentSettings = {
   enable_real_agents: true,
+  smart_collaboration_enabled: false,
   codex_executable: "codex",
   codex_model: "",
   codex_reasoning_effort: "medium",
@@ -53,6 +54,26 @@ const renderLoaded = async (onClose: () => void) => {
 };
 
 describe("settings dialog", () => {
+  it("persists smart collaboration and reports the live setting", async () => {
+    const onSaved = vi.fn();
+    vi.mocked(api.fetchAgentSettings).mockResolvedValue(settings);
+    vi.mocked(api.saveAgentSettings).mockImplementation(async (value) => value);
+    render(<SettingsDialog onClose={vi.fn()} onSaved={onSaved} />);
+    await waitFor(() => expect(screen.getByDisplayValue("codex")).toBeTruthy());
+
+    fireEvent.click(screen.getByRole("switch", { name: "启用智能协作" }));
+    fireEvent.click(screen.getByRole("button", { name: "保存并检查" }));
+
+    await waitFor(() =>
+      expect(api.saveAgentSettings).toHaveBeenCalledWith(
+        expect.objectContaining({ smart_collaboration_enabled: true }),
+      ),
+    );
+    expect(onSaved).toHaveBeenCalledWith(
+      expect.objectContaining({ smart_collaboration_enabled: true }),
+    );
+  });
+
   it("closes directly when nothing has changed", async () => {
     const close = vi.fn();
     await renderLoaded(close);

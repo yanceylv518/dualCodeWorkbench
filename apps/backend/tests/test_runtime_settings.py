@@ -13,6 +13,13 @@ def test_settings_round_trip_without_secret_material(tmp_path: Path):
     assert not (tmp_path / "agent-settings.tmp").exists()
 
 
+def test_smart_collaboration_setting_is_persisted(tmp_path: Path):
+    store = AgentSettingsStore(tmp_path / "agent-settings.json")
+    store.save(AgentSettings(smart_collaboration_enabled=True))
+
+    assert store.load().smart_collaboration_enabled is True
+
+
 def test_ssh_settings_require_known_hosts(tmp_path: Path):
     store = AgentSettingsStore(tmp_path / "agent-settings.json")
     value = AgentSettings(

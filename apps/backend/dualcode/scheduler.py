@@ -191,7 +191,7 @@ class RunScheduler:
         return approved
 
     async def _shared_memory_prompt(self, db, workspace: Workspace, thread: Thread) -> str:
-        if not settings.smart_collaboration_enabled:
+        if not agent_settings_store.load().smart_collaboration_enabled:
             return ""
         await snapshot_thread_facts(db, workspace, thread)
         facts = (

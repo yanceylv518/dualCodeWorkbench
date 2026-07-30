@@ -53,7 +53,6 @@ from .api_jobs import _execute_retry_job
 from .api_runtime import git_tasks as _git_tasks, json_list as _json_list
 from .handoff_prompt import handoff_prompt as _handoff_prompt
 from .handoff_compiler import compile_handoff_v2
-from .config import settings
 from .collaboration_orchestrator import (
     advance as advance_collaboration,
     cancel as cancel_collaboration,
@@ -62,6 +61,7 @@ from .collaboration_orchestrator import (
 )
 from .collaboration_protocol import CollaborationState
 from .task_classifier import classify
+from .runtime_settings import is_smart_collaboration_enabled
 
 router = APIRouter(prefix="/api")
 
@@ -164,7 +164,7 @@ async def prepare_handoff(workspace_id: str, thread_id: str, body: HandoffCreate
     if not workspace or not thread:
         raise HTTPException(404, "项目与任务不匹配")
     try:
-        if settings.smart_collaboration_enabled:
+        if is_smart_collaboration_enabled():
             payload = (
                 await compile_handoff_v2(
                     db,
@@ -208,7 +208,7 @@ async def send_handoff(workspace_id: str, thread_id: str, handoff_id: str, db: A
     if item.status != "PREPARED":
         raise HTTPException(409, "交接包已经发送")
     isolated_review = (
-        settings.smart_collaboration_enabled
+        is_smart_collaboration_enabled()
         and item.recipient == "claude"
         and item.purpose == "review"
     )
@@ -358,7 +358,7 @@ async def create_collaboration_run(
     body: CollaborationRunCreate,
     db: AsyncSession = Depends(get_session),
 ):
-    if not settings.smart_collaboration_enabled:
+    if not is_smart_collaboration_enabled():
         raise HTTPException(422, "智能协作功能尚未启用")
     workspace = await db.get(Workspace, workspace_id)
     thread = await db.scalar(

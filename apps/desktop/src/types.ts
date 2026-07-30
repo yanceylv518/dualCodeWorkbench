@@ -103,6 +103,7 @@ export interface ThreadDetails {
 }
 export interface AgentSettings {
   enable_real_agents: boolean;
+  smart_collaboration_enabled: boolean;
   codex_executable: string;
   codex_model: string;
   codex_reasoning_effort: string;

@@ -35,7 +35,7 @@ from .models import (
 )
 from .scheduler import scheduler
 from .relay_service import RelayRemoteSpec, cleanup_shadow_ref
-from .runtime_settings import agent_settings_store
+from .runtime_settings import agent_settings_store, is_smart_collaboration_enabled
 from .schemas import MessageCreate, MessageRetry, ThreadCreate, ThreadUpdate, WorkspaceCreate, WorkspaceProvision, WorkspaceRead
 from .workspace_remote import WorkspaceRemoteSettings, workspace_remote_store
 
@@ -240,7 +240,7 @@ async def remove_thread(
     }:
         raise HTTPException(409, "删除任务前请先停止当前运行")
 
-    if settings.smart_collaboration_enabled and workspace:
+    if is_smart_collaboration_enabled() and workspace:
         runtime = agent_settings_store.load()
         remote = workspace_remote_store.get(workspace_id)
         if runtime.claude_ssh_enabled and remote.vps_repo_path:
@@ -300,7 +300,7 @@ async def remove_thread(
 async def create_message(
     workspace_id: str, thread_id: str, body: MessageCreate, db: AsyncSession = Depends(get_session)
 ):
-    if body.mode == "smart" and not settings.smart_collaboration_enabled:
+    if body.mode == "smart" and not is_smart_collaboration_enabled():
         raise HTTPException(422, "智能协作尚未启用")
     thread = await db.scalar(
         select(Thread).where(Thread.id == thread_id, Thread.workspace_id == workspace_id)

@@ -4112,6 +4112,90 @@ body,
 .settings-section-help {
   color: var(--text-muted);
 }
+
+.smart-collaboration-setting {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 24px;
+  padding: 16px;
+  border: 1px solid var(--border-subtle);
+  border-radius: 10px;
+  background: color-mix(in srgb, var(--surface-1) 88%, var(--accent) 12%);
+}
+
+.smart-collaboration-setting strong {
+  display: block;
+  margin-bottom: 4px;
+  color: var(--text-primary);
+  font-size: 14px;
+}
+
+.smart-collaboration-setting p,
+.smart-collaboration-setting small {
+  display: block;
+  margin: 0;
+  color: var(--text-muted);
+  line-height: 1.55;
+}
+
+.smart-collaboration-setting small {
+  margin-top: 4px;
+}
+
+.settings-switch {
+  flex: 0 0 auto;
+  cursor: pointer;
+}
+
+.settings-switch input {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  opacity: 0;
+}
+
+.settings-switch span {
+  position: relative;
+  display: block;
+  width: 42px;
+  height: 24px;
+  border: 1px solid var(--border-subtle);
+  border-radius: 999px;
+  background: var(--surface-3);
+  transition:
+    background 150ms ease,
+    border-color 150ms ease;
+}
+
+.settings-switch span::after {
+  position: absolute;
+  top: 3px;
+  left: 3px;
+  width: 16px;
+  height: 16px;
+  border-radius: 50%;
+  background: var(--text-muted);
+  content: "";
+  transition:
+    transform 150ms ease,
+    background 150ms ease;
+}
+
+.settings-switch input:checked + span {
+  border-color: var(--accent);
+  background: var(--accent);
+}
+
+.settings-switch input:checked + span::after {
+  background: white;
+  transform: translateX(18px);
+}
+
+.settings-switch input:focus-visible + span {
+  outline: 2px solid var(--accent);
+  outline-offset: 3px;
+}
 .project-heading strong,
 .task-title-row h1,
 .inspector-tabs button.active,

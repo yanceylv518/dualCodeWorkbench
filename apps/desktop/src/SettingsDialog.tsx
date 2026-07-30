@@ -20,9 +20,11 @@ const lines = (value: string) =>
 
 export function SettingsDialog({
   onClose,
+  onSaved,
   target = "general",
 }: {
   onClose: () => void;
+  onSaved?: (settings: AgentSettings) => void;
   target?: "general" | "tests";
 }) {
   const [value, setValue] = useState<AgentSettings>();
@@ -228,6 +230,7 @@ export function SettingsDialog({
         claude_ssh_enabled: sshConfigured,
       });
       setValue(persisted);
+      onSaved?.(persisted);
       setSaved(true);
       setDirty(false);
       try {
@@ -328,6 +331,36 @@ export function SettingsDialog({
                   </small>
                 </section>
               </div>
+              <section className="smart-collaboration-setting">
+                <div>
+                  <strong>智能协作</strong>
+                  <p>
+                    让 Codex 与 Claude 自动共享任务上下文，并按任务类型完成实现、审查和返工交接。
+                  </p>
+                  <small>实验性功能；关闭时仍可手动选择 Codex 或 Claude。</small>
+                </div>
+                <label className="settings-switch">
+                  <input
+                    type="checkbox"
+                    role="switch"
+                    aria-label="启用智能协作"
+                    checked={value?.smart_collaboration_enabled ?? false}
+                    onChange={(event) => {
+                      changed();
+                      setValue((current) =>
+                        current
+                          ? {
+                              ...current,
+                              smart_collaboration_enabled:
+                                event.target.checked,
+                            }
+                          : current,
+                      );
+                    }}
+                  />
+                  <span aria-hidden="true" />
+                </label>
+              </section>
               <details
                 className="settings-advanced"
                 open={target === "tests" ? true : undefined}
