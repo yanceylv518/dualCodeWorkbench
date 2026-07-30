@@ -694,3 +694,14 @@
   CORS 白名单现已包含协作接口使用的 workspace 与 thread 上下文请求头。
 - 新增真实 OPTIONS 预检回归，覆盖 Tauri 来源以及令牌、内容类型、workspace、thread
   四类请求头；鉴权与 API 集成专项 26 项通过。
+
+## 2026-07-30 智能协作决策修复版构建
+
+- 基于提交 `134e2b2` 重新生成 Windows sidecar、Tauri 主程序、MSI 与 NSIS 安装包；
+  构建使用独立 `target-cors-fix` 目录，避免覆盖正在运行的验收版本。
+- 独立主程序 SHA-256：
+  `F529BC7F3FDDDC6577170031970E3C8AE414FD037B2BE10CD5EADBEAABF0617E`。
+- NSIS 安装包 SHA-256：
+  `6DA1A1C66EE153A7EB95FA6748C8777B5E6994A03376949574C114F43007F6C9`。
+- MSI 安装包 SHA-256：
+  `C83A0B98A7E41EE5A2F9557EB2CD256CDE5F6B7843E8B1DFE3DDACAEED965435`。
