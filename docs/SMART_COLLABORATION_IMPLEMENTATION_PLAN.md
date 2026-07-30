@@ -1157,6 +1157,42 @@ Claude review。
 
 ## Review 记录
 
+### C5 阶段 Review（2026-07-30，Claude）
+
+**结论：C5-1/C5-2/C5-3/C5-4 全部通过，无返工项。C5 阶段关闭，自动整改循环
+交付，可进入 C6。**
+
+逐项核查（含前两轮中期核查，独立复验）：
+
+- C5-1 ✓（中期已查）：`advance()` 唯一状态写入口——冻结 `transition()` 校验、
+  C0-3 跃迁审计首次接线、事件广播；挂起前状态入 `budget_json.resume_state`
+  并按 §5.1 出边恢复；启动恢复运行态 → `BLOCKED` 不重放副作用。
+- C5-2 ✓（中期已查）：`StageCallbacks` 注入全部副作用，策略层纯确定性；
+  五阶段闭环与冻结跃迁表一致；三路裁决分派（pass 收官 / blocking 整改 /
+  needs_user 与解析失败进 `WAITING_USER` 且原文完整保留）；finding
+  resolve 生命周期与整改提示编译（file/line/验收标准）就位。
+- C5-3 ✓：中期关注点关闭——blocking 裁决先查 `_fix_count ≥ 2` 或
+  `round ≥ max_rounds`，到限停 `WAITING_USER` 并播报未解决 findings 数，
+  无界循环口子封住；无进展检测以 FileChange 哈希 + 测试数 + open finding
+  键的签名连续两轮相同触发；审查 Agent 失活 → `BLOCKED`。§9.2 API 全集
+  落地（创建挂 workspace/thread 前缀、run 级操作经 header 反查归属，
+  开关关闭 422 中文，`decisions` 三出边与 `WAITING_USER` 出边一致且非
+  等待态 409）；§9.3 九类事件仅携带摘要与 ID。
+- C5-4 ✓：六条 E2E（通过 / 一次整改 / 达上限含 findings / 审批挂起恢复 /
+  取消含影子 ref 清理 / 重启恢复无重放）全部经 `/api` 入口驱动，逐条独立
+  复跑通过。
+- 复验数据：后端全量 258 项（C5 净增 20 项）、Ruff 通过；CI 双平台绿
+  （`2ebee86`、`d23d898`）；前端零 diff；开关默认关闭下现有模式零回归。
+
+**记录两处已接受的实现选择：**
+
+- `pause` 复用 `BLOCKED` 作为通用可恢复挂起（终止当前 Agent 轮 + 记
+  「用户暂停」原因），未新增 PAUSED 状态——在冻结跃迁表内合法（运行态 ⇄
+  BLOCKED），语义可接受；若 C6 需要区分「用户暂停」与「故障阻塞」，
+  以 `error` 字段文案区分即可，不动状态表。
+- 停止条件的轮次计数（`_fix_count`、无进展签名）存于 `budget_json` 内部
+  键（`_` 前缀），未新增列——与 §8.1 的 `budget_json` 用途一致。
+
 ### C4 阶段 Review（2026-07-29，Claude）
 
 **结论：C4-1/C4-2/C4-3 全部通过，无返工项。C4 阶段关闭，安全不变量逐条
