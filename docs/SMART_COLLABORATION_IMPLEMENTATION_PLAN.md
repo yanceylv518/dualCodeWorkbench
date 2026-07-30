@@ -1218,6 +1218,20 @@ Claude review。
   `mode=smart` 即时放行/拒绝，前端覆盖开关持久化、能力刷新与选择器门控。
   前端全量 92 项、后端全量 258 项、TypeScript、严格 ESLint 与 Ruff 通过。
 
+### C6-3b-R1 格式修复、清单回填与安装包重建（一个 commit + 重建产物）
+
+- [ ] `apps/desktop/src/App.tsx` 与 `apps/desktop/src/SettingsDialog.tsx`
+  执行 Prettier 机械格式化，不改任何逻辑（`ca06dfd` CI 双平台在
+  `prettier --check` 步骤失败的两个文件）。
+- [ ] 回填 C6-3b 全部复选框与验证结果；在 C6-3b 条目下补写环境变量播种
+  保留理由（env 仅播种首次默认值，JSON 存储保存后即为唯一权威）。
+- [ ] 推送并确认 CI 双平台绿后，重建 0.1.7 安装包（Vite、Windows sidecar、
+  Tauri release、MSI/NSIS），在 C6-4 构建结果中更新新产物的 SHA-256——
+  交付产物必须对应全绿提交，旧校验和标注作废。
+- **为什么**：见 C6-3b Review 返工项 C6-3b-R1——验收标准「CI 双平台绿」
+  未达成，且现有安装包构建自 CI 红的提交。
+- **验收**：CI 双平台绿；C6-3b 回填完整含播种理由；新 SHA-256 已更新。
+
 ### C6-4 产品化构建与真实验收（需用户配合）
 
 - [x] 构建：Vite 生产构建、Windows sidecar、Tauri release 与安装包；
@@ -1277,6 +1291,35 @@ Claude review。
 - 按约定停在 C0-1，不进入 C0-2/C0-3，等待 Claude review。
 
 ## Review 记录
+
+### C6-3b Review（2026-07-30，Claude）
+
+**结论：有条件通过。功能实现正确，返工项 C6-3b-R1（CI 格式失败 + 清单
+回填）修复后关闭。**
+
+实现核查（独立复验）：
+
+- 后端 7 处读取点全部迁移为 `is_smart_collaboration_enabled()`（统一经
+  `agent_settings_store.load()`），语义不变；设置保存审计含开关值。
+- `config.py` 环境变量字段保留但仅作 `AgentSettings` 首次默认值播种
+  （`default_factory`），运行时存储为唯一权威——属清单允许的备选路径，
+  实现本身可接受，但**要求的书面理由未写入条目**（见返工项）。
+- 设置对话框开关、保存后前端直接以返回值刷新 `smartCollaborationEnabled`
+  并在关闭时把 `mode=smart` 回落 codex（即时生效、无需重启，优于重新拉取）。
+- 后端全量 260 项、Ruff 通过。
+- 顺带完成了 C6-4 构建步骤：版本 0.1.7，MSI/NSIS 产出并记录 SHA-256。
+
+**返工项（归属 C6-3b）：**
+
+- **C6-3b-R1｜CI 双平台在 Prettier 步骤失败，且清单未回填。** `App.tsx`
+  与 `SettingsDialog.tsx` 未过 `prettier --check`（`ca06dfd` 双平台红），
+  C6-3b 自身验收标准「CI 双平台绿」未达成。修复：
+  1. 对两文件执行 Prettier 机械格式化（不改逻辑）。
+  2. 回填 C6-3b 全部复选框与验证结果；补写环境变量播种保留的理由
+     （一句即可：env 仅播种首次默认值，JSON 存储保存后即为唯一权威）。
+  3. **重建 0.1.7 安装包**：现有产物构建自 CI 红的提交，格式修复后重出
+     MSI/NSIS 并更新 SHA-256——交付产物必须对应全绿提交。
+  - **验收**：CI 双平台绿；C6-3b 条目回填完整；新校验和写入 C6-4 构建结果。
 
 ### C6-1 ~ C6-3 Review（2026-07-30，Claude）
 
