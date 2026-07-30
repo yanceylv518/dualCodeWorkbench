@@ -24,7 +24,7 @@ export function SettingsDialog({
   target = "general",
 }: {
   onClose: () => void;
-  onSaved?: (settings: AgentSettings) => void;
+  onSaved?: (settings: AgentSettings) => void | Promise<void>;
   target?: "general" | "tests";
 }) {
   const [value, setValue] = useState<AgentSettings>();
@@ -230,7 +230,7 @@ export function SettingsDialog({
         claude_ssh_enabled: sshConfigured,
       });
       setValue(persisted);
-      onSaved?.(persisted);
+      await onSaved?.(persisted);
       setSaved(true);
       setDirty(false);
       try {

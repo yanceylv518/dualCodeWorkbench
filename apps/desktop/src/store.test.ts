@@ -20,6 +20,9 @@ vi.mock("./api", () => ({
   fetchExecutionJobs: vi.fn(async () => []),
   fetchCurrentCollaboration: vi.fn(async () => undefined),
   fetchCollaborationFindings: vi.fn(async () => []),
+  fetchCapabilities: vi.fn(async () => ({
+    smart_collaboration_enabled: false,
+  })),
   sendMessage: vi.fn(async () => ({
     message_id: "message-1",
     attachments: [],
@@ -245,6 +248,23 @@ describe("terminal output", () => {
 });
 
 describe("thread management", () => {
+  it("refreshes smart collaboration capability and leaves smart mode when disabled", async () => {
+    vi.mocked(api.fetchCapabilities).mockResolvedValue({
+      smart_collaboration_enabled: true,
+    });
+    await useStore.getState().refreshCapabilities();
+    expect(useStore.getState().smartCollaborationEnabled).toBe(true);
+
+    useStore.setState({ mode: "smart" });
+    vi.mocked(api.fetchCapabilities).mockResolvedValue({
+      smart_collaboration_enabled: false,
+    });
+    await useStore.getState().refreshCapabilities();
+
+    expect(useStore.getState().smartCollaborationEnabled).toBe(false);
+    expect(useStore.getState().mode).toBe("codex");
+  });
+
   it("sends the selected smart collaboration mode", async () => {
     useStore.setState({
       workspaceId: "workspace",

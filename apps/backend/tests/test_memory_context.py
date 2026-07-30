@@ -2,7 +2,6 @@ from datetime import UTC, datetime
 
 import pytest
 
-from dualcode.config import Settings, settings
 from dualcode.context_budget import MEMORY_TRUNCATION_MARKER, build_memory_section
 from dualcode.models import MemoryFact, Thread, Workspace
 from dualcode.scheduler import RunScheduler
@@ -28,23 +27,16 @@ def _fact(
     )
 
 
-def test_smart_collaboration_is_disabled_by_default(monkeypatch) -> None:
-    monkeypatch.delenv("SMART_COLLABORATION_ENABLED", raising=False)
-    assert Settings().smart_collaboration_enabled is False
-
-
-def test_smart_collaboration_can_be_enabled_from_environment(monkeypatch) -> None:
-    monkeypatch.setenv("SMART_COLLABORATION_ENABLED", "true")
-    assert Settings().smart_collaboration_enabled is True
-
-
 @pytest.mark.asyncio
 async def test_disabled_memory_does_not_query_database(monkeypatch) -> None:
     class NoDatabaseAccess:
         def __getattr__(self, name):
             raise AssertionError(f"database access attempted: {name}")
 
-    monkeypatch.setattr(settings, "smart_collaboration_enabled", False)
+    monkeypatch.setattr(
+        "dualcode.scheduler.agent_settings_store.load",
+        lambda: type("Runtime", (), {"smart_collaboration_enabled": False})(),
+    )
     scheduler = RunScheduler.__new__(RunScheduler)
     result = await scheduler._shared_memory_prompt(
         NoDatabaseAccess(),
@@ -93,7 +85,10 @@ async def test_enabled_shared_prompt_contains_goal_commit_and_open_risk(
     async def snapshot(*_args):
         return []
 
-    monkeypatch.setattr(settings, "smart_collaboration_enabled", True)
+    monkeypatch.setattr(
+        "dualcode.scheduler.agent_settings_store.load",
+        lambda: type("Runtime", (), {"smart_collaboration_enabled": True})(),
+    )
     monkeypatch.setattr("dualcode.scheduler.snapshot_thread_facts", snapshot)
     scheduler = RunScheduler.__new__(RunScheduler)
     result = await scheduler._shared_memory_prompt(

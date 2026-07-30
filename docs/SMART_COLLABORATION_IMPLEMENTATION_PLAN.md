@@ -1194,17 +1194,17 @@ Claude review。
 
 > 用户反馈：开关必须是应用内设置项，不接受环境变量。一条目一 commit。
 
-- [ ] `runtime_settings.py`：`AgentSettings` 新增
+- [x] `runtime_settings.py`：`AgentSettings` 新增
   `smart_collaboration_enabled: bool = False`，随现有 JSON 存储持久化；
   `config.py` 的同名环境变量字段删除（避免双真源；如需保留环境变量仅作
   首次默认值播种，须在条目下写明理由并等 review）。
-- [ ] 后端全部 7 处读取点（`scheduler.py:194`、`api_agents.py:29`、
+- [x] 后端全部 7 处读取点（`scheduler.py:194`、`api_agents.py:29`、
   `api_workspaces.py:243,303`、`api_collaboration.py:167,211,361`）统一改读
   `agent_settings_store.load().smart_collaboration_enabled`；语义不变。
-- [ ] 设置对话框：Agent 设置区新增「智能协作」开关，附一行说明
+- [x] 设置对话框：Agent 设置区新增「智能协作」开关，附一行说明
   （「由工作台自动组织 Codex 实现与 Claude 审查；关闭后仅保留手动选择
   Agent」）；保存走现有设置持久化与审计路径。
-- [ ] 前端：保存设置成功后重新拉取 `/api/capabilities` 并刷新
+- [x] 前端：保存设置成功后重新拉取 `/api/capabilities` 并刷新
   `smartCollaborationEnabled`，Composer 选择器与时间线卡即时生效，
   无需重启应用。
 - **为什么**：开关是产品能力而非运维配置；验收工作区与日常使用都应在
@@ -1212,6 +1212,11 @@ Claude review。
 - **验收**：后端测试覆盖「设置保存后 capabilities 与 `mode=smart` 门控
   即时翻转」；前端测试覆盖开关切换后选择器选项出现/消失；全量门禁与
   CI 双平台绿；开关关闭态零回归保持。
+- **验证结果（2026-07-30）**：环境变量配置已删除，开关以
+  `agent-settings.json` 为唯一真源；保存成功后前端重新读取 capabilities，
+  开关关闭时同步退出 smart 模式。集成测试覆盖设置保存后 capabilities 与
+  `mode=smart` 即时放行/拒绝，前端覆盖开关持久化、能力刷新与选择器门控。
+  前端全量 92 项、后端全量 258 项、TypeScript、严格 ESLint 与 Ruff 通过。
 
 ### C6-4 产品化构建与真实验收（需用户配合）
 

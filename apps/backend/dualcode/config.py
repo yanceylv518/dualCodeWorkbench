@@ -15,7 +15,6 @@ class Settings(BaseSettings):
         "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
     )
     enable_real_agents: bool = True
-    smart_collaboration_enabled: bool = False
     codex_executable: str = "codex"
     claude_executable: str = "claude"
     claude_ssh_host: str | None = None

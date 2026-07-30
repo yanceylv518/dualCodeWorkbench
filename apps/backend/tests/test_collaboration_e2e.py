@@ -24,7 +24,7 @@ from dualcode.collaboration_orchestrator import (
     recover_interrupted_runs,
 )
 from dualcode.collaboration_protocol import CollaborationState
-from dualcode.config import settings, sidecar_token
+from dualcode.config import sidecar_token
 from dualcode.database import get_session
 from dualcode.main import app
 from dualcode.models import (
@@ -43,7 +43,7 @@ class Turn:
 
 
 @pytest.fixture
-async def c5_api(tmp_path: Path, monkeypatch: pytest.MonkeyPatch):
+async def c5_api(tmp_path: Path):
     engine = create_async_engine(f"sqlite+aiosqlite:///{tmp_path / 'c5-e2e.db'}")
     sessions = async_sessionmaker(engine, expire_on_commit=False)
     async with engine.begin() as connection:
@@ -54,14 +54,22 @@ async def c5_api(tmp_path: Path, monkeypatch: pytest.MonkeyPatch):
             yield session
 
     app.dependency_overrides[get_session] = isolated_session
-    monkeypatch.setattr(settings, "smart_collaboration_enabled", True)
     transport = httpx.ASGITransport(app=app)
     async with httpx.AsyncClient(
         transport=transport,
         base_url="http://test",
         headers={"X-DualCode-Token": sidecar_token},
     ) as client:
+        current = (await client.get("/api/settings/agents")).json()
+        current["smart_collaboration_enabled"] = True
+        assert (
+            await client.put("/api/settings/agents", json=current)
+        ).status_code == 200
         yield client, sessions, tmp_path
+        current["smart_collaboration_enabled"] = False
+        assert (
+            await client.put("/api/settings/agents", json=current)
+        ).status_code == 200
     app.dependency_overrides.clear()
     await engine.dispose()
 

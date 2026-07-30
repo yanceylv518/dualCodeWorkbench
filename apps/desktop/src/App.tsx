@@ -779,16 +779,7 @@ export default function App() {
       {showSettings && (
         <SettingsDialog
           target={settingsTarget}
-          onSaved={(settings) =>
-            useStore.setState({
-              smartCollaborationEnabled:
-                settings.smart_collaboration_enabled,
-              mode:
-                settings.smart_collaboration_enabled || store.mode !== "smart"
-                  ? store.mode
-                  : "codex",
-            })
-          }
+          onSaved={() => store.refreshCapabilities()}
           onClose={() => setShowSettings(false)}
         />
       )}

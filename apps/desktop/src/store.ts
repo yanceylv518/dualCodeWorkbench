@@ -174,6 +174,7 @@ interface Store {
   dismissNotification: (id: string) => void;
   runMeta?: { branch?: string; worktree?: string };
   initialize: () => Promise<void>;
+  refreshCapabilities: () => Promise<void>;
   setSelection: (workspaceId: string, threadId: string) => void;
   setMode: (mode: Mode) => void;
   addMessage: (agent: Agent, text: string) => void;
@@ -370,6 +371,16 @@ export const useStore = create<Store>((set, get) => ({
     }
     set({ backend: "offline" });
     get().notify("error", "本地后端启动超时，请重启应用或检查 8876 端口。");
+  },
+  refreshCapabilities: async () => {
+    const capabilities = await api.fetchCapabilities();
+    set((state) => ({
+      smartCollaborationEnabled: capabilities.smart_collaboration_enabled,
+      mode:
+        capabilities.smart_collaboration_enabled || state.mode !== "smart"
+          ? state.mode
+          : "codex",
+    }));
   },
   setSelection: (workspaceId, threadId) => {
     get().socket?.close();

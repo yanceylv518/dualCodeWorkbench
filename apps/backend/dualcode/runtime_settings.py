@@ -9,9 +9,7 @@ from .config import settings
 
 class AgentSettings(BaseModel):
     enable_real_agents: bool = True
-    smart_collaboration_enabled: bool = Field(
-        default_factory=lambda: settings.smart_collaboration_enabled
-    )
+    smart_collaboration_enabled: bool = False
     codex_executable: str = "codex"
     codex_model: str = ""
     codex_reasoning_effort: str = "medium"

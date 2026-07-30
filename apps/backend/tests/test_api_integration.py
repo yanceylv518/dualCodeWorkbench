@@ -175,10 +175,11 @@ async def test_smart_message_is_accepted_when_feature_flag_is_enabled(
         return "smart-run"
 
     from dualcode import api_workspaces
-    from dualcode.config import settings
-
-    monkeypatch.setattr(settings, "smart_collaboration_enabled", True)
     monkeypatch.setattr(api_workspaces.scheduler, "start", fake_start)
+    assert (await _set_smart_collaboration(api_client, True)).status_code == 200
+    assert (await api_client.get("/api/capabilities")).json() == {
+        "smart_collaboration_enabled": True
+    }
     response = await api_client.post(
         f"/api/workspaces/{workspace['id']}/threads/{thread['id']}/messages",
         json={"content": "增加收藏功能", "mode": "smart"},
@@ -187,6 +188,16 @@ async def test_smart_message_is_accepted_when_feature_flag_is_enabled(
     assert response.status_code == 202
     assert response.json()["run_id"] == "smart-run"
     assert started == ["smart"]
+
+    assert (await _set_smart_collaboration(api_client, False)).status_code == 200
+    assert (await api_client.get("/api/capabilities")).json() == {
+        "smart_collaboration_enabled": False
+    }
+    rejected = await api_client.post(
+        f"/api/workspaces/{workspace['id']}/threads/{thread['id']}/messages",
+        json={"content": "再次增加收藏功能", "mode": "smart"},
+    )
+    assert rejected.status_code == 422
 
 
 @pytest.mark.asyncio
@@ -363,6 +374,14 @@ async def _workspace(api_client: httpx.AsyncClient, tmp_path: Path) -> tuple[dic
     return workspace, workspace["threads"][0]
 
 
+async def _set_smart_collaboration(
+    api_client: httpx.AsyncClient, enabled: bool
+) -> httpx.Response:
+    current = (await api_client.get("/api/settings/agents")).json()
+    current["smart_collaboration_enabled"] = enabled
+    return await api_client.put("/api/settings/agents", json=current)
+
+
 def _collaboration_headers(workspace_id: str, thread_id: str) -> dict[str, str]:
     return {
         "X-DualCode-Workspace-Id": workspace_id,
@@ -374,27 +393,25 @@ def _collaboration_headers(workspace_id: str, thread_id: str) -> dict[str, str]:
 async def test_collaboration_run_api_obeys_flag_and_returns_current(
     api_client: httpx.AsyncClient,
     tmp_path: Path,
-    monkeypatch: pytest.MonkeyPatch,
 ):
-    from dualcode.config import settings
-
     workspace, thread = await _workspace(api_client, tmp_path)
     path = (
         f"/api/workspaces/{workspace['id']}/threads/{thread['id']}"
         "/collaboration-runs"
     )
-    monkeypatch.setattr(settings, "smart_collaboration_enabled", False)
+    assert (await _set_smart_collaboration(api_client, False)).status_code == 200
     disabled = await api_client.post(path, json={"goal": "实现正式功能"})
     assert disabled.status_code == 422
     assert disabled.json()["detail"] == "智能协作功能尚未启用"
 
-    monkeypatch.setattr(settings, "smart_collaboration_enabled", True)
+    assert (await _set_smart_collaboration(api_client, True)).status_code == 200
     created = await api_client.post(path, json={"goal": "实现正式功能"})
     assert created.status_code == 201
     assert created.json()["state"] == "WAITING_USER"
     current = await api_client.get(f"{path}/current")
     assert current.status_code == 200
     assert current.json()["id"] == created.json()["id"]
+    assert (await _set_smart_collaboration(api_client, False)).status_code == 200
 
 
 @pytest.mark.asyncio
@@ -747,9 +764,7 @@ async def test_project_governance_and_task_contract_gate(
     assert package["payload"]["contract"]["task_goal"] == "实现项目规则中心"
     assert "messages" not in package["payload"]
 
-    from dualcode.config import settings
-
-    monkeypatch.setattr(settings, "smart_collaboration_enabled", True)
+    assert (await _set_smart_collaboration(api_client, True)).status_code == 200
     v2_prepared = await api_client.post(
         f"{prefix}/handoffs",
         json={"recipient": "claude", "purpose": "review"},
@@ -765,3 +780,4 @@ async def test_project_governance_and_task_contract_gate(
     handoffs = (await api_client.get(f"{prefix}/handoffs")).json()
     assert handoffs[0]["recipient"] == "claude"
     assert handoffs[0]["status"] == "PREPARED"
+    assert (await _set_smart_collaboration(api_client, False)).status_code == 200
