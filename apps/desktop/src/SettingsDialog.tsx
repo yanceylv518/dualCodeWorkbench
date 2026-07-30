@@ -335,9 +335,12 @@ export function SettingsDialog({
                 <div>
                   <strong>智能协作</strong>
                   <p>
-                    让 Codex 与 Claude 自动共享任务上下文，并按任务类型完成实现、审查和返工交接。
+                    让 Codex 与 Claude
+                    自动共享任务上下文，并按任务类型完成实现、审查和返工交接。
                   </p>
-                  <small>实验性功能；关闭时仍可手动选择 Codex 或 Claude。</small>
+                  <small>
+                    实验性功能；关闭时仍可手动选择 Codex 或 Claude。
+                  </small>
                 </div>
                 <label className="settings-switch">
                   <input
@@ -351,8 +354,7 @@ export function SettingsDialog({
                         current
                           ? {
                               ...current,
-                              smart_collaboration_enabled:
-                                event.target.checked,
+                              smart_collaboration_enabled: event.target.checked,
                             }
                           : current,
                       );
