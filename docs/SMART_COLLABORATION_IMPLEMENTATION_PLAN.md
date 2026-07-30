@@ -1225,7 +1225,7 @@ Claude review。
   `prettier --check` 步骤失败的两个文件）。
 - [x] 回填 C6-3b 全部复选框与验证结果；在 C6-3b 条目下补写环境变量播种
   保留理由（env 仅播种首次默认值，JSON 存储保存后即为唯一权威）。
-- [ ] 推送并确认 CI 双平台绿后，重建 0.1.7 安装包（Vite、Windows sidecar、
+- [x] 推送并确认 CI 双平台绿后，重建 0.1.7 安装包（Vite、Windows sidecar、
   Tauri release、MSI/NSIS），在 C6-4 构建结果中更新新产物的 SHA-256——
   交付产物必须对应全绿提交，旧校验和标注作废。
 - **为什么**：见 C6-3b Review 返工项 C6-3b-R1——验收标准「CI 双平台绿」
@@ -1237,7 +1237,10 @@ Claude review。
   `SettingsDialog.test.tsx`，最终 `prettier --check src` 全绿，未改变业务逻辑。
   C6-3b 四项已全部回填。实现采用比“环境变量仅播种首次默认值”更严格的单一真源：
   环境变量字段已删除，JSON 运行时设置从首次启动起即为唯一权威，因此无需保留
-  播种理由。安装包重建等待本提交 CI 双平台绿后执行。
+  播种理由。提交 `9c748c2` 的 GitHub Actions CI（run `30530734664`）在
+  Ubuntu/Windows 双平台全部通过；随后统一后端、API、Codex app-server 与桌面端版本为
+  `0.1.7`，版本修复提交 `14d414b` 的 CI（run `30531780458`）再次双平台全绿，
+  并从该基线完成 Vite、Windows sidecar、Tauri release、MSI/NSIS 最终重建。
 
 ### C6-4 产品化构建与真实验收（需用户配合）
 
@@ -1259,9 +1262,11 @@ Claude review。
   review。完成后进行 C6 阶段与整体方案（§15 完成定义）终审。
 - **构建结果（2026-07-30）**：版本递增为 `0.1.7`；Vite、Windows sidecar、
   Tauri release、MSI 与 NSIS 均构建成功。NSIS SHA-256：
-  `3A21255AB29257B07A110280A3D2A6682EFBC4C1AE86DC5181BC32B57B4720F6`；
+  `1ACE07C78E5E7E0F02F4C3AE8779E073BDAC490F553DD3CF87EA2D53DD291BE7`；
   MSI SHA-256：
-  `8D70E454EC41EBA04E72AC976BEF07CC203ECE5D75D825C75E56C3B43A2F3631`。
+  `7223539C340488A820915D183FD05A347D47D66A5D357077EA55395B90AC6BBB`。
+  旧校验和对应 CI 未全绿提交的产物，已作废。新产物对应双平台全绿的
+  `14d414b` 代码基线。
   真实验收五项与默认入口切换仍待用户执行和确认。
 - **验证结果（2026-07-30）**：新增六条 HTTP API 驱动 E2E，使用可控 Agent
   回调与本地裸仓伪 VPS，覆盖直接通过、一次整改、整改到限、审批后续跑、审查中
