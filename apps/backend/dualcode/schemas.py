@@ -45,6 +45,16 @@ class HandoffCreate(BaseModel):
     purpose: str = Field(pattern="^(verify|review)$")
 
 
+class CollaborationRunCreate(BaseModel):
+    goal: str = Field(min_length=1, max_length=50_000)
+    mode: str = Field(default="smart", pattern="^smart$")
+
+
+class CollaborationDecision(BaseModel):
+    action: str = Field(pattern="^(reenter|fix|cancel)$")
+    note: str = Field(default="", max_length=1000)
+
+
 class ThreadCreate(BaseModel):
     title: str = Field(min_length=1, max_length=200)
 

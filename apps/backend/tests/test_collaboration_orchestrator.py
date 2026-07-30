@@ -91,7 +91,10 @@ async def test_start_run_goes_directly_ready_with_audit(
     assert len(audits) == 1
     detail = json.loads(audits[0].detail)
     assert (detail["from_state"], detail["to_state"]) == ("DRAFT", "READY")
-    assert events[0].type.value == "collaboration.stage_changed"
+    assert [event.type.value for event in events] == [
+        "collaboration.started",
+        "collaboration.stage_changed",
+    ]
 
 
 @pytest.mark.asyncio
@@ -135,9 +138,11 @@ async def test_incomplete_contract_clarifies_then_waits_without_agent(
     assert [message.role for message in messages] == ["system"]
     assert "验收标准" in messages[0].content
     assert [event.type.value for event in events] == [
+        "collaboration.started",
         "collaboration.stage_changed",
         "message.created",
         "collaboration.stage_changed",
+        "collaboration.waiting_user",
     ]
 
 

@@ -4,6 +4,7 @@ from pathlib import Path
 from fastapi import (
     APIRouter,
     Depends,
+    Header,
     HTTPException,
 )
 from sqlalchemy import select
@@ -27,25 +28,83 @@ from .models import (
     AgentRun,
     Approval,
     AuditLog,
+    CollaborationRun,
     FileChange,
     HandoffPackage,
     Message,
     ProjectGovernance,
+    ReviewFinding,
     TestRun,
     Thread,
     TaskContract,
     Workspace,
 )
 from .scheduler import scheduler
-from .schemas import ApprovalDecision, GovernanceUpdate, HandoffCreate, TaskContractUpdate
+from .schemas import (
+    ApprovalDecision,
+    CollaborationDecision,
+    CollaborationRunCreate,
+    GovernanceUpdate,
+    HandoffCreate,
+    TaskContractUpdate,
+)
 
 from .api_jobs import _execute_retry_job
 from .api_runtime import git_tasks as _git_tasks, json_list as _json_list
 from .handoff_prompt import handoff_prompt as _handoff_prompt
 from .handoff_compiler import compile_handoff_v2
 from .config import settings
+from .collaboration_orchestrator import (
+    advance as advance_collaboration,
+    cancel as cancel_collaboration,
+    resume as resume_collaboration,
+    start_run as start_collaboration_run,
+)
+from .collaboration_protocol import CollaborationState
+from .task_classifier import classify
 
 router = APIRouter(prefix="/api")
+
+
+def _collaboration_payload(run: CollaborationRun) -> dict[str, object]:
+    return {
+        "id": run.id,
+        "workspace_id": run.workspace_id,
+        "thread_id": run.thread_id,
+        "mode": run.mode,
+        "state": run.state,
+        "current_agent": run.current_agent,
+        "round": run.round,
+        "max_rounds": run.max_rounds,
+        "error": run.error,
+        "created_at": run.created_at.isoformat(),
+        "updated_at": run.updated_at.isoformat(),
+        "completed_at": (
+            run.completed_at.isoformat() if run.completed_at is not None else None
+        ),
+    }
+
+
+async def _owned_collaboration_run(
+    db: AsyncSession,
+    run_id: str,
+    workspace_id: str,
+    thread_id: str,
+) -> CollaborationRun:
+    run = await db.scalar(
+        select(CollaborationRun)
+        .join(Thread, Thread.id == CollaborationRun.thread_id)
+        .where(
+            CollaborationRun.id == run_id,
+            CollaborationRun.workspace_id == workspace_id,
+            CollaborationRun.thread_id == thread_id,
+            Thread.workspace_id == workspace_id,
+        )
+    )
+    if not run:
+        raise HTTPException(404, "未找到当前项目与任务所属的协作运行")
+    return run
+
 
 def _workspace_query():
     return select(Workspace).options(
@@ -287,6 +346,214 @@ async def thread_details(
             for item in runs
         ],
     }
+
+
+@router.post(
+    "/workspaces/{workspace_id}/threads/{thread_id}/collaboration-runs",
+    status_code=201,
+)
+async def create_collaboration_run(
+    workspace_id: str,
+    thread_id: str,
+    body: CollaborationRunCreate,
+    db: AsyncSession = Depends(get_session),
+):
+    if not settings.smart_collaboration_enabled:
+        raise HTTPException(422, "智能协作功能尚未启用")
+    workspace = await db.get(Workspace, workspace_id)
+    thread = await db.scalar(
+        select(Thread).where(
+            Thread.id == thread_id, Thread.workspace_id == workspace_id
+        )
+    )
+    if not workspace or not thread:
+        raise HTTPException(404, "项目与任务不匹配")
+    contract = await db.scalar(
+        select(TaskContract).where(TaskContract.thread_id == thread_id)
+    )
+    if contract is None:
+        contract = TaskContract(thread_id=thread_id)
+        db.add(contract)
+    contract.goal = body.goal.strip()
+    run = await start_collaboration_run(
+        db, workspace, thread, decision=classify(body.goal)
+    )
+    await db.commit()
+    await db.refresh(run)
+    if run.state == CollaborationState.READY.value:
+        await scheduler.start_collaboration_run(thread_id, run.id, body.goal)
+    return _collaboration_payload(run)
+
+
+@router.get(
+    "/workspaces/{workspace_id}/threads/{thread_id}/collaboration-runs/current"
+)
+async def current_collaboration_run(
+    workspace_id: str,
+    thread_id: str,
+    db: AsyncSession = Depends(get_session),
+):
+    thread = await db.scalar(
+        select(Thread).where(
+            Thread.id == thread_id, Thread.workspace_id == workspace_id
+        )
+    )
+    if not thread:
+        raise HTTPException(404, "项目与任务不匹配")
+    run = await db.scalar(
+        select(CollaborationRun)
+        .where(
+            CollaborationRun.workspace_id == workspace_id,
+            CollaborationRun.thread_id == thread_id,
+            CollaborationRun.state.notin_(
+                [
+                    CollaborationState.COMPLETED.value,
+                    CollaborationState.CANCELLED.value,
+                ]
+            ),
+        )
+        .order_by(
+            CollaborationRun.updated_at.desc(), CollaborationRun.created_at.desc()
+        )
+        .limit(1)
+    )
+    if not run:
+        raise HTTPException(404, "当前任务没有进行中的协作运行")
+    return _collaboration_payload(run)
+
+
+@router.post("/collaboration-runs/{run_id}/pause")
+async def pause_collaboration_run(
+    run_id: str,
+    workspace_id: str = Header(alias="X-DualCode-Workspace-Id"),
+    thread_id: str = Header(alias="X-DualCode-Thread-Id"),
+    db: AsyncSession = Depends(get_session),
+):
+    run = await _owned_collaboration_run(db, run_id, workspace_id, thread_id)
+    await scheduler.cancel(thread_id)
+    try:
+        await advance_collaboration(
+            db, run, CollaborationState.BLOCKED, reason="用户暂停协作运行"
+        )
+    except ValueError as exc:
+        raise HTTPException(409, str(exc)) from exc
+    await db.commit()
+    await db.refresh(run)
+    return _collaboration_payload(run)
+
+
+@router.post("/collaboration-runs/{run_id}/resume")
+async def resume_collaboration_run(
+    run_id: str,
+    workspace_id: str = Header(alias="X-DualCode-Workspace-Id"),
+    thread_id: str = Header(alias="X-DualCode-Thread-Id"),
+    db: AsyncSession = Depends(get_session),
+):
+    run = await _owned_collaboration_run(db, run_id, workspace_id, thread_id)
+    try:
+        await resume_collaboration(db, run, reason="用户恢复协作运行")
+    except ValueError as exc:
+        raise HTTPException(409, str(exc)) from exc
+    await db.commit()
+    await db.refresh(run)
+    contract = await db.scalar(
+        select(TaskContract).where(TaskContract.thread_id == thread_id)
+    )
+    await scheduler.start_collaboration_run(
+        thread_id, run.id, contract.goal if contract else ""
+    )
+    return _collaboration_payload(run)
+
+
+@router.post("/collaboration-runs/{run_id}/cancel")
+async def cancel_collaboration_run(
+    run_id: str,
+    workspace_id: str = Header(alias="X-DualCode-Workspace-Id"),
+    thread_id: str = Header(alias="X-DualCode-Thread-Id"),
+    db: AsyncSession = Depends(get_session),
+):
+    run = await _owned_collaboration_run(db, run_id, workspace_id, thread_id)
+    try:
+        await cancel_collaboration(
+            db, run, reason="用户取消协作运行", cancel_agent=scheduler.cancel
+        )
+    except ValueError as exc:
+        raise HTTPException(409, str(exc)) from exc
+    await db.commit()
+    await db.refresh(run)
+    return _collaboration_payload(run)
+
+
+@router.post("/collaboration-runs/{run_id}/decisions")
+async def decide_collaboration_run(
+    run_id: str,
+    body: CollaborationDecision,
+    workspace_id: str = Header(alias="X-DualCode-Workspace-Id"),
+    thread_id: str = Header(alias="X-DualCode-Thread-Id"),
+    db: AsyncSession = Depends(get_session),
+):
+    run = await _owned_collaboration_run(db, run_id, workspace_id, thread_id)
+    if run.state != CollaborationState.WAITING_USER.value:
+        raise HTTPException(409, "当前协作运行不在等待用户决策状态")
+    note = body.note.strip() or "用户已作出协作决策"
+    try:
+        if body.action == "cancel":
+            await cancel_collaboration(
+                db, run, reason=note, cancel_agent=scheduler.cancel
+            )
+        else:
+            target = (
+                CollaborationState.READY
+                if body.action == "reenter"
+                else CollaborationState.FIXING
+            )
+            await advance_collaboration(db, run, target, reason=note)
+    except ValueError as exc:
+        raise HTTPException(409, str(exc)) from exc
+    await db.commit()
+    await db.refresh(run)
+    if body.action != "cancel":
+        contract = await db.scalar(
+            select(TaskContract).where(TaskContract.thread_id == thread_id)
+        )
+        await scheduler.start_collaboration_run(
+            thread_id, run.id, contract.goal if contract else ""
+        )
+    return _collaboration_payload(run)
+
+
+@router.get("/collaboration-runs/{run_id}/findings")
+async def collaboration_run_findings(
+    run_id: str,
+    workspace_id: str = Header(alias="X-DualCode-Workspace-Id"),
+    thread_id: str = Header(alias="X-DualCode-Thread-Id"),
+    db: AsyncSession = Depends(get_session),
+):
+    run = await _owned_collaboration_run(db, run_id, workspace_id, thread_id)
+    findings = (
+        await db.scalars(
+            select(ReviewFinding)
+            .where(ReviewFinding.collaboration_run_id == run.id)
+            .order_by(ReviewFinding.round, ReviewFinding.id)
+        )
+    ).all()
+    return [
+        {
+            "id": item.id,
+            "collaboration_run_id": item.collaboration_run_id,
+            "round": item.round,
+            "type": item.type,
+            "severity": item.severity,
+            "status": item.status,
+            "file": item.file,
+            "line": item.line,
+            "description": item.description,
+            "acceptance": item.acceptance,
+            "source_handoff_id": item.source_handoff_id,
+            "resolved_by_snapshot_sha": item.resolved_by_snapshot_sha,
+        }
+        for item in findings
+    ]
 
 
 @router.post("/workspaces/{workspace_id}/threads/{thread_id}/approvals/{approval_id}")

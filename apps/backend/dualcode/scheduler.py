@@ -41,6 +41,7 @@ from .models import (
     AgentSession,
     Attachment,
     AuditLog,
+    CollaborationRun,
     FileChange,
     HandoffPackage,
     Message,
@@ -225,6 +226,27 @@ class RunScheduler:
             self._execute_handoff_review(thread_id, run_id, handoff_id)
         )
         return run_id
+
+    async def start_collaboration_run(
+        self,
+        thread_id: str,
+        collaboration_run_id: str,
+        prompt: str,
+    ) -> str:
+        """Continue an API-created collaboration run in the background."""
+
+        if thread_id in self._tasks and not self._tasks[thread_id].done():
+            raise RuntimeError("当前任务已有 Agent 正在运行")
+        self._tasks[thread_id] = asyncio.create_task(
+            self._execute_smart_collaboration(
+                thread_id,
+                prompt,
+                [],
+                None,
+                collaboration_run_id=collaboration_run_id,
+            )
+        )
+        return collaboration_run_id
 
     def _relay_remote_spec(self, repository_path: str) -> RelayRemoteSpec:
         return RelayRemoteSpec(
@@ -424,7 +446,9 @@ class RunScheduler:
         thread_id: str,
         prompt: str,
         attachment_ids: list[str],
-        decision: RoutingDecision,
+        decision: RoutingDecision | None,
+        *,
+        collaboration_run_id: str | None = None,
     ) -> None:
         """Run the C5 implementation/review loop with existing side effects."""
 
@@ -435,13 +459,23 @@ class RunScheduler:
             )
             if not thread or not workspace:
                 return
-            collaboration = await start_collaboration_run(
-                db, workspace, thread, decision=decision
-            )
-            await db.commit()
-            if collaboration.state != CollaborationState.READY.value:
-                return
-
+            if collaboration_run_id:
+                collaboration = await db.get(
+                    CollaborationRun, collaboration_run_id
+                )
+                if (
+                    not collaboration
+                    or collaboration.thread_id != thread_id
+                    or collaboration.workspace_id != workspace.id
+                ):
+                    return
+            else:
+                if decision is None:
+                    return
+                collaboration = await start_collaboration_run(
+                    db, workspace, thread, decision=decision
+                )
+                await db.commit()
             async def emit(kind: EventType, payload: dict[str, object]) -> None:
                 await manager.publish(
                     AgentEvent(

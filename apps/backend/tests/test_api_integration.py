@@ -363,6 +363,200 @@ async def _workspace(api_client: httpx.AsyncClient, tmp_path: Path) -> tuple[dic
     return workspace, workspace["threads"][0]
 
 
+def _collaboration_headers(workspace_id: str, thread_id: str) -> dict[str, str]:
+    return {
+        "X-DualCode-Workspace-Id": workspace_id,
+        "X-DualCode-Thread-Id": thread_id,
+    }
+
+
+@pytest.mark.asyncio
+async def test_collaboration_run_api_obeys_flag_and_returns_current(
+    api_client: httpx.AsyncClient,
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+):
+    from dualcode.config import settings
+
+    workspace, thread = await _workspace(api_client, tmp_path)
+    path = (
+        f"/api/workspaces/{workspace['id']}/threads/{thread['id']}"
+        "/collaboration-runs"
+    )
+    monkeypatch.setattr(settings, "smart_collaboration_enabled", False)
+    disabled = await api_client.post(path, json={"goal": "实现正式功能"})
+    assert disabled.status_code == 422
+    assert disabled.json()["detail"] == "智能协作功能尚未启用"
+
+    monkeypatch.setattr(settings, "smart_collaboration_enabled", True)
+    created = await api_client.post(path, json={"goal": "实现正式功能"})
+    assert created.status_code == 201
+    assert created.json()["state"] == "WAITING_USER"
+    current = await api_client.get(f"{path}/current")
+    assert current.status_code == 200
+    assert current.json()["id"] == created.json()["id"]
+
+
+@pytest.mark.asyncio
+async def test_collaboration_run_controls_enforce_ownership_and_resume(
+    api_client: httpx.AsyncClient,
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+):
+    from dualcode.api_collaboration import scheduler
+    from dualcode.models import CollaborationRun
+
+    started: list[tuple[str, str, str]] = []
+
+    async def start(thread_id: str, run_id: str, prompt: str) -> str:
+        started.append((thread_id, run_id, prompt))
+        return run_id
+
+    async def cancel(_thread_id: str) -> None:
+        return None
+
+    monkeypatch.setattr(scheduler, "start_collaboration_run", start)
+    monkeypatch.setattr(scheduler, "cancel", cancel)
+    workspace, thread = await _workspace(api_client, tmp_path)
+    sessions = api_client._dualcode_test_sessions  # type: ignore[attr-defined]
+    async with sessions() as db:
+        run = CollaborationRun(
+            workspace_id=workspace["id"],
+            thread_id=thread["id"],
+            mode="smart",
+            state="IMPLEMENTING",
+        )
+        db.add(run)
+        await db.commit()
+        await db.refresh(run)
+        run_id = run.id
+
+    wrong = await api_client.post(
+        f"/api/collaboration-runs/{run_id}/pause",
+        headers=_collaboration_headers(workspace["id"], "another-thread"),
+    )
+    assert wrong.status_code == 404
+    paused = await api_client.post(
+        f"/api/collaboration-runs/{run_id}/pause",
+        headers=_collaboration_headers(workspace["id"], thread["id"]),
+    )
+    assert paused.status_code == 200
+    assert paused.json()["state"] == "BLOCKED"
+    resumed = await api_client.post(
+        f"/api/collaboration-runs/{run_id}/resume",
+        headers=_collaboration_headers(workspace["id"], thread["id"]),
+    )
+    assert resumed.status_code == 200
+    assert resumed.json()["state"] == "IMPLEMENTING"
+    assert started == [(thread["id"], run_id, "")]
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize(
+    ("action", "expected"),
+    [("reenter", "READY"), ("fix", "FIXING"), ("cancel", "CANCELLED")],
+)
+async def test_collaboration_decisions_cover_waiting_user_exits(
+    api_client: httpx.AsyncClient,
+    tmp_path: Path,
+    action: str,
+    expected: str,
+    monkeypatch: pytest.MonkeyPatch,
+):
+    from dualcode.api_collaboration import scheduler
+    from dualcode.models import CollaborationRun
+
+    started: list[str] = []
+
+    async def start(_thread_id: str, run_id: str, _prompt: str) -> str:
+        started.append(run_id)
+        return run_id
+
+    async def cancel(_thread_id: str) -> None:
+        return None
+
+    monkeypatch.setattr(scheduler, "start_collaboration_run", start)
+    monkeypatch.setattr(scheduler, "cancel", cancel)
+    workspace, thread = await _workspace(api_client, tmp_path)
+    sessions = api_client._dualcode_test_sessions  # type: ignore[attr-defined]
+    async with sessions() as db:
+        run = CollaborationRun(
+            workspace_id=workspace["id"],
+            thread_id=thread["id"],
+            mode="smart",
+            state="WAITING_USER",
+        )
+        db.add(run)
+        await db.commit()
+        await db.refresh(run)
+        run_id = run.id
+    response = await api_client.post(
+        f"/api/collaboration-runs/{run_id}/decisions",
+        headers=_collaboration_headers(workspace["id"], thread["id"]),
+        json={"action": action, "note": "用户选择"},
+    )
+    assert response.status_code == 200
+    assert response.json()["state"] == expected
+    assert started == ([] if action == "cancel" else [run_id])
+
+
+@pytest.mark.asyncio
+async def test_collaboration_findings_are_scoped_and_ordered(
+    api_client: httpx.AsyncClient, tmp_path: Path
+):
+    from dualcode.models import CollaborationRun, HandoffPackage, ReviewFinding
+
+    workspace, thread = await _workspace(api_client, tmp_path)
+    sessions = api_client._dualcode_test_sessions  # type: ignore[attr-defined]
+    async with sessions() as db:
+        run = CollaborationRun(
+            workspace_id=workspace["id"],
+            thread_id=thread["id"],
+            mode="smart",
+            state="WAITING_USER",
+        )
+        handoff = HandoffPackage(
+            workspace_id=workspace["id"],
+            thread_id=thread["id"],
+            recipient="claude",
+            purpose="review",
+        )
+        db.add_all([run, handoff])
+        await db.flush()
+        db.add_all(
+            [
+                ReviewFinding(
+                    collaboration_run_id=run.id,
+                    round=2,
+                    type="risk",
+                    severity="advisory",
+                    status="open",
+                    description="次要问题",
+                    acceptance="记录风险",
+                    source_handoff_id=handoff.id,
+                ),
+                ReviewFinding(
+                    collaboration_run_id=run.id,
+                    round=1,
+                    type="missing",
+                    severity="blocking",
+                    status="open",
+                    description="缺少实现",
+                    acceptance="补齐实现",
+                    source_handoff_id=handoff.id,
+                ),
+            ]
+        )
+        await db.commit()
+        run_id = run.id
+    response = await api_client.get(
+        f"/api/collaboration-runs/{run_id}/findings",
+        headers=_collaboration_headers(workspace["id"], thread["id"]),
+    )
+    assert response.status_code == 200
+    assert [item["round"] for item in response.json()] == [1, 2]
+
+
 @pytest.mark.asyncio
 async def test_approval_job_failure_and_explicit_retry_are_auditable(
     api_client: httpx.AsyncClient, tmp_path: Path, monkeypatch: pytest.MonkeyPatch

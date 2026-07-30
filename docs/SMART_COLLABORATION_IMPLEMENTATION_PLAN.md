@@ -1084,12 +1084,12 @@ Claude review。
 
 ### C5-3 停止条件与 §9.2 API / §9.3 事件
 
-- [ ] 停止条件按 §5.3 落地：整改（FIXING）最多 2 轮、总轮次上限取
+- [x] 停止条件按 §5.3 落地：整改（FIXING）最多 2 轮、总轮次上限取
   `max_rounds`（默认 3）——到限且仍 blocking → `WAITING_USER`（展示未解决
   findings 列表）；无进展检测——连续两轮 `FileChange` 集合、TestRun 数与
   open findings 均无变化 → `WAITING_USER`（reason=无进展）；Agent 失活/
   VPS 不可达 → `BLOCKED`（可恢复，不无限重试）。
-- [ ] §9.2 API（挂 `/api` 前缀，`/api/collaboration-runs/{id}/*` 反查 run
+- [x] §9.2 API（挂 `/api` 前缀，`/api/collaboration-runs/{id}/*` 反查 run
   归属并校验 workspace/thread）：
   `POST .../threads/{tid}/collaboration-runs`（入参仅目标与可选模式；开关
   关闭 422 中文）、`GET .../collaboration-runs/current`、
@@ -1097,11 +1097,15 @@ Claude review。
   `GET /api/collaboration-runs/{id}/findings`。`decisions` 入参为
   `{"action": "reenter"|"fix"|"cancel", "note": str}` 映射 `WAITING_USER`
   三出边（READY/FIXING/CANCELLED）。
-- [ ] §9.3 事件全集接线（started/stage_changed/agent_changed/
+- [x] §9.3 事件全集接线（started/stage_changed/agent_changed/
   handoff_prepared/review_completed/findings_updated/waiting_user/
   completed/failed），只携带摘要与 ID。
 - **验收**：上限、无进展、失活三类停止各有测试；API 测试覆盖开关两态、
   归属校验拒绝跨 thread 访问、decisions 三出边；事件序列断言。
+- **验证结果（2026-07-30）**：整改/总轮次上限、连续两轮无进展和 Agent/VPS
+  异常阻塞均已接线；协作运行创建、查询、暂停、恢复、取消、用户裁决与 findings
+  API 完整校验 run 归属，恢复类操作会继续同一后台运行。九类协作事件仅广播摘要
+  与 ID。专项 33 项、后端全量 252 项、前端 78 项、Ruff 与 TypeScript 全部通过。
 
 ### C5-4 六条 E2E 与阶段验收
 

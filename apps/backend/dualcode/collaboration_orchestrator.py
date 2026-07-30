@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import inspect
+import hashlib
 import json
 from dataclasses import dataclass
 from collections.abc import Awaitable, Callable
@@ -20,9 +21,11 @@ from .connections import manager
 from .events import AgentEvent, EventType
 from .models import (
     CollaborationRun,
+    FileChange,
     Message,
     ReviewFinding,
     TaskContract,
+    TestRun,
     Thread,
     Workspace,
 )
@@ -121,6 +124,97 @@ async def _open_blocking_findings(
     )
 
 
+async def _publish(
+    event_type: EventType,
+    run: CollaborationRun,
+    **summary: object,
+) -> None:
+    """Publish compact collaboration metadata, never raw agent output."""
+
+    await manager.publish(
+        AgentEvent(
+            type=event_type,
+            thread_id=run.thread_id,
+            run_id=run.id,
+            payload={
+                "collaboration_run_id": run.id,
+                "state": run.state,
+                "round": run.round,
+                **summary,
+            },
+        )
+    )
+
+
+async def _set_agent(run: CollaborationRun, agent: str) -> None:
+    budget = _budget(run)
+    if run.current_agent == agent and budget.get("_event_agent") == agent:
+        return
+    previous = run.current_agent
+    run.current_agent = agent
+    budget["_event_agent"] = agent
+    run.budget_json = json.dumps(budget, ensure_ascii=False)
+    await _publish(
+        EventType.COLLABORATION_AGENT_CHANGED,
+        run,
+        previous_agent=previous,
+        current_agent=agent,
+    )
+
+
+async def _progress_signature(db: AsyncSession, run: CollaborationRun) -> str:
+    changes = (
+        await db.execute(
+            select(FileChange.path, FileChange.diff)
+            .where(FileChange.thread_id == run.thread_id)
+            .order_by(FileChange.path, FileChange.id)
+        )
+    ).all()
+    test_count = len(
+        (
+            await db.scalars(
+                select(TestRun.id).where(TestRun.thread_id == run.thread_id)
+            )
+        ).all()
+    )
+    findings = await _open_blocking_findings(db, run)
+    value = {
+        "changes": [
+            [path, hashlib.sha256(diff.encode("utf-8")).hexdigest()]
+            for path, diff in changes
+        ],
+        "test_count": test_count,
+        "findings": sorted({_finding_key(item) for item in findings}),
+    }
+    return hashlib.sha256(
+        json.dumps(value, ensure_ascii=False, sort_keys=True).encode("utf-8")
+    ).hexdigest()
+
+
+async def _record_progress(db: AsyncSession, run: CollaborationRun) -> bool:
+    """Return false after two consecutive review rounds without progress."""
+
+    signature = await _progress_signature(db, run)
+    budget = _budget(run)
+    previous = budget.get("_progress_signature")
+    stagnant = int(budget.get("_stagnant_rounds", 0))
+    stagnant = stagnant + 1 if previous == signature else 0
+    budget["_progress_signature"] = signature
+    budget["_stagnant_rounds"] = stagnant
+    run.budget_json = json.dumps(budget, ensure_ascii=False)
+    return stagnant < 2
+
+
+async def _publish_findings(db: AsyncSession, run: CollaborationRun) -> None:
+    findings = await _open_blocking_findings(db, run)
+    await _publish(
+        EventType.COLLABORATION_FINDINGS_UPDATED,
+        run,
+        open_blocking_count=len(findings),
+        finding_ids=[item.id for item in findings],
+    )
+
+
 def _fix_prompt(findings: list[ReviewFinding]) -> str:
     rows = ["修复以下阻断审查问题。不得使用临时、演示或绕过方案："]
     for index, item in enumerate(findings, 1):
@@ -177,6 +271,7 @@ async def execute_pipeline(
     }:
         state = CollaborationState(run.state)
         if state is CollaborationState.IMPLEMENTING:
+            await _set_agent(run, "codex")
             turn = await callbacks.run_codex(initial_prompt, state)
             if error := _turn_failure(turn):
                 run.error = error
@@ -212,8 +307,30 @@ async def execute_pipeline(
             )
         elif state is CollaborationState.REVIEWING:
             snapshot = SnapshotEvidence(run.base_sha or "", run.snapshot_sha or "")
-            review_turn = await callbacks.run_review(_REVIEW_SUFFIX, snapshot)
+            await _set_agent(run, "claude")
+            try:
+                review_turn = await callbacks.run_review(_REVIEW_SUFFIX, snapshot)
+            except Exception as exc:
+                run.error = f"审查 Agent 失活：{str(exc)[:240]}"
+                return await advance(
+                    db, run, CollaborationState.BLOCKED, reason=run.error
+                )
+            await _publish(
+                EventType.COLLABORATION_HANDOFF_PREPARED,
+                run,
+                handoff_id=review_turn.source_handoff_id,
+                base_sha=snapshot.base_sha,
+                snapshot_sha=snapshot.snapshot_sha,
+            )
             parsed = parse_review(review_turn.raw_text)
+            await _publish(
+                EventType.COLLABORATION_REVIEW_COMPLETED,
+                run,
+                handoff_id=review_turn.source_handoff_id,
+                outcome=parsed.outcome,
+                verdict=parsed.review.verdict if parsed.review else None,
+                summary=(parsed.review.summary[:200] if parsed.review else ""),
+            )
             if parsed.outcome != "parsed" or parsed.review is None:
                 await callbacks.record_system(review_turn.raw_text)
                 return await advance(
@@ -233,12 +350,33 @@ async def execute_pipeline(
                 collaboration_run_id=run.id,
                 round=run.round,
             )
+            await _publish_findings(db, run)
+            if not await _record_progress(db, run):
+                return await advance(
+                    db,
+                    run,
+                    CollaborationState.WAITING_USER,
+                    reason="无进展",
+                )
             if review.verdict == "needs_user":
                 await callbacks.record_system(review_turn.raw_text)
                 return await advance(
                     db, run, CollaborationState.WAITING_USER, reason=review.summary
                 )
             if review.verdict == "blocking":
+                budget = _budget(run)
+                fix_count = int(budget.get("_fix_count", 0))
+                if fix_count >= 2 or run.round >= run.max_rounds:
+                    await callbacks.record_system(
+                        f"自动整改已达到上限，仍有 "
+                        f"{len(await _open_blocking_findings(db, run))} 个阻断问题。"
+                    )
+                    return await advance(
+                        db,
+                        run,
+                        CollaborationState.WAITING_USER,
+                        reason="自动整改已达到上限",
+                    )
                 await advance(
                     db,
                     run,
@@ -254,11 +392,15 @@ async def execute_pipeline(
                 db, run, CollaborationState.FIXING, reason="编译阻断问题整改提示"
             )
         elif state is CollaborationState.FIXING:
+            await _set_agent(run, "codex")
             findings = await _open_blocking_findings(db, run)
             turn = await callbacks.run_codex(_fix_prompt(findings), state)
             if error := _turn_failure(turn):
                 run.error = error
                 return await advance(db, run, CollaborationState.BLOCKED, reason=error)
+            budget = _budget(run)
+            budget["_fix_count"] = int(budget.get("_fix_count", 0)) + 1
+            run.budget_json = json.dumps(budget, ensure_ascii=False)
             run.round += 1
             await advance(db, run, CollaborationState.VERIFYING, reason="整改轮次完成")
         else:
@@ -334,6 +476,25 @@ async def advance(
     )
     await db.flush()
     await _publish_stage(run, previous, resolved, reason)
+    if resolved is CollaborationState.WAITING_USER:
+        await _publish(
+            EventType.COLLABORATION_WAITING_USER,
+            run,
+            reason=reason[:200],
+        )
+    elif resolved is CollaborationState.COMPLETED:
+        await _publish(
+            EventType.COLLABORATION_COMPLETED,
+            run,
+            reason=reason[:200],
+        )
+    elif resolved is CollaborationState.BLOCKED:
+        await _publish(
+            EventType.COLLABORATION_FAILED,
+            run,
+            reason=reason[:200],
+            recoverable=True,
+        )
     return run
 
 
@@ -377,6 +538,12 @@ async def start_run(
     )
     db.add(run)
     await db.flush()
+    await _publish(
+        EventType.COLLABORATION_STARTED,
+        run,
+        mode=run.mode,
+        max_rounds=run.max_rounds,
+    )
     if ready:
         await advance(
             db,

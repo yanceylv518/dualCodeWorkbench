@@ -215,10 +215,135 @@ async def test_needs_user_waits_and_preserves_raw(stage_context):
     assert systems == [raw]
 
 
+@pytest.mark.asyncio
+async def test_blocking_stops_after_two_fix_rounds(stage_context):
+    db, workspace, thread, run = stage_context
+    package = HandoffPackage(
+        workspace_id=workspace.id,
+        thread_id=thread.id,
+        recipient="claude",
+        purpose="review",
+    )
+    db.add(package)
+    await db.flush()
+    finding = {
+        "id": "F-limit",
+        "type": "regression",
+        "severity": "blocking",
+        "file": "src/app.py",
+        "line": None,
+        "description": "still broken",
+        "acceptance": "prove fixed",
+    }
+    fixes: list[CollaborationState] = []
+
+    async def codex(_prompt, stage):
+        fixes.append(stage)
+        return Turn()
+
+    callbacks = StageCallbacks(
+        run_codex=codex,
+        run_tests=lambda: _async(True),
+        sync_snapshot=lambda: _async(SnapshotEvidence("a" * 40, "b" * 40)),
+        run_review=lambda _suffix, _snapshot: _async(
+            ReviewTurnResult(_review("blocking", [finding]), package.id)
+        ),
+        record_system=lambda _text: _async(None),
+    )
+
+    result = await execute_pipeline(
+        db, run, initial_prompt="implement", callbacks=callbacks
+    )
+
+    assert result.state == CollaborationState.WAITING_USER.value
+    assert result.round == 3
+    assert fixes.count(CollaborationState.FIXING) == 2
+    assert json.loads(result.budget_json)["_fix_count"] == 2
+
+
+@pytest.mark.asyncio
+async def test_review_agent_failure_blocks_once_and_emits_failed(stage_context, monkeypatch):
+    db, _workspace, _thread, run = stage_context
+    events = []
+
+    async def publish(event):
+        events.append(event)
+
+    monkeypatch.setattr(
+        "dualcode.collaboration_orchestrator.manager.publish", publish
+    )
+    attempts = 0
+
+    async def review(_suffix, _snapshot):
+        nonlocal attempts
+        attempts += 1
+        raise RuntimeError("offline")
+
+    callbacks = StageCallbacks(
+        run_codex=lambda _prompt, _stage: _async(Turn()),
+        run_tests=lambda: _async(True),
+        sync_snapshot=lambda: _async(SnapshotEvidence("a" * 40, "b" * 40)),
+        run_review=review,
+        record_system=lambda _text: _async(None),
+    )
+
+    result = await execute_pipeline(
+        db, run, initial_prompt="implement", callbacks=callbacks
+    )
+
+    assert result.state == CollaborationState.BLOCKED.value
+    assert attempts == 1
+    assert events[-1].type.value == "collaboration.failed"
+    assert events[-1].payload["recoverable"] is True
+
+
+@pytest.mark.asyncio
+async def test_pass_emits_complete_compact_event_sequence(stage_context, monkeypatch):
+    db, workspace, thread, run = stage_context
+    package = HandoffPackage(
+        workspace_id=workspace.id,
+        thread_id=thread.id,
+        recipient="claude",
+        purpose="review",
+    )
+    db.add(package)
+    await db.flush()
+    events = []
+
+    async def publish(event):
+        events.append(event)
+
+    monkeypatch.setattr(
+        "dualcode.collaboration_orchestrator.manager.publish", publish
+    )
+    callbacks = StageCallbacks(
+        run_codex=lambda _prompt, _stage: _async(Turn()),
+        run_tests=lambda: _async(True),
+        sync_snapshot=lambda: _async(SnapshotEvidence("a" * 40, "b" * 40)),
+        run_review=lambda _suffix, _snapshot: _async(
+            ReviewTurnResult(_review("pass"), package.id)
+        ),
+        record_system=lambda _text: _async(None),
+    )
+
+    await execute_pipeline(db, run, initial_prompt="secret prompt", callbacks=callbacks)
+    types = [event.type.value for event in events]
+
+    assert "collaboration.agent_changed" in types
+    assert "collaboration.handoff_prepared" in types
+    assert "collaboration.review_completed" in types
+    assert "collaboration.findings_updated" in types
+    assert types[-1] == "collaboration.completed"
+    for event in events:
+        serialized = json.dumps(event.payload)
+        assert "secret prompt" not in serialized
+        assert "raw_text" not in event.payload
+        assert "diff" not in event.payload
+
+
 async def _async(value):
     return value
 
 
 async def _append(items: list[str], value: str):
     items.append(value)
-
