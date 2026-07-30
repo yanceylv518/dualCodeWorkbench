@@ -1213,6 +1213,20 @@ Claude review。
   即时翻转」；前端测试覆盖开关切换后选择器选项出现/消失；全量门禁与
   CI 双平台绿；开关关闭态零回归保持。
 
+### C6-3b-R1 格式修复、清单回填与安装包重建（一个 commit + 重建产物）
+
+- [ ] `apps/desktop/src/App.tsx` 与 `apps/desktop/src/SettingsDialog.tsx`
+  执行 Prettier 机械格式化，不改任何逻辑（`ca06dfd` CI 双平台在
+  `prettier --check` 步骤失败的两个文件）。
+- [ ] 回填 C6-3b 全部复选框与验证结果；在 C6-3b 条目下补写环境变量播种
+  保留理由（env 仅播种首次默认值，JSON 存储保存后即为唯一权威）。
+- [ ] 推送并确认 CI 双平台绿后，重建 0.1.7 安装包（Vite、Windows sidecar、
+  Tauri release、MSI/NSIS），在 C6-4 构建结果中更新新产物的 SHA-256——
+  交付产物必须对应全绿提交，旧校验和标注作废。
+- **为什么**：见 C6-3b Review 返工项 C6-3b-R1——验收标准「CI 双平台绿」
+  未达成，且现有安装包构建自 CI 红的提交。
+- **验收**：CI 双平台绿；C6-3b 回填完整含播种理由；新 SHA-256 已更新。
+
 ### C6-4 产品化构建与真实验收（需用户配合）
 
 - [x] 构建：Vite 生产构建、Windows sidecar、Tauri release 与安装包；
