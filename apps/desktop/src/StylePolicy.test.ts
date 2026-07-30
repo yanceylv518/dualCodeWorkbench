@@ -7,6 +7,7 @@ const css = (name: string) =>
 const index = css("./index.css");
 const styles = [
   css("./contract.css"),
+  css("./components/collaboration-timeline.css"),
   css("./handoff.css"),
   index,
   css("./message-actions.css"),

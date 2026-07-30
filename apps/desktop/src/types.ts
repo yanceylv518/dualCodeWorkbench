@@ -251,3 +251,17 @@ export interface CollaborationFinding {
   description: string;
   acceptance: string;
 }
+
+export interface CollaborationTimeline {
+  runId: string;
+  state: string;
+  round: number;
+  maxRounds: number;
+  currentAgent?: string;
+  findingsCount: number;
+  waitingReason?: string;
+  status: "running" | "waiting" | "completed" | "failed" | "cancelled";
+  stages: Record<string, "pending" | "running" | "completed" | "failed">;
+  updatedAt: number;
+  lastSequence?: number;
+}

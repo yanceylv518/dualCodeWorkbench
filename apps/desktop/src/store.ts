@@ -5,6 +5,7 @@ import type {
   Agent,
   AgentEvent,
   Approval,
+  CollaborationTimeline,
   ExecutionJob,
   GitStatus,
   Message,
@@ -29,6 +30,93 @@ const activeStatesForStore = new Set<RunState>([
   "REVIEWING",
   "FALLBACK_TO_CODEX",
 ]);
+
+const collaborationStageOrder = [
+  "clarify",
+  "implement",
+  "verify",
+  "review",
+  "fix",
+] as const;
+
+const stageForState = (state: string) => {
+  if (["DRAFT", "CLARIFYING", "READY"].includes(state)) return "clarify";
+  if (state === "IMPLEMENTING") return "implement";
+  if (["VERIFYING", "SYNCING_REVIEW_SNAPSHOT"].includes(state)) return "verify";
+  if (["REVIEWING", "ACCEPTED"].includes(state)) return "review";
+  if (["CHANGES_REQUESTED", "FIXING"].includes(state)) return "fix";
+  return undefined;
+};
+
+const timelineStages = (state: string): CollaborationTimeline["stages"] => {
+  const current = stageForState(state);
+  const currentIndex = current
+    ? collaborationStageOrder.indexOf(current)
+    : state === "COMPLETED"
+      ? collaborationStageOrder.length
+      : -1;
+  return Object.fromEntries(
+    collaborationStageOrder.map((stage, index) => [
+      stage,
+      index < currentIndex
+        ? "completed"
+        : index === currentIndex
+          ? "running"
+          : "pending",
+    ]),
+  );
+};
+
+export const mergeCollaborationEvent = (
+  previous: CollaborationTimeline | undefined,
+  event: AgentEvent,
+): CollaborationTimeline | undefined => {
+  if (!event.type.startsWith("collaboration.")) return previous;
+  if (
+    previous?.lastSequence &&
+    event.sequence > 0 &&
+    event.sequence <= previous.lastSequence
+  )
+    return previous;
+  const runId = String(
+    event.run_id ?? event.payload.collaboration_run_id ?? previous?.runId ?? "",
+  );
+  if (!runId) return previous;
+  const state = String(event.payload.state ?? previous?.state ?? "DRAFT");
+  const status: CollaborationTimeline["status"] =
+    state === "COMPLETED" || event.type === "collaboration.completed"
+      ? "completed"
+      : state === "CANCELLED"
+        ? "cancelled"
+        : ["WAITING_USER", "WAITING_APPROVAL", "BLOCKED"].includes(state)
+          ? "waiting"
+          : event.type === "collaboration.failed"
+            ? "failed"
+            : "running";
+  const waitingReason =
+    status === "waiting" || status === "failed"
+      ? event.payload.reason !== undefined
+        ? String(event.payload.reason)
+        : previous?.waitingReason
+      : undefined;
+  return {
+    runId,
+    state,
+    round: Number(event.payload.round ?? previous?.round ?? 1),
+    maxRounds: Number(event.payload.max_rounds ?? previous?.maxRounds ?? 3),
+    currentAgent: String(
+      event.payload.current_agent ?? previous?.currentAgent ?? "",
+    ),
+    findingsCount: Number(
+      event.payload.open_blocking_count ?? previous?.findingsCount ?? 0,
+    ),
+    waitingReason,
+    status,
+    stages: timelineStages(state),
+    updatedAt: Date.now(),
+    lastSequence: event.sequence > 0 ? event.sequence : previous?.lastSequence,
+  };
+};
 
 export const settleActivity = (
   activity: NonNullable<Message["activity"]>,
@@ -63,6 +151,7 @@ interface Store {
   gitStatus?: GitStatus | null;
   remoteStatus?: WorkspaceRemoteStatus;
   executionJobs: ExecutionJob[];
+  collaborations: Record<string, CollaborationTimeline>;
   retryingJobId?: string;
   terminal: string[];
   terminalTruncated: boolean;
@@ -121,6 +210,10 @@ interface Store {
   runTests: () => Promise<void>;
   refreshExecutionJobs: () => Promise<void>;
   retryExecutionJob: (jobId: string) => Promise<void>;
+  actOnCollaboration: (
+    action: "reenter" | "fix" | "resume" | "cancel",
+    note?: string,
+  ) => Promise<void>;
 }
 
 const mapThread = (
@@ -228,6 +321,7 @@ export const useStore = create<Store>((set, get) => ({
   clearTerminal: () => set({ terminal: [], terminalTruncated: false }),
   notifications: [],
   executionJobs: [],
+  collaborations: {},
   draftAttachments: [],
   drafts: {},
   setDraft: (threadId, text) =>
@@ -290,6 +384,42 @@ export const useStore = create<Store>((set, get) => ({
     void api
       .fetchApprovals(workspaceId, threadId)
       .then((items) => set({ pendingApproval: items[0] }))
+      .catch(() => undefined);
+    void api
+      .fetchCurrentCollaboration(workspaceId, threadId)
+      .then(async (run) => {
+        if (!run) return;
+        const findings = await api.fetchCollaborationFindings(
+          workspaceId,
+          threadId,
+          run.id,
+        );
+        set((state) => ({
+          collaborations: {
+            ...state.collaborations,
+            [threadId]: mergeCollaborationEvent(
+              state.collaborations[threadId],
+              {
+                type: "collaboration.findings_updated",
+                thread_id: threadId,
+                run_id: run.id,
+                sequence: 0,
+                payload: {
+                  ...run,
+                  state: run.state,
+                  round: run.round,
+                  max_rounds: run.max_rounds,
+                  current_agent: run.current_agent,
+                  open_blocking_count: findings.filter(
+                    (item) =>
+                      item.status === "open" && item.severity === "blocking",
+                  ).length,
+                },
+              },
+            )!,
+          },
+        }));
+      })
       .catch(() => undefined);
     const refreshDetails = () =>
       void api
@@ -401,6 +531,21 @@ export const useStore = create<Store>((set, get) => ({
               return;
             }
             const payload = data.payload;
+            if (data.type.startsWith("collaboration."))
+              set((state) => {
+                const timeline = mergeCollaborationEvent(
+                  state.collaborations[threadId],
+                  data,
+                );
+                return timeline
+                  ? {
+                      collaborations: {
+                        ...state.collaborations,
+                        [threadId]: timeline,
+                      },
+                    }
+                  : {};
+              });
             if (
               data.type === "agent.delta" &&
               payload.agent &&
@@ -1130,6 +1275,63 @@ export const useStore = create<Store>((set, get) => ({
       get().notify("error", `重试任务失败：${String(error)}`);
     } finally {
       set({ retryingJobId: undefined });
+    }
+  },
+  actOnCollaboration: async (action, note = "") => {
+    const state = get();
+    const timeline = state.collaborations[state.threadId];
+    if (!timeline) return;
+    try {
+      const run =
+        action === "resume"
+          ? await api.resumeCollaboration(
+              state.workspaceId,
+              state.threadId,
+              timeline.runId,
+            )
+          : action === "cancel" && timeline.state !== "WAITING_USER"
+            ? await api.cancelCollaboration(
+                state.workspaceId,
+                state.threadId,
+                timeline.runId,
+              )
+            : await api.decideCollaboration(
+                state.workspaceId,
+                state.threadId,
+                timeline.runId,
+                action,
+                note,
+              );
+      set((current) => {
+        const next = mergeCollaborationEvent(
+          current.collaborations[state.threadId],
+          {
+            type: "collaboration.stage_changed",
+            thread_id: state.threadId,
+            sequence: 0,
+            run_id: run.id,
+            payload: {
+              collaboration_run_id: run.id,
+              state: run.state,
+              current_agent: run.current_agent,
+              round: run.round,
+              max_rounds: run.max_rounds,
+              reason: run.error,
+            },
+          },
+        );
+        return next
+          ? {
+              collaborations: {
+                ...current.collaborations,
+                [state.threadId]: next,
+              },
+            }
+          : {};
+      });
+    } catch (error) {
+      get().notify("error", `协作操作失败：${String(error)}`);
+      throw error;
     }
   },
 }));

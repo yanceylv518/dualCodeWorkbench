@@ -636,3 +636,10 @@
 
 - Codex 与 Claude 消息正文统一为 14px、400 字重和 1.65 行高，并优先使用 Windows 原生 `Segoe UI` / `Microsoft YaHei UI` 字体栈。
 - Markdown 强调文字收敛为 600 字重，同时压缩段落、列表和列表项间距，降低原有大字号、粗字重和过度留白造成的视觉差异。
+
+## 2026-07-30 智能协作 C6-2
+
+- store 接入九类 `collaboration.*` 实时事件，按线程归并当前阶段、轮次、findings、等待原因，并用 sequence 防止乱序事件回退状态。
+- 消息流新增五阶段协作时间线；运行中展开、结束后可收起回看，原始 Agent 输出仍保留在既有消息与日志通道。
+- WAITING_USER、BLOCKED 与运行态分别提供重入、整改、恢复、取消和停止操作，复用现有协作 decisions/resume/cancel API。
+- 前端全量 87 项测试和 TypeScript 类型检查通过；C6-3 尚未开始。

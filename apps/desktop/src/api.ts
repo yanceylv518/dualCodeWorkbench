@@ -351,6 +351,56 @@ export async function fetchCollaborationFindings(
   if (!r.ok) throw await responseError(r);
   return r.json();
 }
+
+const collaborationHeaders = (workspaceId: string, threadId: string) => ({
+  "X-DualCode-Workspace-Id": workspaceId,
+  "X-DualCode-Thread-Id": threadId,
+});
+
+export async function decideCollaboration(
+  workspaceId: string,
+  threadId: string,
+  runId: string,
+  action: "reenter" | "fix" | "cancel",
+  note = "",
+): Promise<CollaborationRun> {
+  const r = await fetch(`${API}/collaboration-runs/${runId}/decisions`, {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+      ...collaborationHeaders(workspaceId, threadId),
+    },
+    body: JSON.stringify({ action, note }),
+  });
+  if (!r.ok) throw await responseError(r);
+  return r.json();
+}
+
+export async function resumeCollaboration(
+  workspaceId: string,
+  threadId: string,
+  runId: string,
+): Promise<CollaborationRun> {
+  const r = await fetch(`${API}/collaboration-runs/${runId}/resume`, {
+    method: "POST",
+    headers: collaborationHeaders(workspaceId, threadId),
+  });
+  if (!r.ok) throw await responseError(r);
+  return r.json();
+}
+
+export async function cancelCollaboration(
+  workspaceId: string,
+  threadId: string,
+  runId: string,
+): Promise<CollaborationRun> {
+  const r = await fetch(`${API}/collaboration-runs/${runId}/cancel`, {
+    method: "POST",
+    headers: collaborationHeaders(workspaceId, threadId),
+  });
+  if (!r.ok) throw await responseError(r);
+  return r.json();
+}
 export async function decideApproval(
   workspaceId: string,
   threadId: string,

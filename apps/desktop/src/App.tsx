@@ -44,6 +44,7 @@ import { ExecutionEvidence } from "./ExecutionEvidence";
 import { ContractPanel } from "./ContractPanel";
 import { HandoffPanel } from "./HandoffPanel";
 import { RemoteRepository } from "./components/RemoteRepository";
+import { CollaborationTimelineCard } from "./components/CollaborationTimelineCard";
 import "./recovery.css";
 import "./message-actions.css";
 import { useCopyFeedback } from "./hooks/useCopyFeedback";
@@ -552,6 +553,12 @@ export default function App() {
                     <strong>今天想一起做什么？</strong>
                     <span>说说你的目标、问题，或准备推进的下一步。</span>
                   </div>
+                )}
+                {store.collaborations[thread.id] && (
+                  <CollaborationTimelineCard
+                    timeline={store.collaborations[thread.id]}
+                    act={store.actOnCollaboration}
+                  />
                 )}
                 {activeStates.has(thread.state) &&
                   !thread.messages.some(

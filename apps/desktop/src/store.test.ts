@@ -1,7 +1,9 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
 
 import * as api from "./api";
-import { settleActivity, useStore } from "./store";
+import { mergeCollaborationEvent, settleActivity, useStore } from "./store";
+import type { AgentEvent } from "./types";
+import type { CollaborationTimeline } from "./types";
 
 vi.mock("./api", () => ({
   fetchApprovals: vi.fn(async () => []),
@@ -16,6 +18,8 @@ vi.mock("./api", () => ({
   fetchGitStatus: vi.fn(async () => undefined),
   fetchWorkspaceRemote: vi.fn(async () => undefined),
   fetchExecutionJobs: vi.fn(async () => []),
+  fetchCurrentCollaboration: vi.fn(async () => undefined),
+  fetchCollaborationFindings: vi.fn(async () => []),
   sendMessage: vi.fn(async () => ({
     message_id: "message-1",
     attachments: [],
@@ -36,6 +40,87 @@ afterEach(() => {
     realtime: "disconnected",
     error: undefined,
     activeAgent: undefined,
+    collaborations: {},
+  });
+});
+
+describe("collaboration event timeline", () => {
+  const event = (
+    type: string,
+    sequence: number,
+    payload: Record<string, unknown> = {},
+  ): AgentEvent => ({
+    type,
+    thread_id: "thread",
+    run_id: "run-1",
+    sequence,
+    payload,
+  });
+
+  it("merges stage, agent, findings, waiting and completion events", () => {
+    const events = [
+      event("collaboration.started", 1, {
+        state: "CLARIFYING",
+        round: 1,
+        max_rounds: 3,
+      }),
+      event("collaboration.stage_changed", 2, { state: "IMPLEMENTING" }),
+      event("collaboration.agent_changed", 3, { current_agent: "codex" }),
+      event("collaboration.handoff_created", 4),
+      event("collaboration.review_received", 5),
+      event("collaboration.findings_updated", 6, {
+        open_blocking_count: 2,
+      }),
+      event("collaboration.waiting_user", 7, {
+        state: "WAITING_USER",
+        reason: "请选择",
+      }),
+      event("collaboration.resumed", 8, { state: "FIXING" }),
+      event("collaboration.completed", 9, { state: "COMPLETED" }),
+    ];
+    const merged = events.reduce<CollaborationTimeline | undefined>(
+      (current, item) => mergeCollaborationEvent(current, item),
+      undefined,
+    );
+    expect(merged).toMatchObject({
+      runId: "run-1",
+      state: "COMPLETED",
+      status: "completed",
+      findingsCount: 2,
+      currentAgent: "codex",
+      waitingReason: undefined,
+      lastSequence: 9,
+    });
+    expect(merged?.stages.fix).toBe("completed");
+  });
+
+  it("ignores stale events and tolerates missing or unrelated events", () => {
+    const latest = mergeCollaborationEvent(
+      undefined,
+      event("collaboration.stage_changed", 5, { state: "REVIEWING" }),
+    );
+    expect(
+      mergeCollaborationEvent(
+        latest,
+        event("collaboration.stage_changed", 3, { state: "DRAFT" }),
+      ),
+    ).toBe(latest);
+    expect(
+      mergeCollaborationEvent(latest, {
+        type: "run.output",
+        thread_id: "thread",
+        sequence: 6,
+        payload: {},
+      }),
+    ).toBe(latest);
+    expect(
+      mergeCollaborationEvent(undefined, {
+        type: "collaboration.stage_changed",
+        thread_id: "thread",
+        sequence: 1,
+        payload: {},
+      }),
+    ).toBeUndefined();
   });
 });
 
