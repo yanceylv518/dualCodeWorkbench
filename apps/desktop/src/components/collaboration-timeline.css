@@ -82,6 +82,39 @@
 .collaboration-timeline__intervention input {
   width: 100%;
   margin-bottom: 8px;
+  padding: 9px 11px;
+  border: 1px solid var(--border-subtle);
+  border-radius: var(--radius-sm);
+  background: var(--surface-1);
+  color: var(--text-primary);
+  caret-color: var(--accent-hover);
+  line-height: 1.45;
+  transition:
+    border-color var(--transition-fast),
+    box-shadow var(--transition-fast),
+    background var(--transition-fast);
+}
+
+.collaboration-timeline__intervention input::placeholder {
+  color: var(--text-muted);
+  opacity: 1;
+}
+
+.collaboration-timeline__intervention input:hover:not(:disabled) {
+  border-color: color-mix(in srgb, var(--accent) 48%, var(--border-subtle));
+}
+
+.collaboration-timeline__intervention input:focus {
+  border-color: var(--accent);
+  background: var(--surface-2);
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--accent) 16%, transparent);
+  outline: none;
+}
+
+.collaboration-timeline__intervention input:disabled {
+  background: color-mix(in srgb, var(--surface-1) 72%, transparent);
+  color: var(--text-muted);
+  opacity: 0.7;
 }
 
 .collaboration-timeline__actions {
