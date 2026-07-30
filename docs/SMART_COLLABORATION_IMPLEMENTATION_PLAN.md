@@ -1109,7 +1109,7 @@ Claude review。
 
 ### C5-4 六条 E2E 与阶段验收
 
-- [ ] §12 C5 六条 E2E（mock 适配器 + 本地裸仓伪 VPS，全部经 API 入口驱动）：
+- [x] §12 C5 六条 E2E（mock 适配器 + 本地裸仓伪 VPS，全部经 API 入口驱动）：
   1. 通过：实现 → 审查 pass → COMPLETED。
   2. 一次整改：blocking → FIXING → 复验 → pass → COMPLETED。
   3. 达到上限：连续 blocking 到 `max_rounds` → WAITING_USER + findings 列表。
@@ -1121,6 +1121,11 @@ Claude review。
 - **验收**：六条 E2E 全绿；后端全量 pytest、Ruff、桌面端 TypeScript 通过
   （前端零 diff，§10 UI 属 C6）；GitHub Actions 双平台绿；开关默认关闭下
   现有全部模式零回归。完成后停下等 Claude review。
+- **验证结果（2026-07-30）**：新增六条 HTTP API 驱动 E2E，使用可控 Agent
+  回调与本地裸仓伪 VPS，覆盖直接通过、一次整改、整改到限、审批后续跑、审查中
+  取消并清理影子 ref、重启阻塞后恢复且不重放。六条专项、后端全量 258 项、前端
+  78 项、Ruff 与 TypeScript 全部通过；前端零 diff，功能开关仍默认关闭。GitHub
+  Actions 双平台结果待本提交推送后确认。
   - 2026-07-29：同一任务两轮审查复用 `F-1` 的专项测试通过，两条记录使用独立
     uid 且描述、轮次与 source handoff 互不覆盖；审查方编号不再作为数据库主键。
 - **验证结果（2026-07-29）**：新增两类稳定事件名、严格 detail 模型及返回未入库
