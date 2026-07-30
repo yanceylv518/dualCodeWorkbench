@@ -1121,6 +1121,77 @@ Claude review。
 - **验收**：六条 E2E 全绿；后端全量 pytest、Ruff、桌面端 TypeScript 通过
   （前端零 diff，§10 UI 属 C6）；GitHub Actions 双平台绿；开关默认关闭下
   现有全部模式零回归。完成后停下等 Claude review。
+
+---
+
+## C6 执行清单（交 Codex）
+
+> 执行约定沿用 `docs/REMEDIATION_BACKLOG.md` 全部规则。C6-1 → C6-4 按序执行、
+> 一条目一 commit；C6-1 至 C6-3 完成后先停下等 Claude review，C6-4 的真实
+> 验收需用户配合，按条目内顺序执行。UI 全程受开关守门：
+> `smart_collaboration_enabled` 关闭时界面与现有版本逐像素一致（智能协作
+> 入口不出现），默认入口切换是 C6-4 真实验收通过后的最后一步（§14）。
+
+### C6-1 v2 交接预览与 findings/证据视图
+
+- [ ] `HandoffPanel.tsx`：识别 `payload.schema === "handoff.v2"` 时按结构化
+  视图渲染——任务契约（goal/non_goals/acceptance/constraints）、仓库基线
+  （branch、`base_sha`/`snapshot_sha` 短显 + 悬浮全长、changed_files、
+  diff_stats）、测试证据列表（command/exit_code/summary）、open_findings
+  与 risks；不展示裸 JSON。legacy payload 渲染路径保持不变（开关关闭态
+  回归）。
+- [ ] 检查器新增 findings 视图（挂在「交接」或「状态」下，执行者定并说明）：
+  经 `GET /api/collaboration-runs/{id}/findings` 展示当前 run 的 finding
+  列表——type/severity 徽标、file:line、描述、验收标准、状态（open/
+  resolved）；空态明确文案。
+- **验收**：组件测试覆盖 v2 结构化渲染、legacy 回归、findings 列表与空态；
+  TypeScript、严格 ESLint、Prettier 通过。
+
+### C6-2 统一协作阶段时间线（消息流内）
+
+- [ ] store 接入 §9.3 九类 `collaboration.*` 事件，归并为线程级协作运行
+  状态（当前阶段、轮次、findings 计数、等待原因）；新增 store 归并测试。
+- [ ] 消息流内新增协作时间线卡（复用 A3/A6 行样式与 token，§10.2 形态）：
+  按阶段显示 ✓/●/○ 行（澄清、实现、验证、审查、整改），行内展示轮次与
+  findings 徽标；运行中展开、结束后收起可回看；原始 Agent 输出继续走
+  现有消息/运行日志通道，卡内只放摘要。
+- [ ] 关键节点介入（§10.3）：`WAITING_USER` 时时间线卡内联三个操作
+  （调整后重入 / 直接整改 / 停止）调用 decisions API 并附可选说明；
+  `BLOCKED` 时提供「恢复」「取消」；运行中提供「停止」（cancel API）。
+  审批卡沿用现有机制不重复实现。
+- **验收**：组件与 store 测试覆盖阶段推进渲染、WAITING_USER 三操作、
+  BLOCKED 恢复、停止；事件缺失或乱序时卡片降级显示不崩溃。
+
+### C6-3 智能协作入口与升级路径收敛
+
+- [ ] Composer Agent 选择器：开关开启时选项为「智能协作（默认）/ Codex /
+  Claude」，选智能协作发 `mode=smart`；开关关闭时选项与行为与现有版本
+  完全一致。会话内记住用户上次选择。
+- [ ] 单 Agent 升级路径决策落地（关闭 C5-2 遗留决策）：保持 C3「准备交接
+  不自动发送」语义，但升级 system 提示旁提供「立即发送审查」入口，一键
+  调用现有 send_handoff（走 C4 隔离审查）；不自动进入整改循环。该决策
+  写入 §12 C6 条目下。
+- **验收**：组件测试覆盖开关两态选择器、smart 发送、一键发送审查；
+  前端全量测试、TypeScript、严格 ESLint、Prettier 通过；后端如需微调仅限
+  暴露已有能力，不改协议与循环语义。
+
+### C6-4 产品化构建与真实验收（需用户配合）
+
+- [ ] 构建：Vite 生产构建、Windows sidecar、Tauri release 与安装包；
+  版本号递增避免与旧安装混淆。
+- [ ] 真实验收清单（在验收工作区开启开关，用户执行并逐项回填结果）：
+  1. 安装包全新安装后，用户仅输入目标，智能协作完成一项真实跨文件功能
+     开发并经真实 VPS Claude 隔离审查（§12 C6 验收原文）。
+  2. 真实 blocking finding 触发一轮自动整改并复验通过。
+  3. 审查期间断开 VPS 网络 → run 进入 BLOCKED 且原因明确 → 恢复网络后
+     resume 续跑。
+  4. 应用重启后协作运行恢复到明确状态，无副作用重放。
+  5. 验收期间用户本地分支、origin 与 VPS 主仓全程零意外变更。
+- [ ] 全部真实验收通过并经用户确认后，最后一个 commit 把
+  `smart_collaboration_enabled` 默认值改为开启、Composer 默认入口切换为
+  智能协作（§14 顺序约束）；该 commit 前需 Claude review 放行。
+- **验收**：构建产物齐全；真实验收五项逐条回填；默认切换 commit 单独
+  review。完成后进行 C6 阶段与整体方案（§15 完成定义）终审。
 - **验证结果（2026-07-30）**：新增六条 HTTP API 驱动 E2E，使用可控 Agent
   回调与本地裸仓伪 VPS，覆盖直接通过、一次整改、整改到限、审批后续跑、审查中
   取消并清理影子 ref、重启阻塞后恢复且不重放。六条专项、后端全量 258 项、前端
