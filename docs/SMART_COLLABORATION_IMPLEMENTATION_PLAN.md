@@ -1190,11 +1190,35 @@ Claude review。
   提示旁可一键发送 PREPARED Claude review，不自动进入整改循环。前端全量 90 项、
   后端全量 259 项、TypeScript、严格 ESLint 与 Ruff 通过。
 
+### C6-3b 智能协作改为设置界面开关（用户验收反馈，先于 C6-4）
+
+> 用户反馈：开关必须是应用内设置项，不接受环境变量。一条目一 commit。
+
+- [ ] `runtime_settings.py`：`AgentSettings` 新增
+  `smart_collaboration_enabled: bool = False`，随现有 JSON 存储持久化；
+  `config.py` 的同名环境变量字段删除（避免双真源；如需保留环境变量仅作
+  首次默认值播种，须在条目下写明理由并等 review）。
+- [ ] 后端全部 7 处读取点（`scheduler.py:194`、`api_agents.py:29`、
+  `api_workspaces.py:243,303`、`api_collaboration.py:167,211,361`）统一改读
+  `agent_settings_store.load().smart_collaboration_enabled`；语义不变。
+- [ ] 设置对话框：Agent 设置区新增「智能协作」开关，附一行说明
+  （「由工作台自动组织 Codex 实现与 Claude 审查；关闭后仅保留手动选择
+  Agent」）；保存走现有设置持久化与审计路径。
+- [ ] 前端：保存设置成功后重新拉取 `/api/capabilities` 并刷新
+  `smartCollaborationEnabled`，Composer 选择器与时间线卡即时生效，
+  无需重启应用。
+- **为什么**：开关是产品能力而非运维配置；验收工作区与日常使用都应在
+  界面内一键切换。
+- **验收**：后端测试覆盖「设置保存后 capabilities 与 `mode=smart` 门控
+  即时翻转」；前端测试覆盖开关切换后选择器选项出现/消失；全量门禁与
+  CI 双平台绿；开关关闭态零回归保持。
+
 ### C6-4 产品化构建与真实验收（需用户配合）
 
 - [x] 构建：Vite 生产构建、Windows sidecar、Tauri release 与安装包；
   版本号递增避免与旧安装混淆。
-- [ ] 真实验收清单（在验收工作区开启开关，用户执行并逐项回填结果）：
+- [ ] 真实验收清单（用户在设置界面开启「智能协作」开关后执行并逐项回填
+  结果）：
   1. 安装包全新安装后，用户仅输入目标，智能协作完成一项真实跨文件功能
      开发并经真实 VPS Claude 隔离审查（§12 C6 验收原文）。
   2. 真实 blocking finding 触发一轮自动整改并复验通过。
@@ -1248,6 +1272,37 @@ Claude review。
 - 按约定停在 C0-1，不进入 C0-2/C0-3，等待 Claude review。
 
 ## Review 记录
+
+### C6-1 ~ C6-3 Review（2026-07-30，Claude）
+
+**结论：C6-1/C6-2/C6-3 通过，无返工项。C6-4（构建与真实验收）按清单继续；
+C6 阶段与整体方案终审待真实验收完成。**
+
+逐项核查（独立复验；前端门禁以 CI 双平台为准，本机无 Node 工具链）：
+
+- C6-1 ✓：`HandoffPanel` 以判别联合类型识别 `handoff.v2` 走结构化渲染，
+  测试断言不出现裸 JSON；legacy 渲染路径保留并有回归测试；findings 视图
+  含 type/severity 徽标、file:line、验收标准、状态与明确空态（3 项组件
+  测试）。
+- C6-2 ✓：store 经 `/api/capabilities` 读取开关（请求失败回落 false，
+  不阻塞启动），归并九类 `collaboration.*` 事件为线程级时间线状态；
+  时间线卡五阶段行、轮次与 findings 徽标、运行中展开；`WAITING_USER`
+  三裁决 + 可选说明、`BLOCKED` 恢复/取消、运行中停止均调用 §9.2 API；
+  未知状态与缺失阶段降级渲染不崩溃（有测试）。
+- C6-3 ✓：选择器选项经 `smartCollaborationEnabled` 过滤——开关关闭时
+  `smart` 选项不出现、界面与现版一致；开启时默认智能协作并记住上次选择；
+  升级路径决策按清单落地：不自动进循环，升级 system 提示旁提供
+  「立即发送审查」一键入口（走既有 send_handoff 隔离审查）。
+- 后端改动仅限暴露既有能力：新增只读 `/api/capabilities`（仅返回开关
+  布尔值，无敏感信息）。
+- 复验数据：后端全量 259 项、Ruff 通过；CI 双平台绿（`8e97d53`、
+  `408f567`、`8e5b25d`，含前端 TypeScript、严格 ESLint、Prettier 与
+  Vitest）。
+
+**记录一处已接受的实现选择：**「立即发送审查」按钮以 system 消息文案
+（含「升级为双 Agent 审查」）定位渲染——前后端经由文案耦合，文案变更时
+按钮静默消失（降级安全）。C6-4 后如需加固，可在消息 payload 附结构化
+类型标记，属受控扩展。
 
 ### C5 阶段 Review（2026-07-30，Claude）
 
