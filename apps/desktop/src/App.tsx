@@ -74,6 +74,7 @@ const stateLabel: Record<RunState, string> = {
   FALLBACK_TO_CODEX: "Codex 回复中",
 };
 const modeLabel: Record<Mode, string> = {
+  smart: "智能协作（默认）",
   codex: "发送给 Codex",
   claude: "发送给 Claude",
 };
@@ -554,12 +555,13 @@ export default function App() {
                     <span>说说你的目标、问题，或准备推进的下一步。</span>
                   </div>
                 )}
-                {store.collaborations[thread.id] && (
-                  <CollaborationTimelineCard
-                    timeline={store.collaborations[thread.id]}
-                    act={store.actOnCollaboration}
-                  />
-                )}
+                {store.smartCollaborationEnabled &&
+                  store.collaborations[thread.id] && (
+                    <CollaborationTimelineCard
+                      timeline={store.collaborations[thread.id]}
+                      act={store.actOnCollaboration}
+                    />
+                  )}
                 {activeStates.has(thread.state) &&
                   !thread.messages.some(
                     (message) =>
@@ -592,6 +594,7 @@ export default function App() {
                 setText={setText}
                 mode={store.mode}
                 setMode={store.setMode}
+                smartCollaborationEnabled={store.smartCollaborationEnabled}
                 run={run}
                 cancel={store.cancelRun}
                 running={activeStates.has(thread.state)}
@@ -852,7 +855,8 @@ function ProcessingCard({
   agent: Mode;
   waitingApproval: boolean;
 }) {
-  const name = agent === "codex" ? "Codex" : "Claude";
+  const name =
+    agent === "codex" ? "Codex" : agent === "claude" ? "Claude" : "智能协作";
   const title = waitingApproval
     ? "等待你的授权"
     : state === "PLANNING"
@@ -1163,6 +1167,11 @@ function MessageCard({
   const isStreaming = message.id.startsWith("stream-");
   const workspaceId = useStore((state) => state.workspaceId);
   const threadId = useStore((state) => state.threadId);
+  const notify = useStore((state) => state.notify);
+  const smartCollaborationEnabled = useStore(
+    (state) => state.smartCollaborationEnabled,
+  );
+  const [sendingReview, setSendingReview] = useState(false);
   const names: Record<Agent, string> = {
     user: "你",
     codex: "Codex",
@@ -1179,6 +1188,34 @@ function MessageCard({
       <article className="system-event">
         <SquareTerminal size={12} aria-hidden="true" />
         <p>{text}</p>
+        {smartCollaborationEnabled && text.includes("升级为双 Agent 审查") && (
+          <button
+            type="button"
+            disabled={sendingReview}
+            onClick={() => {
+              setSendingReview(true);
+              void api
+                .listHandoffs(workspaceId, threadId)
+                .then((items) => {
+                  const prepared = items.find(
+                    (item) =>
+                      item.status === "PREPARED" &&
+                      item.recipient === "claude" &&
+                      item.purpose === "review",
+                  );
+                  if (!prepared) throw new Error("未找到待发送的审查交接");
+                  return api.sendHandoff(workspaceId, threadId, prepared.id);
+                })
+                .then(() => notify("info", "已发送 Claude 独立审查"))
+                .catch((error) =>
+                  notify("error", `发送审查失败：${String(error)}`),
+                )
+                .finally(() => setSendingReview(false));
+            }}
+          >
+            {sendingReview ? "发送中…" : "立即发送审查"}
+          </button>
+        )}
         {time && <time>{time}</time>}
       </article>
     );
@@ -1472,6 +1509,7 @@ export function Composer({
   setText,
   mode,
   setMode,
+  smartCollaborationEnabled,
   run,
   cancel,
   running,
@@ -1486,6 +1524,7 @@ export function Composer({
   setText: (value: string) => void;
   mode: Mode;
   setMode: (mode: Mode) => void;
+  smartCollaborationEnabled: boolean;
   run: () => void;
   cancel: () => Promise<void>;
   running: boolean;
@@ -1619,11 +1658,15 @@ export function Composer({
             value={mode}
             onChange={(event) => setMode(event.target.value as Mode)}
           >
-            {Object.entries(modeLabel).map(([value, label]) => (
-              <option key={value} value={value}>
-                {label}
-              </option>
-            ))}
+            {Object.entries(modeLabel)
+              .filter(
+                ([value]) => smartCollaborationEnabled || value !== "smart",
+              )
+              .map(([value, label]) => (
+                <option key={value} value={value}>
+                  {label}
+                </option>
+              ))}
           </select>
           <button
             disabled={offline || (!running && emptyDraft)}

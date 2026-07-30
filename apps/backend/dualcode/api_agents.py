@@ -9,6 +9,7 @@ from fastapi import (
 from sqlalchemy.ext.asyncio import AsyncSession
 from .cli_adapters import ClaudeCliAdapter
 from .codex_app_server import CodexAppServerAdapter
+from .config import settings
 from .database import get_session
 from .models import (
     AuditLog,
@@ -20,6 +21,14 @@ from .runtime_settings import AgentSettings, agent_settings_store
 # Compatibility name retained for integrations that patch the health adapter.
 CodexCliAdapter = CodexAppServerAdapter
 router = APIRouter(prefix="/api")
+
+
+@router.get("/capabilities")
+async def capabilities():
+    return {
+        "smart_collaboration_enabled": settings.smart_collaboration_enabled,
+    }
+
 
 @router.get("/agents/models")
 async def agent_models():

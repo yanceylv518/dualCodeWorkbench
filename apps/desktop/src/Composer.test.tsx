@@ -14,6 +14,7 @@ function renderComposer(
     setText: vi.fn(),
     mode: "codex",
     setMode: vi.fn(),
+    smartCollaborationEnabled: false,
     run: vi.fn(),
     cancel: vi.fn(async () => undefined),
     running: false,
@@ -114,6 +115,23 @@ describe("Composer", () => {
     const stop = screen.getByRole("button", { name: "停止" });
     expect(stop.classList.contains("stop")).toBe(true);
     expect(stop.querySelector(".lucide-square")).toBeTruthy();
+  });
+
+  it("shows smart collaboration only when the capability is enabled", () => {
+    const setMode = vi.fn();
+    renderComposer({ smartCollaborationEnabled: false, setMode });
+    expect(
+      screen.queryByRole("option", { name: "智能协作（默认）" }),
+    ).toBeNull();
+
+    cleanup();
+    renderComposer({ smartCollaborationEnabled: true, setMode });
+    const option = screen.getByRole("option", { name: "智能协作（默认）" });
+    expect(option).toBeTruthy();
+    fireEvent.change(screen.getByRole("combobox", { name: "选择 Agent" }), {
+      target: { value: "smart" },
+    });
+    expect(setMode).toHaveBeenCalledWith("smart");
   });
 });
 

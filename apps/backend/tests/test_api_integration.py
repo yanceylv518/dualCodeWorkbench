@@ -699,6 +699,18 @@ async def test_agent_diagnostics_report_independent_health(
 
 
 @pytest.mark.asyncio
+async def test_capabilities_exposes_smart_collaboration_flag(
+    api_client: httpx.AsyncClient, monkeypatch: pytest.MonkeyPatch
+):
+    from dualcode import api_agents as api
+
+    monkeypatch.setattr(api.settings, "smart_collaboration_enabled", True)
+    response = await api_client.get("/api/capabilities")
+    assert response.status_code == 200
+    assert response.json() == {"smart_collaboration_enabled": True}
+
+
+@pytest.mark.asyncio
 async def test_project_governance_and_task_contract_gate(
     api_client: httpx.AsyncClient,
     tmp_path: Path,

@@ -643,3 +643,14 @@
 - 消息流新增五阶段协作时间线；运行中展开、结束后可收起回看，原始 Agent 输出仍保留在既有消息与日志通道。
 - WAITING_USER、BLOCKED 与运行态分别提供重入、整改、恢复、取消和停止操作，复用现有协作 decisions/resume/cancel API。
 - 前端全量 87 项测试和 TypeScript 类型检查通过；C6-3 尚未开始。
+
+## 2026-07-30 智能协作 C6-3
+
+- 新增只读 capabilities 接口暴露既有 `smart_collaboration_enabled` 开关；关闭态
+  Composer 保持 Codex/Claude 原界面，开启后显示智能协作选项并发送 `mode=smart`。
+- 当前会话记住用户选择；按 §14 约束，初始默认仍保持 Codex，待 C6-4 真实验收通过
+  后再用独立提交切换默认入口。
+- 单 Agent 事后 Diff 升级继续保持“准备交接、不自动发送”；升级 system 提示新增
+  “立即发送审查”，一键发送现有 PREPARED Claude review，不自动进入整改循环。
+- 前端全量 90 项、后端全量 259 项、TypeScript、严格 ESLint 与 Ruff 通过；
+  C6-4 尚未开始。

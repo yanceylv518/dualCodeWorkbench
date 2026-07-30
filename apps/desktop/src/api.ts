@@ -441,6 +441,13 @@ export async function fetchAgentHealth() {
   if (!r.ok) throw new Error(await r.text());
   return r.json();
 }
+export async function fetchCapabilities(): Promise<{
+  smart_collaboration_enabled: boolean;
+}> {
+  const r = await fetch(`${API}/capabilities`);
+  if (!r.ok) throw new Error(await r.text());
+  return r.json();
+}
 export async function fetchAgentModels(): Promise<AgentModelCatalog> {
   const r = await fetch(`${API}/agents/models`);
   if (!r.ok) throw new Error(await r.text());

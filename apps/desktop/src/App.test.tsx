@@ -9,6 +9,7 @@ import {
 import { afterEach, describe, expect, it, vi } from "vitest";
 
 import App from "./App";
+import * as api from "./api";
 import { useStore } from "./store";
 
 afterEach(() => {
@@ -16,6 +17,7 @@ afterEach(() => {
   useStore.setState({
     backend: "connecting",
     mode: "codex",
+    smartCollaborationEnabled: false,
     activeAgent: undefined,
     pendingApproval: undefined,
     realtime: "disconnected",
@@ -83,6 +85,66 @@ describe("workbench", () => {
     expect(event?.textContent).toContain("10:02");
     expect(event?.textContent).not.toContain("System");
     expect(event?.querySelector("p")?.textContent).toBe("测试已通过");
+  });
+
+  it("sends a prepared review handoff from an upgrade system event", async () => {
+    Object.defineProperty(HTMLElement.prototype, "scrollIntoView", {
+      configurable: true,
+      value: vi.fn(),
+    });
+    const base = singleTaskState("CREATED");
+    vi.spyOn(api, "listHandoffs").mockResolvedValue([
+      {
+        id: "handoff-review",
+        recipient: "claude",
+        purpose: "review",
+        status: "PREPARED",
+        payload: {
+          contract: {},
+          repository: {
+            branch: "main",
+            head: "abc",
+            upstream: "origin/main",
+            changed_files: [],
+          },
+          diff: "",
+          tests: [],
+        },
+      },
+    ]);
+    const send = vi.spyOn(api, "sendHandoff").mockResolvedValue(undefined);
+    useStore.setState({
+      ...base,
+      smartCollaborationEnabled: true,
+      workspaces: [
+        {
+          ...base.workspaces[0],
+          threads: [
+            {
+              ...base.workspaces[0].threads[0],
+              messages: [
+                {
+                  id: "upgrade",
+                  agent: "system",
+                  text: "事后 Diff 升级：6 个文件，已升级为双 Agent 审查",
+                  time: "",
+                },
+              ],
+            },
+          ],
+        },
+      ],
+    });
+
+    render(<App />);
+    fireEvent.click(screen.getByRole("button", { name: "立即发送审查" }));
+    await vi.waitFor(() =>
+      expect(send).toHaveBeenCalledWith(
+        "workspace-1",
+        "thread-1",
+        "handoff-review",
+      ),
+    );
   });
 
   it("renders stream placeholders as plain text and persisted messages as Markdown", () => {

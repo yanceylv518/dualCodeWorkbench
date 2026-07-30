@@ -15,7 +15,7 @@ import type {
   WorkspaceRemoteStatus,
 } from "./types";
 
-export type Mode = "codex" | "claude";
+export type Mode = "codex" | "claude" | "smart";
 export interface Notification {
   id: string;
   level: "error" | "info";
@@ -139,6 +139,7 @@ interface Store {
   workspaceId: string;
   threadId: string;
   mode: Mode;
+  smartCollaborationEnabled: boolean;
   activeAgent?: Mode;
   backend: "connecting" | "online" | "offline";
   realtime: "disconnected" | "connecting" | "connected" | "reconnecting";
@@ -314,6 +315,7 @@ export const useStore = create<Store>((set, get) => ({
   workspaceId: "",
   threadId: "",
   mode: "codex",
+  smartCollaborationEnabled: false,
   backend: "connecting",
   realtime: "disconnected",
   terminal: [],
@@ -343,7 +345,12 @@ export const useStore = create<Store>((set, get) => ({
     set({ backend: "connecting" });
     for (let attempt = 0; attempt < 60; attempt += 1) {
       try {
-        const workspaces = await api.fetchWorkspaces();
+        const [workspaces, capabilities] = await Promise.all([
+          api.fetchWorkspaces(),
+          api
+            .fetchCapabilities()
+            .catch(() => ({ smart_collaboration_enabled: false })),
+        ]);
         const workspaceId = workspaces[0]?.id ?? "";
         const threadId = workspaces[0]?.threads[0]?.id ?? "";
         set({
@@ -351,6 +358,7 @@ export const useStore = create<Store>((set, get) => ({
           workspaceId,
           threadId,
           backend: "online",
+          smartCollaborationEnabled: capabilities.smart_collaboration_enabled,
         });
         get().setSelection(workspaceId, threadId);
         return;
@@ -940,7 +948,7 @@ export const useStore = create<Store>((set, get) => ({
         draft.map((item) => item.id),
       )) as { message_id: string; attachments?: Message["attachments"] };
       set((current) => ({
-        activeAgent: state.mode,
+        activeAgent: state.mode === "smart" ? undefined : state.mode,
         draftAttachments: [],
         workspaces: mapThread(current, (thread) => {
           const title = autoTitle || thread.title;

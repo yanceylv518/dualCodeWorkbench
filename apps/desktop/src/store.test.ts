@@ -40,6 +40,8 @@ afterEach(() => {
     realtime: "disconnected",
     error: undefined,
     activeAgent: undefined,
+    mode: "codex",
+    smartCollaborationEnabled: false,
     collaborations: {},
   });
 });
@@ -243,6 +245,34 @@ describe("terminal output", () => {
 });
 
 describe("thread management", () => {
+  it("sends the selected smart collaboration mode", async () => {
+    useStore.setState({
+      workspaceId: "workspace",
+      threadId: "thread",
+      mode: "smart",
+      smartCollaborationEnabled: true,
+      workspaces: [
+        {
+          id: "workspace",
+          name: "Project",
+          path: "D:/Project",
+          threads: [
+            { id: "thread", title: "Task", state: "CREATED", messages: [] },
+          ],
+        },
+      ],
+    });
+
+    await useStore.getState().sendPrompt("实现并审查这一功能");
+    expect(api.sendMessage).toHaveBeenCalledWith(
+      "workspace",
+      "thread",
+      "实现并审查这一功能",
+      "smart",
+      [],
+    );
+  });
+
   it("derives and persists a title from the first user message", async () => {
     useStore.setState({
       workspaceId: "workspace",
