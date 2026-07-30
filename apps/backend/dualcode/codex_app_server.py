@@ -93,7 +93,7 @@ class CodexAppServerAdapter(BaseCliAdapter):
             self._reader_task = asyncio.create_task(self._read_messages())
             self._stderr_task = asyncio.create_task(self._drain_stderr())
             await self._request("initialize", {
-                "clientInfo": {"name": "dualcode-workbench", "title": "DualCode Workbench", "version": "0.1.6"},
+                "clientInfo": {"name": "dualcode-workbench", "title": "DualCode Workbench", "version": "0.1.7"},
                 "capabilities": {"experimentalApi": True},
             })
             await self._notify("initialized", {})
