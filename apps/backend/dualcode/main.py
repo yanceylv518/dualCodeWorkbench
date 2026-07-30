@@ -45,7 +45,12 @@ app.add_middleware(
     ],
     allow_credentials=False,
     allow_methods=["GET", "POST", "PUT", "DELETE"],
-    allow_headers=["Content-Type", "X-DualCode-Token"],
+    allow_headers=[
+        "Content-Type",
+        "X-DualCode-Token",
+        "X-DualCode-Workspace-Id",
+        "X-DualCode-Thread-Id",
+    ],
 )
 app.add_middleware(SidecarTokenMiddleware, token=sidecar_token)
 app.include_router(router)
