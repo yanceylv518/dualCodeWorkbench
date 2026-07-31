@@ -46,7 +46,7 @@ def test_empty_database_upgrades_to_current_schema(tmp_path: Path) -> None:
         }.issubset(memory_indexes)
         with engine.connect() as connection:
             assert connection.scalar(text("SELECT version_num FROM alembic_version")) == (
-                "0004_collaboration_review"
+                "0005_agent_run_failure_context"
             )
     finally:
         engine.dispose()
@@ -190,7 +190,12 @@ def test_pre_patch_database_preserves_data_and_adds_columns(tmp_path: Path) -> N
     try:
         inspector = inspect(engine)
         assert "message_id" in {column["name"] for column in inspector.get_columns("attachments")}
-        assert {"before_diff", "after_diff"}.issubset(
+        assert {
+            "before_diff",
+            "after_diff",
+            "failure_kind",
+            "failure_context",
+        }.issubset(
             {column["name"] for column in inspector.get_columns("agent_runs")}
         )
         assert "evidence" in {
@@ -234,7 +239,7 @@ def test_post_patch_database_is_stamped_without_data_loss(tmp_path: Path) -> Non
                 text("SELECT name FROM workspaces WHERE id = 'workspace-1'")
             ) == "Existing project"
             assert connection.scalar(text("SELECT version_num FROM alembic_version")) == (
-                "0004_collaboration_review"
+                "0005_agent_run_failure_context"
             )
     finally:
         engine.dispose()

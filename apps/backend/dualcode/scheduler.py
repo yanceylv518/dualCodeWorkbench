@@ -1010,8 +1010,14 @@ class RunScheduler:
                     await db.commit()
                 try:
                     response = await self._stream_agent(adapter, AgentRequest(thread_id, request_prompt, context, attachments), agent, emit)
-                except Exception:
-                    if "session_id" not in context:
+                except Exception as exc:
+                    # A timeout may follow an in-flight command or file edit.
+                    # Replaying the prompt could duplicate irreversible side
+                    # effects, so only ordinary stale-session failures receive
+                    # the legacy fresh-thread fallback.
+                    if "session_id" not in context or isinstance(
+                        getattr(exc, "context", None), dict
+                    ):
                         raise
                     context.pop("session_id")
                     response = await self._stream_agent(adapter, AgentRequest(thread_id, request_prompt, context, attachments), agent, emit)
@@ -1055,6 +1061,22 @@ class RunScheduler:
                 run.state = RunState.FAILED
                 error_message = f"Agent 运行失败：{exc}"
                 run.output = error_message
+                failure_context = getattr(exc, "context", None)
+                if isinstance(failure_context, dict):
+                    run.failure_kind = str(
+                        failure_context.get("failure_kind") or "agent_failure"
+                    )
+                    run.failure_context = json.dumps(
+                        failure_context, ensure_ascii=False
+                    )
+                    db.add(
+                        AuditLog(
+                            workspace_id=workspace.id,
+                            thread_id=thread_id,
+                            event="agent.turn.failed",
+                            detail=run.failure_context,
+                        )
+                    )
                 await db.commit()
                 await emit(EventType.ERROR, {"message": error_message})
                 await emit(EventType.RUN_STATE_CHANGED, {"state": RunState.CREATED.value})

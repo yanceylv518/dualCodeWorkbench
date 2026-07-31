@@ -215,6 +215,8 @@ class AgentRun(Base):
     output: Mapped[str] = mapped_column(Text, default="")
     before_diff: Mapped[str] = mapped_column(Text, default="")
     after_diff: Mapped[str] = mapped_column(Text, default="")
+    failure_kind: Mapped[str] = mapped_column(String(40), default="")
+    failure_context: Mapped[str] = mapped_column(Text, default="{}")
 
 
 class AgentSession(Base):

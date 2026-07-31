@@ -1,7 +1,9 @@
 import asyncio
 import json
+import os
 import re
 import subprocess
+import time
 import uuid
 from collections import deque
 from collections.abc import AsyncIterator
@@ -16,6 +18,7 @@ from .adapters import (
     AgentStreamEventType,
 )
 from .cli_adapters import BaseCliAdapter, CliUnavailableError
+from .windows_job import WindowsProcessJob
 
 
 class AppServerProtocolError(RuntimeError):
@@ -24,6 +27,10 @@ class AppServerProtocolError(RuntimeError):
 
 class AppServerNoProgressError(AppServerProtocolError):
     """The app-server accepted a turn but then stopped emitting events."""
+
+    def __init__(self, message: str, *, context: dict[str, object]) -> None:
+        super().__init__(message)
+        self.context = context
 
 
 class CodexAppServerAdapter(BaseCliAdapter):
@@ -48,13 +55,18 @@ class CodexAppServerAdapter(BaseCliAdapter):
 
     def __init__(self, executable: str = "codex", timeout_seconds: float = 900,
                  model: str = "", reasoning_effort: str = "medium", permission_mode: str = "safe",
-                 progress_timeout_seconds: float = 60) -> None:
+                 progress_timeout_seconds: float = 120,
+                 command_timeout_seconds: float = 600,
+                 probe_grace_seconds: float = 15) -> None:
         super().__init__(executable, timeout_seconds)
         self.model = model
         self.reasoning_effort = reasoning_effort
         self.permission_mode = permission_mode
         self.progress_timeout_seconds = progress_timeout_seconds
+        self.command_timeout_seconds = command_timeout_seconds
+        self.probe_grace_seconds = probe_grace_seconds
         self._process: asyncio.subprocess.Process | None = None
+        self._process_job: WindowsProcessJob | None = None
         self._reader_task: asyncio.Task[None] | None = None
         self._stderr_task: asyncio.Task[None] | None = None
         self._pending: dict[int, asyncio.Future[dict]] = {}
@@ -66,6 +78,48 @@ class CodexAppServerAdapter(BaseCliAdapter):
         # 真实 CLI 协议随版本演进；记录未被映射的通知方法名，供诊断接口排查
         # 「事件为什么没出现在界面上」这类问题。仅存方法名，不存参数。
         self.unhandled_methods: dict[str, int] = {}
+
+    def _timeout_context(
+        self, *, thread_id: str, turn_id: str, last_event: dict | None,
+        active_items: dict[str, str], idle_seconds: float, probe_succeeded: bool,
+    ) -> dict[str, object]:
+        params = last_event.get("params") if isinstance(last_event, dict) and isinstance(last_event.get("params"), dict) else {}
+        item = params.get("item") if isinstance(params.get("item"), dict) else {}
+        return {
+            "failure_kind": "codex_turn_stalled",
+            "thread_id": thread_id,
+            "turn_id": turn_id,
+            "idle_seconds": round(idle_seconds, 2),
+            "last_method": str((last_event or {}).get("method") or ""),
+            "last_item_id": str(item.get("id") or params.get("itemId") or ""),
+            "last_item_type": str(item.get("type") or ""),
+            "active_items": active_items,
+            "active_command": any(kind in {"commandExecution", "command_execution"} for kind in active_items.values()),
+            "probe_succeeded": probe_succeeded,
+            "process_id": getattr(self._process, "pid", None),
+            "stderr": " | ".join(self._stderr_lines)[-1200:],
+            "retry_safe": not bool(active_items),
+        }
+
+    @staticmethod
+    def _track_activity(event: dict, active_items: dict[str, str]) -> None:
+        method = event.get("method")
+        params = event.get("params") if isinstance(event.get("params"), dict) else {}
+        item = params.get("item") if isinstance(params.get("item"), dict) else {}
+        item_id = str(item.get("id") or params.get("itemId") or "")
+        if method == "item/started" and item_id:
+            active_items[item_id] = str(item.get("type") or "")
+        elif method == "item/completed" and item_id:
+            active_items.pop(item_id, None)
+
+    async def _probe_thread(self, thread_id: str) -> bool:
+        if self._process is None or self._process.returncode is not None:
+            return False
+        try:
+            await self._request("thread/read", {"threadId": thread_id, "includeTurns": False})
+            return True
+        except Exception:
+            return False
 
     def command_args(self, request: AgentRequest) -> list[str]:
         return ["app-server"]
@@ -88,6 +142,9 @@ class CodexAppServerAdapter(BaseCliAdapter):
                 stdin=asyncio.subprocess.PIPE, stdout=asyncio.subprocess.PIPE,
                 stderr=asyncio.subprocess.PIPE,
                 creationflags=getattr(subprocess, "CREATE_NO_WINDOW", 0),
+            )
+            self._process_job = WindowsProcessJob.attach(
+                getattr(self._process, "pid", None)
             )
             self._stderr_lines.clear()
             self._reader_task = asyncio.create_task(self._read_messages())
@@ -286,22 +343,61 @@ class CodexAppServerAdapter(BaseCliAdapter):
         if not turn_id:
             raise AppServerProtocolError("turn/start returned no turn id")
         self._turn_queues[turn_id] = queue
+        active_items: dict[str, str] = {}
+        last_event: dict | None = None
+        last_activity_at = time.monotonic()
         try:
             async with asyncio.timeout(self.timeout_seconds):
                 while True:
                     try:
-                        event = await asyncio.wait_for(
-                            queue.get(), timeout=self.progress_timeout_seconds
-                        )
+                        wait_seconds = self.command_timeout_seconds if any(
+                            item_type in {"commandExecution", "command_execution"}
+                            for item_type in active_items.values()
+                        ) else self.progress_timeout_seconds
+                        event = await asyncio.wait_for(queue.get(), timeout=wait_seconds)
                     except TimeoutError as exc:
-                        # A wedged app-server can keep the process alive without
-                        # ever completing the turn. Reset the transport so the
-                        # scheduler can retry a stale session as a fresh thread.
-                        await self.close()
+                        idle_seconds = time.monotonic() - last_activity_at
+                        probe_succeeded = await self._probe_thread(thread_id)
+                        if probe_succeeded and active_items:
+                            yield json.dumps({"type": "watchdog.status", "thread_id": thread_id, "item": {
+                                "id": "codex-watchdog", "type": "watchdog",
+                                "text": "命令仍在运行，连接探活正常，继续等待结果。",
+                            }}, ensure_ascii=False)
+                            last_activity_at = time.monotonic()
+                            continue
+                        if probe_succeeded:
+                            try:
+                                event = await asyncio.wait_for(queue.get(), timeout=self.probe_grace_seconds)
+                            except TimeoutError:
+                                with suppress(Exception):
+                                    await self._request("turn/interrupt", {"threadId": thread_id, "turnId": turn_id})
+                            else:
+                                last_event = event
+                                last_activity_at = time.monotonic()
+                                self._track_activity(event, active_items)
+                                normalized = self._normalize(event, thread_id)
+                                if normalized:
+                                    yield json.dumps(normalized, ensure_ascii=False)
+                                    if normalized["type"] == "turn.completed":
+                                        break
+                                continue
+                        context = self._timeout_context(
+                            thread_id=thread_id, turn_id=turn_id,
+                            last_event=last_event, active_items=active_items,
+                            idle_seconds=idle_seconds, probe_succeeded=probe_succeeded,
+                        )
+                        if not probe_succeeded:
+                            await self.close()
                         raise AppServerNoProgressError(
-                            f"Codex app-server {self.progress_timeout_seconds:g} 秒内没有返回任何进展，"
-                            "已重启连接并准备重试"
+                            "Codex 本轮长时间没有可见进展。"
+                            f"最后事件：{context['last_method'] or '无'}；"
+                            f"探活：{'成功' if probe_succeeded else '失败'}。"
+                            "为避免重复执行有副作用的操作，本轮未自动重试。",
+                            context=context,
                         ) from exc
+                    last_event = event
+                    last_activity_at = time.monotonic()
+                    self._track_activity(event, active_items)
                     if event.get("id") is not None and event.get("method") in self._APPROVAL_METHODS:
                         handler = request.context.get("approval_callback")
                         params = event.get("params") if isinstance(event.get("params"), dict) else {}
@@ -347,7 +443,7 @@ class CodexAppServerAdapter(BaseCliAdapter):
                     session_id=session_id,
                     text=str(event.get("text") or ""),
                 )
-            elif event_type in {"activity.event", "activity.delta"}:
+            elif event_type in {"activity.event", "activity.delta", "watchdog.status"}:
                 item = event.get("item")
                 if isinstance(item, dict):
                     yield AgentStreamEvent(
@@ -374,6 +470,30 @@ class CodexAppServerAdapter(BaseCliAdapter):
 
     async def close(self) -> None:
         process = self._process
+        if self._process_job is not None:
+            self._process_job.close()
+            self._process_job = None
+        elif (
+            os.name == "nt"
+            and process
+            and process.returncode is None
+            and getattr(process, "pid", None)
+        ):
+            # Some hosts already place the sidecar in a non-nestable Job
+            # Object. Fall back to the OS process-tree terminator in that case.
+            with suppress(Exception):
+                cleanup = await asyncio.create_subprocess_exec(
+                    "taskkill",
+                    "/PID",
+                    str(process.pid),
+                    "/T",
+                    "/F",
+                    stdout=asyncio.subprocess.DEVNULL,
+                    stderr=asyncio.subprocess.DEVNULL,
+                    creationflags=getattr(subprocess, "CREATE_NO_WINDOW", 0),
+                )
+                with suppress(TimeoutError):
+                    await asyncio.wait_for(cleanup.wait(), 5)
         if process and process.returncode is None:
             with suppress(ProcessLookupError):
                 process.terminate()
