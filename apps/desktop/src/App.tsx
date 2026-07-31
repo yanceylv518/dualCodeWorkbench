@@ -646,7 +646,15 @@ export default function App() {
               </button>
             )}
           </div>
-          {rightTab === "status" && (
+          {!workspace ? (
+            <div className="inspector-no-workspace" role="status">
+              <FolderGit2 size={24} aria-hidden="true" />
+              <strong>尚未打开项目</strong>
+              <span>
+                打开或创建 Git 项目后，这里会显示仓库、规则和交接状态。
+              </span>
+            </div>
+          ) : rightTab === "status" ? (
             <>
               <div className="inspector-subtabs">
                 <button
@@ -696,20 +704,20 @@ export default function App() {
                 />
               )}
             </>
-          )}
-          {rightTab === "contract" && (
+          ) : null}
+          {workspace && rightTab === "contract" && (
             <ContractPanel
               workspaceId={store.workspaceId}
               threadId={store.threadId}
             />
           )}
-          {rightTab === "handoff" && (
+          {workspace && rightTab === "handoff" && (
             <HandoffPanel
               workspaceId={store.workspaceId}
               threadId={store.threadId}
             />
           )}
-          {rightTab === "recovery" && (
+          {workspace && rightTab === "recovery" && (
             <RecoveryPanel
               jobs={store.executionJobs}
               runs={store.details?.runs ?? []}

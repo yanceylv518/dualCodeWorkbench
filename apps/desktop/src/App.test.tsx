@@ -43,6 +43,28 @@ const singleTaskState = (state: "CREATED" | "IMPLEMENTING") => ({
 });
 
 describe("workbench", () => {
+  it("shows a stable inspector empty state when no project is open", () => {
+    useStore.setState({
+      backend: "online",
+      workspaces: [],
+      workspaceId: "",
+      threadId: "",
+      gitStatus: undefined,
+      remoteStatus: undefined,
+    });
+
+    render(<App />);
+
+    expect(screen.getByText("尚未打开项目")).toBeTruthy();
+    expect(screen.queryByText("正在读取仓库状态…")).toBeNull();
+    expect(screen.queryByText("VPS 仓库")).toBeNull();
+    expect(
+      screen.getByText(
+        "打开或创建 Git 项目后，这里会显示仓库、规则和交接状态。",
+      ),
+    ).toBeTruthy();
+  });
+
   it("renders a greeting-only empty state", () => {
     useStore.setState(singleTaskState("CREATED"));
 
@@ -319,6 +341,7 @@ describe("workbench", () => {
   });
 
   it("renders the compact inspector navigation", () => {
+    useStore.setState(singleTaskState("CREATED"));
     render(<App />);
 
     expect(screen.getAllByText("DualCode Workbench").length).toBeGreaterThan(0);
