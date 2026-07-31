@@ -43,6 +43,21 @@ const singleTaskState = (state: "CREATED" | "IMPLEMENTING") => ({
 });
 
 describe("workbench", () => {
+  it("keeps new-task creation at project level and dismisses task menus", () => {
+    useStore.setState(singleTaskState("CREATED"));
+
+    const { container } = render(<App />);
+    expect(
+      screen.getByRole("button", { name: /Project.*新建任务/ }),
+    ).toBeTruthy();
+    expect(container.querySelector(".new-thread")).toBeNull();
+
+    fireEvent.click(screen.getByRole("button", { name: /Task/ }));
+    expect(container.querySelector(".thread-menu")).toBeTruthy();
+    fireEvent.pointerDown(document.body);
+    expect(container.querySelector(".thread-menu")).toBeNull();
+  });
+
   it("shows a stable inspector empty state when no project is open", () => {
     useStore.setState({
       backend: "online",

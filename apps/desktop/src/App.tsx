@@ -14,7 +14,6 @@ import {
   FileText,
   GitBranch,
   LoaderCircle,
-  MessageSquarePlus,
   MoreHorizontal,
   Pencil,
   Play,
@@ -439,16 +438,31 @@ export default function App() {
                     <strong>{item.name}</strong>
                     <small title={item.path}>{item.path}</small>
                   </div>
-                  <button
-                    data-project-menu-trigger
-                    onClick={() =>
-                      setProjectMenu((current) =>
-                        current === item.id ? undefined : item.id,
-                      )
-                    }
-                  >
-                    <MoreHorizontal size={14} />
-                  </button>
+                  <div className="project-heading-actions">
+                    <button
+                      className="project-new-thread"
+                      aria-label={`在 ${item.name} 中新建任务`}
+                      disabled={store.creatingThread}
+                      onClick={(event) => {
+                        event.stopPropagation();
+                        store.setSelection(item.id, "");
+                        void store.newThread();
+                      }}
+                    >
+                      <Plus size={14} />
+                    </button>
+                    <button
+                      data-project-menu-trigger
+                      aria-label={`管理项目 ${item.name}`}
+                      onClick={() =>
+                        setProjectMenu((current) =>
+                          current === item.id ? undefined : item.id,
+                        )
+                      }
+                    >
+                      <MoreHorizontal size={14} />
+                    </button>
+                  </div>
                   {projectMenu === item.id && (
                     <div className="project-menu">
                       <button
@@ -474,16 +488,6 @@ export default function App() {
                     />
                   ))}
                 </div>
-                {item.id === store.workspaceId && (
-                  <button
-                    className="new-thread"
-                    disabled={store.creatingThread}
-                    onClick={() => void store.newThread()}
-                  >
-                    <MessageSquarePlus size={13} />
-                    {store.creatingThread ? "创建中…" : "新建任务"}
-                  </button>
-                )}
               </section>
             ))}
           </div>
@@ -916,6 +920,28 @@ function ThreadButton({
   const [title, setTitle] = useState(task.title);
   const [menu, setMenu] = useState(false);
   const [confirmingDelete, setConfirmingDelete] = useState(false);
+  const container = useRef<HTMLDivElement>(null);
+  useEffect(() => {
+    if (!menu) return;
+    const dismiss = (event: PointerEvent) => {
+      if (!container.current?.contains(event.target as Node)) {
+        setMenu(false);
+        setConfirmingDelete(false);
+      }
+    };
+    const dismissWithKeyboard = (event: KeyboardEvent) => {
+      if (event.key === "Escape") {
+        setMenu(false);
+        setConfirmingDelete(false);
+      }
+    };
+    window.addEventListener("pointerdown", dismiss);
+    window.addEventListener("keydown", dismissWithKeyboard);
+    return () => {
+      window.removeEventListener("pointerdown", dismiss);
+      window.removeEventListener("keydown", dismissWithKeyboard);
+    };
+  }, [menu]);
   const save = async () => {
     const normalized = title.trim();
     if (normalized && normalized !== task.title) await rename(normalized);
@@ -924,8 +950,13 @@ function ThreadButton({
   };
   return (
     <div
+      ref={container}
       className={`thread-button ${active ? "active" : ""}`}
-      onClick={onClick}
+      onClick={() => {
+        setMenu(false);
+        setConfirmingDelete(false);
+        onClick();
+      }}
     >
       <span className={`state-dot ${task.state.toLowerCase()}`} />
       <div>

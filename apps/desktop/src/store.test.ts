@@ -654,6 +654,37 @@ describe("thread realtime event merging", () => {
 });
 
 describe("thread realtime connection", () => {
+  it("ignores errors from a socket after its task is no longer selected", async () => {
+    const sockets: Array<Record<string, unknown>> = [];
+    vi.mocked(api.threadSocket).mockImplementation(async () => {
+      const socket = { close: vi.fn() };
+      sockets.push(socket);
+      return socket as unknown as WebSocket;
+    });
+    useStore.setState({
+      backend: "online",
+      workspaceId: "",
+      threadId: "",
+      workspaces: [
+        {
+          id: "workspace",
+          name: "Project",
+          path: "D:/Project",
+          threads: [
+            { id: "thread", title: "Task", state: "CREATED", messages: [] },
+          ],
+        },
+      ],
+    });
+
+    useStore.getState().setSelection("workspace", "thread");
+    await vi.waitFor(() => expect(sockets).toHaveLength(1));
+    useStore.getState().setSelection("", "");
+    (sockets[0].onerror as (() => void) | undefined)?.();
+
+    expect(useStore.getState().realtime).toBe("disconnected");
+  });
+
   it("schedules a reconnect after the socket closes", async () => {
     vi.useFakeTimers();
     const sockets: Array<Record<string, unknown>> = [];

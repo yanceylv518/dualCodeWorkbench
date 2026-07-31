@@ -885,7 +885,15 @@ export const useStore = create<Store>((set, get) => ({
             if (data.type === "approval.decided")
               set({ pendingApproval: undefined });
           };
-          socket.onerror = () => set({ realtime: "reconnecting" });
+          socket.onerror = () => {
+            if (
+              get().workspaceId !== workspaceId ||
+              get().threadId !== threadId ||
+              get().backend !== "online"
+            )
+              return;
+            set({ realtime: "reconnecting" });
+          };
           socket.onclose = () => {
             if (
               get().workspaceId !== workspaceId ||
@@ -1157,15 +1165,8 @@ export const useStore = create<Store>((set, get) => ({
       await api.removeWorkspace(workspaceId);
       const workspaces = await api.fetchWorkspaces();
       const next = workspaces[0];
-      set({
-        workspaces,
-        workspaceId: next?.id ?? "",
-        threadId: next?.threads[0]?.id ?? "",
-        details: undefined,
-        gitStatus: undefined,
-        remoteStatus: undefined,
-      });
-      if (next) get().setSelection(next.id, next.threads[0]?.id ?? "");
+      set({ workspaces });
+      get().setSelection(next?.id ?? "", next?.threads[0]?.id ?? "");
     } catch (error) {
       get().notify("error", String(error));
       throw error;

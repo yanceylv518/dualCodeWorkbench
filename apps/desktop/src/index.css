@@ -4196,6 +4196,95 @@ body,
   outline: 2px solid var(--accent);
   outline-offset: 3px;
 }
+
+/* Compact project navigation: project actions live at the project level and
+   tasks read as a quiet list instead of stacked cards. */
+.project-list {
+  margin-top: 6px;
+}
+.project-group {
+  padding: 7px 2px 10px;
+}
+.project-heading {
+  position: relative;
+  align-items: center;
+  min-height: 34px;
+  gap: 5px;
+  padding: 3px 6px;
+}
+.project-heading > svg {
+  margin-top: 0;
+}
+.project-heading > div.min-w-0 {
+  min-width: 0;
+}
+.project-heading strong {
+  font-size: 13px;
+  font-weight: 600;
+}
+.project-heading small {
+  margin-top: 1px;
+  font-size: 11px;
+}
+.project-heading-actions {
+  display: flex;
+  flex: none;
+  align-items: center;
+  gap: 1px;
+  opacity: 0;
+  transition: opacity var(--transition-fast);
+}
+.project-heading:hover .project-heading-actions,
+.project-heading:focus-within .project-heading-actions {
+  opacity: 1;
+}
+.project-heading .project-heading-actions button {
+  display: grid;
+  width: 25px;
+  height: 25px;
+  place-items: center;
+  border-radius: 6px;
+  padding: 0;
+}
+.project-heading .project-heading-actions button:hover {
+  background: var(--surface-2);
+  color: var(--text-primary);
+}
+.thread-list {
+  margin-top: 2px;
+}
+.thread-button {
+  min-height: 38px;
+  align-items: center;
+  gap: 7px;
+  padding: 5px 7px 5px 10px;
+  border-radius: 6px;
+}
+.thread-button.active {
+  background: color-mix(in srgb, var(--surface-3) 72%, transparent);
+  box-shadow: inset 2px 0 var(--accent);
+}
+.thread-button strong {
+  font-size: 12px;
+  font-weight: 550;
+}
+.thread-button small {
+  margin-top: 1px;
+  font-size: 11px;
+  line-height: 1.25;
+}
+.thread-button .state-dot {
+  width: 5px;
+  height: 5px;
+  margin-top: 0;
+}
+.thread-menu-trigger {
+  flex: none;
+}
+.thread-button > .thread-menu {
+  top: 34px;
+  right: 4px;
+}
 .project-heading strong,
 .task-title-row h1,
 .inspector-tabs button.active,
