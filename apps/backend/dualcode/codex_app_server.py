@@ -52,6 +52,9 @@ class CodexAppServerAdapter(BaseCliAdapter):
         "item/fileChange/requestApproval",
         "item/permissions/requestApproval",
     }
+    # Codex uses newline-delimited JSON-RPC. Command output can legitimately
+    # make one JSON line much larger than asyncio's 64 KiB default.
+    _MAX_PROTOCOL_LINE_BYTES = 10 * 1024 * 1024
 
     def __init__(self, executable: str = "codex", timeout_seconds: float = 900,
                  model: str = "", reasoning_effort: str = "medium", permission_mode: str = "safe",
@@ -190,6 +193,7 @@ class CodexAppServerAdapter(BaseCliAdapter):
                 executable, "app-server", cwd=workspace, env=self.safe_environment(),
                 stdin=asyncio.subprocess.PIPE, stdout=asyncio.subprocess.PIPE,
                 stderr=asyncio.subprocess.PIPE,
+                limit=self._MAX_PROTOCOL_LINE_BYTES,
                 creationflags=getattr(subprocess, "CREATE_NO_WINDOW", 0),
             )
             self._process_job = WindowsProcessJob.attach(
@@ -231,8 +235,30 @@ class CodexAppServerAdapter(BaseCliAdapter):
 
     async def _read_messages(self) -> None:
         assert self._process and self._process.stdout
+        reader_failure: Exception | None = None
         try:
-            while line := await self._process.stdout.readline():
+            while True:
+                try:
+                    line = await self._process.stdout.readline()
+                except (ValueError, asyncio.LimitOverrunError):
+                    # StreamReader.readline discards the oversized line (or
+                    # clears its partial buffer) before raising ValueError, so
+                    # the following read starts at the next JSON-RPC line.
+                    self._stderr_lines.append(
+                        "Codex app-server protocol line exceeded the 10 MiB limit; "
+                        "the line was discarded and reading continued."
+                    )
+                    diagnostic = {
+                        "method": "transport/diagnostic",
+                        "params": {
+                            "message": "Codex 单条协议消息超过 10 MiB，已丢弃该行并继续读取。"
+                        },
+                    }
+                    for queue in self._turn_queues.values():
+                        await queue.put(diagnostic)
+                    continue
+                if not line:
+                    break
                 try:
                     event = json.loads(line.decode("utf-8", errors="replace"))
                 except json.JSONDecodeError:
@@ -265,13 +291,16 @@ class CodexAppServerAdapter(BaseCliAdapter):
                     thread_id = str(params.get("threadId") or params.get("thread", {}).get("id") or "")
                     if thread_id and (queue := self._thread_queues.get(thread_id)):
                         await queue.put(event)
+        except asyncio.CancelledError:
+            raise
+        except Exception as exc:
+            reader_failure = exc
         finally:
             process = self._process
-            if process is not None and process.returncode is None:
-                with suppress(Exception):
-                    await process.wait()
             detail = " | ".join(self._stderr_lines)
             message = "Codex app-server 意外退出"
+            if reader_failure is not None:
+                message += f": 读取通道失败（{type(reader_failure).__name__}）"
             if detail:
                 message += f": {detail[-1200:]}"
             error = AppServerProtocolError(message)
@@ -280,6 +309,18 @@ class CodexAppServerAdapter(BaseCliAdapter):
                     future.set_exception(error)
             for queue in self._turn_queues.values():
                 await queue.put({"method": "transport/error", "params": {"message": str(error)}})
+            # Never wait indefinitely for a healthy process after its stdout
+            # reader has died: pending RPCs and turn consumers are already
+            # notified above, then the unusable transport is torn down.
+            if process is not None and process.returncode is None:
+                with suppress(ProcessLookupError):
+                    process.terminate()
+                try:
+                    await asyncio.wait_for(process.wait(), 3)
+                except TimeoutError:
+                    if hasattr(process, "kill"):
+                        with suppress(ProcessLookupError):
+                            process.kill()
             self._process = None
 
     async def _drain_stderr(self) -> None:
@@ -340,6 +381,8 @@ class CodexAppServerAdapter(BaseCliAdapter):
             return {"type": "activity.event", "thread_id": thread_id, "event": method, "item": item}
         if method == "item/commandExecution/outputDelta":
             return {"type": "terminal.delta", "thread_id": thread_id, "text": str(params.get("delta") or "")}
+        if method == "transport/diagnostic":
+            return {"type": "terminal.delta", "thread_id": thread_id, "text": str(params.get("message") or "")}
         if method == "turn/completed":
             turn = params.get("turn") if isinstance(params.get("turn"), dict) else {}
             status = str(turn.get("status") or "completed")

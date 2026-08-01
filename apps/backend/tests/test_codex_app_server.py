@@ -43,7 +43,11 @@ class FakeProcess:
         self.thread_read_result = {}
 
     def emit(self, value):
-        self.stdout.queue.put_nowait((json.dumps(value) + "\n").encode())
+        data = (json.dumps(value) + "\n").encode()
+        if hasattr(self.stdout, "feed_data"):
+            self.stdout.feed_data(data)
+        else:
+            self.stdout.queue.put_nowait(data)
 
     def reply(self, request):
         if "id" not in request:
@@ -80,6 +84,11 @@ class FakeProcess:
 
     def terminate(self):
         self.returncode = -15
+
+
+class FailingOutput:
+    async def readline(self):
+        raise RuntimeError("reader exploded")
 
 
 @pytest.mark.asyncio
@@ -121,6 +130,72 @@ async def test_app_server_exposes_normalized_stream_events(monkeypatch, tmp_path
     assert all(event.session_id == "thread-app-1" for event in events)
     assert "".join(event.text for event in events) == "hello world"
     await adapter.close()
+
+
+@pytest.mark.asyncio
+async def test_app_server_accepts_json_lines_larger_than_asyncio_default(
+    monkeypatch, tmp_path
+):
+    process = FakeProcess()
+    process.stdout = asyncio.StreamReader(
+        limit=CodexAppServerAdapter._MAX_PROTOCOL_LINE_BYTES
+    )
+    large_text = "x" * (70 * 1024)
+
+    def emit_large_turn():
+        process.emit({
+            "method": "item/agentMessage/delta",
+            "params": {
+                "threadId": "thread-app-1", "turnId": "turn-1",
+                "delta": large_text,
+            },
+        })
+        process.emit({
+            "method": "turn/completed",
+            "params": {
+                "threadId": "thread-app-1",
+                "turn": {"id": "turn-1", "status": "completed"},
+            },
+        })
+
+    process.emit_turn = emit_large_turn
+    captured = {}
+
+    async def create_process(*args, **kwargs):
+        captured.update(kwargs)
+        return process
+
+    adapter = CodexAppServerAdapter("fake")
+    monkeypatch.setattr(adapter, "resolve_executable", lambda: "fake")
+    monkeypatch.setattr(asyncio, "create_subprocess_exec", create_process)
+
+    response = await adapter.send(
+        AgentRequest("local-thread", "hello", {"workspace_path": str(tmp_path)})
+    )
+
+    assert response.content == large_text
+    assert captured["limit"] == 10 * 1024 * 1024
+    await adapter.close()
+
+
+@pytest.mark.asyncio
+async def test_reader_failure_notifies_pending_requests_and_turns_without_hanging():
+    process = FakeProcess()
+    process.stdout = FailingOutput()
+    adapter = CodexAppServerAdapter("fake")
+    adapter._process = process
+    pending = asyncio.get_running_loop().create_future()
+    adapter._pending[7] = pending
+    queue = asyncio.Queue()
+    adapter._turn_queues["turn-1"] = queue
+
+    await asyncio.wait_for(adapter._read_messages(), timeout=0.1)
+
+    with pytest.raises(AppServerProtocolError, match="读取通道失败"):
+        await pending
+    event = await asyncio.wait_for(queue.get(), timeout=0.1)
+    assert event["method"] == "transport/error"
+    assert process.returncode == -15
 
 
 @pytest.mark.asyncio

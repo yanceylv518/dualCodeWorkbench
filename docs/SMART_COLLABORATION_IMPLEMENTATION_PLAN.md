@@ -1262,20 +1262,24 @@ Claude review。
    → 「探活：失败」→ 误报无进展并拆毁会话，用户看到 Codex 已完成却被
    判失败。
 
-- [ ] `create_subprocess_exec` 传 `limit=10 * 1024 * 1024`（10MiB，与协议
+  - [x] `create_subprocess_exec` 传 `limit=10 * 1024 * 1024`（10MiB，与协议
   单消息合理上界匹配；常量命名并注释理由）。
-- [ ] `_read_messages` 对 `readline()` 的 `ValueError`/`LimitOverrunError`
+  - [x] `_read_messages` 对 `readline()` 的 `ValueError`/`LimitOverrunError`
   显式容错：丢弃该超限行并继续读到下一换行符重新同步（记一条终端诊断），
   不允许读取协程因单行超限死亡。
-- [ ] 修复 `finally` 挂死：读取协程因异常退出而进程仍存活时，不得无限
+  - [x] 修复 `finally` 挂死：读取协程因异常退出而进程仍存活时，不得无限
   `await process.wait()`——先行终止进程（或带超时 wait 后 kill），再无条件
   执行 pending futures 与队列的 `transport/error` 通知；通知不可达代码的
   结构问题一并消除。
-- [ ] 回归测试：① 构造 >64KiB 的单行 `outputDelta` 协议消息 → 事件正常
+  - [x] 回归测试：① 构造 >64KiB 的单行 `outputDelta` 协议消息 → 事件正常
   解析、轮次完成；② 模拟读取协程异常退出且进程存活 → pending `_request`
   与 turn 队列在限定时间内收到 transport 错误，不挂死。
-- **验收**：新回归测试与后端全量 pytest、Ruff 通过；CI 双平台绿；修复后
-  重建安装包更新 SHA-256，用户在真实验收中复测「大输出命令轮次」不再假死。
+  - **验收**：新回归测试与后端全量 pytest、Ruff 通过；CI 双平台绿；修复后
+    重建安装包更新 SHA-256，用户在真实验收中复测「大输出命令轮次」不再假死。
+  - **实现结果（2026-08-01）**：stdout StreamReader 上限提升为 10 MiB；超限行会
+    记录终端诊断并继续同步下一条 JSON-RPC；读取协程异常时先通知所有 pending RPC
+    与 turn 队列，再终止失效进程，消除不可达通知。>64 KiB 单行和活进程读取异常
+    两条根因回归均通过；Codex app-server 专项 19 项、后端全量与 Ruff 见本提交验证。
 
 ### C6-4 产品化构建与真实验收（需用户配合）
 

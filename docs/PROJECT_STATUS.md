@@ -1,5 +1,11 @@
 # DualCode Workbench 项目状态
 
+## 2026-08-01 C6-4-R1 Codex 64 KiB 读取根因修复
+
+- 按 Claude Code 审查结论将 app-server stdout 单行上限从 asyncio 默认 64 KiB 提升至 10 MiB，避免大段命令输出形成的 JSON-RPC 单行杀死读取协程。
+- 超限协议行会记录终端诊断并继续读取下一行；读取协程异常退出时先唤醒 pending RPC 与 turn 消费者，再限时终止失效进程，不再无限等待仍存活的 Codex 进程。
+- 新增 >64 KiB 单行解析和“读取异常但进程仍活着”两条根因回归；结果回收继续作为最终事件丢失时的第二层兜底。
+
 ## 2026-08-01 Codex 已完成结果回收
 
 - 按 Claude Code 修复方案把 watchdog 探活升级为 `thread/read(includeTurns=true)` 事实检查，直接读取目标 turn 的持久化状态和完整消息，而不是只确认 app-server 进程仍可连接。
