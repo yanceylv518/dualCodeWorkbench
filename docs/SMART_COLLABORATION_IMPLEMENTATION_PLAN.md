@@ -1242,6 +1242,41 @@ Claude review。
   `0.1.7`，版本修复提交 `14d414b` 的 CI（run `30531780458`）再次双平台全绿，
   并从该基线完成 Vite、Windows sidecar、Tauri release、MSI/NSIS 最终重建。
 
+### C6-4-R1 修复 Codex 读取通道 64KiB 行上限致假死（真实验收阻塞缺陷）
+
+> 用户真实验收报告：智能模式运行总被卡住报「Codex 本轮长时间没有可见进展。
+> 最后事件：item/commandExecution/outputDelta；探活：失败」，但 Codex 端
+> 实际已执行并产出完整回答。根因由 Claude 定位如下，三处一并修复，
+> 一个 commit。近期 `8bc6049`/`bf4d5d1`/`6565a85` 均为症状缓解，未触及根因。
+
+**根因链（`codex_app_server.py`）**：
+
+1. `create_subprocess_exec`（:148）未传 `limit=`，stdout `StreamReader` 用
+   asyncio 默认 64KiB 行上限；命令输出大时单行 JSON-RPC（含
+   `item/commandExecution/outputDelta` 载荷）超限，`readline()`（:194）抛
+   `ValueError`，读取协程死亡。
+2. `_read_messages` 的 `finally` 先 `await process.wait()`——进程此刻仍
+   健康存活（它会正常完成整轮），`wait()` 永不返回，pending futures 与
+   turn 队列的 `transport/error` 通知永远发不出。
+3. 主循环队列断粮；探活响应也依赖已死的读取协程，`_request` 15 秒超时
+   → 「探活：失败」→ 误报无进展并拆毁会话，用户看到 Codex 已完成却被
+   判失败。
+
+- [ ] `create_subprocess_exec` 传 `limit=10 * 1024 * 1024`（10MiB，与协议
+  单消息合理上界匹配；常量命名并注释理由）。
+- [ ] `_read_messages` 对 `readline()` 的 `ValueError`/`LimitOverrunError`
+  显式容错：丢弃该超限行并继续读到下一换行符重新同步（记一条终端诊断），
+  不允许读取协程因单行超限死亡。
+- [ ] 修复 `finally` 挂死：读取协程因异常退出而进程仍存活时，不得无限
+  `await process.wait()`——先行终止进程（或带超时 wait 后 kill），再无条件
+  执行 pending futures 与队列的 `transport/error` 通知；通知不可达代码的
+  结构问题一并消除。
+- [ ] 回归测试：① 构造 >64KiB 的单行 `outputDelta` 协议消息 → 事件正常
+  解析、轮次完成；② 模拟读取协程异常退出且进程存活 → pending `_request`
+  与 turn 队列在限定时间内收到 transport 错误，不挂死。
+- **验收**：新回归测试与后端全量 pytest、Ruff 通过；CI 双平台绿；修复后
+  重建安装包更新 SHA-256，用户在真实验收中复测「大输出命令轮次」不再假死。
+
 ### C6-4 产品化构建与真实验收（需用户配合）
 
 - [x] 构建：Vite 生产构建、Windows sidecar、Tauri release 与安装包；
