@@ -55,6 +55,8 @@ class FakeProcess:
         result = {}
         if method == "thread/start":
             result = {"thread": {"id": "thread-app-1"}}
+        elif method == "thread/resume":
+            result = {"thread": {"id": request["params"]["threadId"]}}
         elif method == "turn/start":
             result = {"turn": {"id": "turn-1"}}
         self.emit({"id": request["id"], "result": result})
@@ -129,6 +131,7 @@ async def test_app_server_resumes_existing_thread(monkeypatch, tmp_path):
 
     assert response.run_id == "thread-app-1"
     assert not any(item.get("method") == "thread/start" for item in process.stdin.writes)
+    assert any(item.get("method") == "thread/resume" for item in process.stdin.writes)
     await adapter.close()
 
 
@@ -155,9 +158,13 @@ async def test_app_server_resets_transport_when_turn_stops_emitting_events(
 
     assert caught.value.context["probe_succeeded"] is True
     assert caught.value.context["retry_safe"] is True
-    assert process.returncode is None
+    assert process.returncode == -15
     assert any(item.get("method") == "turn/interrupt" for item in process.stdin.writes)
     await adapter.close()
+
+
+def test_default_command_watchdog_does_not_wait_ten_minutes():
+    assert CodexAppServerAdapter("fake").command_timeout_seconds == 180
 
 
 @pytest.mark.asyncio

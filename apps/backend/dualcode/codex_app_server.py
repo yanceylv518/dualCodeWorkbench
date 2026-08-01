@@ -56,7 +56,7 @@ class CodexAppServerAdapter(BaseCliAdapter):
     def __init__(self, executable: str = "codex", timeout_seconds: float = 900,
                  model: str = "", reasoning_effort: str = "medium", permission_mode: str = "safe",
                  progress_timeout_seconds: float = 120,
-                 command_timeout_seconds: float = 600,
+                 command_timeout_seconds: float = 180,
                  probe_grace_seconds: float = 15) -> None:
         super().__init__(executable, timeout_seconds)
         self.model = model
@@ -75,6 +75,10 @@ class CodexAppServerAdapter(BaseCliAdapter):
         self._request_id = 0
         self._start_lock = asyncio.Lock()
         self._stderr_lines: deque[str] = deque(maxlen=20)
+        # Thread ids are process-scoped from the protocol client's point of
+        # view.  A restarted app-server must explicitly resume persisted
+        # threads before accepting another turn.
+        self._loaded_threads: set[str] = set()
         # 真实 CLI 协议随版本演进；记录未被映射的通知方法名，供诊断接口排查
         # 「事件为什么没出现在界面上」这类问题。仅存方法名，不存参数。
         self.unhandled_methods: dict[str, int] = {}
@@ -151,6 +155,7 @@ class CodexAppServerAdapter(BaseCliAdapter):
                 getattr(self._process, "pid", None)
             )
             self._stderr_lines.clear()
+            self._loaded_threads.clear()
             self._reader_task = asyncio.create_task(self._read_messages())
             self._stderr_task = asyncio.create_task(self._drain_stderr())
             await self._request("initialize", {
@@ -319,9 +324,9 @@ class CodexAppServerAdapter(BaseCliAdapter):
         thread_id = request.context.get("session_id")
         if thread_id is not None and not isinstance(thread_id, str):
             raise ValueError("session_id must be a string")
+        approval_policy = "on-request" if self.permission_mode == "safe" else "never"
+        legacy_sandbox = "danger-full-access" if self.permission_mode == "full_access" else "workspace-write"
         if not thread_id:
-            approval_policy = "on-request" if self.permission_mode == "safe" else "never"
-            legacy_sandbox = "danger-full-access" if self.permission_mode == "full_access" else "workspace-write"
             result = await self._request("thread/start", {
                 "cwd": str(workspace), "approvalPolicy": approval_policy, "sandbox": legacy_sandbox,
                 "model": self.model or None,
@@ -329,6 +334,14 @@ class CodexAppServerAdapter(BaseCliAdapter):
             thread_id = self._thread_id(result)
             if not thread_id:
                 raise AppServerProtocolError("thread/start returned no thread id")
+            self._loaded_threads.add(thread_id)
+        elif thread_id not in self._loaded_threads:
+            await self._request("thread/resume", {
+                "threadId": thread_id, "cwd": str(workspace),
+                "approvalPolicy": approval_policy, "sandbox": legacy_sandbox,
+                "model": self.model or None,
+            })
+            self._loaded_threads.add(thread_id)
         yield json.dumps({"type": "thread.started", "thread_id": thread_id})
         queue: asyncio.Queue[dict] = asyncio.Queue()
         self._thread_queues[thread_id] = queue
@@ -388,8 +401,12 @@ class CodexAppServerAdapter(BaseCliAdapter):
                             last_event=last_event, active_items=active_items,
                             idle_seconds=idle_seconds, probe_succeeded=probe_succeeded,
                         )
-                        if not probe_succeeded:
-                            await self.close()
+                        # A turn that did not settle after an explicit probe
+                        # and interrupt is no longer a trustworthy transport,
+                        # even when thread/read happened to answer.  Tear down
+                        # the whole process tree so the next user recovery is
+                        # guaranteed to start from a clean protocol session.
+                        await self.close()
                         raise AppServerNoProgressError(
                             "Codex 本轮长时间没有可见进展。"
                             f"最后事件：{context['last_method'] or '无'}；"
@@ -505,3 +522,4 @@ class CodexAppServerAdapter(BaseCliAdapter):
             if task:
                 task.cancel()
         self._process = None
+        self._loaded_threads.clear()
