@@ -746,6 +746,14 @@
 - Windows app-server 进入 Job Object，关闭连接时同时终止其子进程树，避免残留
   PowerShell、测试或构建进程占用仓库和端口。
 
+## 2026-08-01 Agent Git 非交互执行加固
+
+- 实机失败证据确认 Codex turn 中有 4 个命令执行项持续 600 秒未结束，最后协议事件为
+  `item/commandExecution/outputDelta`，而 app-server 进程本身并非直接崩溃。
+- Agent 子进程现在统一设置 `GIT_TERMINAL_PROMPT=0`、`GCM_INTERACTIVE=Never` 和
+  `SSH_ASKPASS_REQUIRE=never`。已配置的凭据助手仍可正常使用；缺少凭据时 Git 将立即返回明确错误，
+  不再因不可见的终端询问阻塞智能协作。
+
 ## 2026-07-31 未打开项目时的检查器空状态
 
 - 未选择工作区时，右侧检查器不再把 `gitStatus === undefined` 误解为正在加载，

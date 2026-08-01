@@ -3,7 +3,19 @@ from pathlib import Path
 import pytest
 
 from dualcode.adapters import AgentAttachment, AgentRequest, AgentStreamEventType
-from dualcode.cli_adapters import ClaudeCliAdapter, CodexCliAdapter
+from dualcode.cli_adapters import BaseCliAdapter, ClaudeCliAdapter, CodexCliAdapter
+
+
+def test_agent_environment_disables_invisible_git_prompts(monkeypatch):
+    monkeypatch.setenv("GIT_TERMINAL_PROMPT", "1")
+    monkeypatch.setenv("GCM_INTERACTIVE", "Always")
+    monkeypatch.setenv("SSH_ASKPASS_REQUIRE", "force")
+
+    environment = BaseCliAdapter("unused").safe_environment()
+
+    assert environment["GIT_TERMINAL_PROMPT"] == "0"
+    assert environment["GCM_INTERACTIVE"] == "Never"
+    assert environment["SSH_ASKPASS_REQUIRE"] == "never"
 
 
 def test_codex_builds_parameterized_image_arguments(tmp_path: Path):

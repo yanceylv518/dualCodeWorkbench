@@ -52,7 +52,22 @@ class BaseCliAdapter(AgentAdapter):
             "COMSPEC",
             "PATHEXT",
         }
-        return {key: value for key, value in os.environ.items() if key.upper() in allowed}
+        environment = {
+            key: value for key, value in os.environ.items() if key.upper() in allowed
+        }
+        # Agent commands run without an interactive terminal.  A Git credential
+        # prompt would therefore be invisible and can leave an app-server turn
+        # waiting forever.  Existing credential helpers still work; when no
+        # credential is available Git now fails promptly with an actionable
+        # authentication error instead of blocking the Agent transport.
+        environment.update(
+            {
+                "GIT_TERMINAL_PROMPT": "0",
+                "GCM_INTERACTIVE": "Never",
+                "SSH_ASKPASS_REQUIRE": "never",
+            }
+        )
+        return environment
 
     def workspace(self, request: AgentRequest) -> Path:
         raw = request.context.get("workspace_path")
