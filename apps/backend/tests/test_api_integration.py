@@ -17,7 +17,14 @@ os.environ["DATA_DIR"] = tempfile.mkdtemp(prefix="dualcode-api-integration-")
 from dualcode.database import get_session
 from dualcode.config import sidecar_token
 from dualcode.main import app
-from dualcode.models import AuditLog, Base, ExecutionJob, FileChange, Message, TestRun as PersistedTestRun
+from dualcode.models import (
+    AuditLog,
+    Base,
+    ExecutionJob,
+    FileChange,
+    Message,
+    TestRun as PersistedTestRun,
+)
 from sqlalchemy import select
 
 
@@ -76,16 +83,21 @@ async def test_health_and_empty_install_are_ready(api_client: httpx.AsyncClient)
     assert workspaces.status_code == 200
     assert workspaces.json() == []
 
-    preflight = await api_client.options("/api/workspaces/example", headers={
-        "Origin": "tauri://localhost",
-        "Access-Control-Request-Method": "DELETE",
-    })
+    preflight = await api_client.options(
+        "/api/workspaces/example",
+        headers={
+            "Origin": "tauri://localhost",
+            "Access-Control-Request-Method": "DELETE",
+        },
+    )
     assert preflight.status_code == 200
     assert "DELETE" in preflight.headers["access-control-allow-methods"]
 
 
 @pytest.mark.asyncio
-async def test_workspace_and_thread_lifecycle_persists(api_client: httpx.AsyncClient, tmp_path: Path):
+async def test_workspace_and_thread_lifecycle_persists(
+    api_client: httpx.AsyncClient, tmp_path: Path
+):
     repository = tmp_path / "repository"
     repository.mkdir()
     (repository / ".git").mkdir()
@@ -175,6 +187,7 @@ async def test_smart_message_is_accepted_when_feature_flag_is_enabled(
         return "smart-run"
 
     from dualcode import api_workspaces
+
     monkeypatch.setattr(api_workspaces.scheduler, "start", fake_start)
     assert (await _set_smart_collaboration(api_client, True)).status_code == 200
     assert (await api_client.get("/api/capabilities")).json() == {
@@ -207,9 +220,7 @@ async def test_thread_can_be_renamed_and_deleted_with_audit(
     repository = tmp_path / "thread-management"
     repository.mkdir()
     (repository / ".git").mkdir()
-    workspace = (
-        await api_client.post("/api/workspaces", json={"path": str(repository)})
-    ).json()
+    workspace = (await api_client.post("/api/workspaces", json={"path": str(repository)})).json()
     thread_id = workspace["threads"][0]["id"]
 
     renamed = await api_client.patch(
@@ -219,9 +230,7 @@ async def test_thread_can_be_renamed_and_deleted_with_audit(
     assert renamed.status_code == 200
     assert renamed.json()["title"] == "正式任务名称"
 
-    removed = await api_client.delete(
-        f"/api/workspaces/{workspace['id']}/threads/{thread_id}"
-    )
+    removed = await api_client.delete(f"/api/workspaces/{workspace['id']}/threads/{thread_id}")
     assert removed.status_code == 204
     listed = (await api_client.get("/api/workspaces")).json()
     assert listed[0]["threads"] == []
@@ -229,16 +238,16 @@ async def test_thread_can_be_renamed_and_deleted_with_audit(
     sessions = api_client._dualcode_test_sessions  # type: ignore[attr-defined]
     async with sessions() as db:
         events = list(
-            await db.scalars(
-                select(AuditLog.event).where(AuditLog.thread_id == thread_id)
-            )
+            await db.scalars(select(AuditLog.event).where(AuditLog.thread_id == thread_id))
         )
     assert "thread.renamed" in events
     assert "thread.deleted" in events
 
 
 @pytest.mark.asyncio
-async def test_workspace_creation_rejects_non_repository(api_client: httpx.AsyncClient, tmp_path: Path):
+async def test_workspace_creation_rejects_non_repository(
+    api_client: httpx.AsyncClient, tmp_path: Path
+):
     directory = tmp_path / "not-a-repository"
     directory.mkdir()
 
@@ -249,9 +258,7 @@ async def test_workspace_creation_rejects_non_repository(api_client: httpx.Async
 
 
 @pytest.mark.asyncio
-async def test_user_facing_http_errors_are_localized(
-    api_client: httpx.AsyncClient, tmp_path: Path
-):
+async def test_user_facing_http_errors_are_localized(api_client: httpx.AsyncClient, tmp_path: Path):
     workspace, thread = await _workspace(api_client, tmp_path)
     prefix = f"/api/workspaces/{workspace['id']}/threads/{thread['id']}"
 
@@ -301,9 +308,7 @@ async def test_docx_attachment_is_validated_stored_and_downloadable(
     assert uploaded.status_code == 201, uploaded.text
     assert uploaded.json()["name"] == "requirements.docx"
     assert uploaded.json()["media_type"] == media_type
-    content = await api_client.get(
-        f"{prefix}/attachments/{uploaded.json()['id']}/content"
-    )
+    content = await api_client.get(f"{prefix}/attachments/{uploaded.json()['id']}/content")
     assert content.status_code == 200
     assert content.content == document
 
@@ -315,15 +320,19 @@ async def test_docx_attachment_is_validated_stored_and_downloadable(
     assert "Word 文档" in invalid.json()["detail"]
 
 
-
 @pytest.mark.asyncio
 async def test_workspace_can_be_initialized_linked_and_removed_without_deleting_files(
     api_client: httpx.AsyncClient, tmp_path: Path
 ):
     repository = tmp_path / "new-product"
-    created = await api_client.post("/api/workspaces/provision", json={
-        "path": str(repository), "mode": "init", "remote_url": "https://example.invalid/team/product.git"
-    })
+    created = await api_client.post(
+        "/api/workspaces/provision",
+        json={
+            "path": str(repository),
+            "mode": "init",
+            "remote_url": "https://example.invalid/team/product.git",
+        },
+    )
     assert created.status_code == 201, created.text
     workspace = created.json()
     assert (repository / ".git").is_dir()
@@ -335,9 +344,14 @@ async def test_workspace_can_be_initialized_linked_and_removed_without_deleting_
     assert remote.json()["local"]["head"]
     assert remote.json()["local"]["commits"][0]["subject"] == "chore: initialize project"
 
-    repeated = await api_client.post("/api/workspaces/provision", json={
-        "path": str(repository), "mode": "init", "remote_url": "https://example.invalid/team/product.git"
-    })
+    repeated = await api_client.post(
+        "/api/workspaces/provision",
+        json={
+            "path": str(repository),
+            "mode": "init",
+            "remote_url": "https://example.invalid/team/product.git",
+        },
+    )
     assert repeated.status_code == 201
     assert repeated.json()["id"] == workspace["id"]
 
@@ -374,9 +388,7 @@ async def _workspace(api_client: httpx.AsyncClient, tmp_path: Path) -> tuple[dic
     return workspace, workspace["threads"][0]
 
 
-async def _set_smart_collaboration(
-    api_client: httpx.AsyncClient, enabled: bool
-) -> httpx.Response:
+async def _set_smart_collaboration(api_client: httpx.AsyncClient, enabled: bool) -> httpx.Response:
     current = (await api_client.get("/api/settings/agents")).json()
     current["smart_collaboration_enabled"] = enabled
     return await api_client.put("/api/settings/agents", json=current)
@@ -393,12 +405,19 @@ def _collaboration_headers(workspace_id: str, thread_id: str) -> dict[str, str]:
 async def test_collaboration_run_api_obeys_flag_and_returns_current(
     api_client: httpx.AsyncClient,
     tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
 ):
+    from dualcode.api_collaboration import scheduler
+
+    started: list[tuple[str, str, str]] = []
+
+    async def start(thread_id: str, run_id: str, prompt: str) -> str:
+        started.append((thread_id, run_id, prompt))
+        return run_id
+
+    monkeypatch.setattr(scheduler, "start_collaboration_run", start)
     workspace, thread = await _workspace(api_client, tmp_path)
-    path = (
-        f"/api/workspaces/{workspace['id']}/threads/{thread['id']}"
-        "/collaboration-runs"
-    )
+    path = f"/api/workspaces/{workspace['id']}/threads/{thread['id']}/collaboration-runs"
     assert (await _set_smart_collaboration(api_client, False)).status_code == 200
     disabled = await api_client.post(path, json={"goal": "实现正式功能"})
     assert disabled.status_code == 422
@@ -407,7 +426,11 @@ async def test_collaboration_run_api_obeys_flag_and_returns_current(
     assert (await _set_smart_collaboration(api_client, True)).status_code == 200
     created = await api_client.post(path, json={"goal": "实现正式功能"})
     assert created.status_code == 201
-    assert created.json()["state"] == "WAITING_USER"
+    assert created.json()["state"] == "READY"
+    assert started == [(thread["id"], created.json()["id"], "实现正式功能")]
+    contract = (await api_client.get(f"{path.rsplit('/collaboration-runs', 1)[0]}/contract")).json()
+    assert contract["task"]["goal"] == "实现正式功能"
+    assert len(contract["task"]["acceptance"]) >= 2
     current = await api_client.get(f"{path}/current")
     assert current.status_code == 200
     assert current.json()["id"] == created.json()["id"]
@@ -583,7 +606,9 @@ async def test_approval_job_failure_and_explicit_retry_are_auditable(
 
     workspace, thread = await _workspace(api_client, tmp_path)
     prefix = f"/api/workspaces/{workspace['id']}/threads/{thread['id']}"
-    requested = await api_client.post(f"{prefix}/git/actions", json={"action": "push", "message": ""})
+    requested = await api_client.post(
+        f"{prefix}/git/actions", json={"action": "push", "message": ""}
+    )
     assert requested.status_code == 202
     approval_id = requested.json()["approval_id"]
 
@@ -674,11 +699,16 @@ async def test_attachment_diff_test_result_and_audit_chain(
     sessions = api_client._dualcode_test_sessions  # type: ignore[attr-defined]
     async with sessions() as db:
         from dualcode.models import Attachment
+
         attachment = await db.get(Attachment, attachment_id)
         assert attachment is not None
         assert attachment.storage_key.endswith(".png")
         db.add(FileChange(thread_id=thread["id"], path="src/example.py", diff="+professional\n"))
-        db.add(PersistedTestRun(thread_id=thread["id"], command="pytest -q", output="1 passed", exit_code=0))
+        db.add(
+            PersistedTestRun(
+                thread_id=thread["id"], command="pytest -q", output="1 passed", exit_code=0
+            )
+        )
         await db.commit()
 
     details = await api_client.get(f"{prefix}/details")
@@ -689,7 +719,9 @@ async def test_attachment_diff_test_result_and_audit_chain(
 
     async with sessions() as db:
         audit = await db.scalar(
-            select(AuditLog).where(AuditLog.workspace_id == workspace["id"], AuditLog.event == "attachment.created")
+            select(AuditLog).where(
+                AuditLog.workspace_id == workspace["id"], AuditLog.event == "attachment.created"
+            )
         )
     assert audit is not None
     assert "pixel.png" in audit.detail
@@ -743,22 +775,39 @@ async def test_project_governance_and_task_contract_gate(
     assert any("潜在问题" in rule for rule in initial["governance"]["rules"])
     assert len(initial["governance"]["rules"]) == 12
     assert len(initial["governance"]["deliverables"]) == 7
-    assert (await api_client.put(f"/api/workspaces/{workspace['id']}/governance", json={
-        "product_goal": "交付本地双 Agent 工程工作台", "product_boundary": "不是完整 IDE",
-        "rules": ["所有状态必须持久化"], "deliverables": ["测试报告", "发布产物"],
-    })).status_code == 200
-    assert (await api_client.put(f"{prefix}/contract", json={
-        "goal": "实现项目规则中心", "non_goals": ["本轮不自动提交"],
-        "acceptance": ["重启后规则仍存在"], "constraints": ["不得使用演示数据"],
-        "risks": ["旧数据库兼容"], "status": "READY",
-    })).status_code == 200
+    assert (
+        await api_client.put(
+            f"/api/workspaces/{workspace['id']}/governance",
+            json={
+                "product_goal": "交付本地双 Agent 工程工作台",
+                "product_boundary": "不是完整 IDE",
+                "rules": ["所有状态必须持久化"],
+                "deliverables": ["测试报告", "发布产物"],
+            },
+        )
+    ).status_code == 200
+    assert (
+        await api_client.put(
+            f"{prefix}/contract",
+            json={
+                "goal": "实现项目规则中心",
+                "non_goals": ["本轮不自动提交"],
+                "acceptance": ["重启后规则仍存在"],
+                "constraints": ["不得使用演示数据"],
+                "risks": ["旧数据库兼容"],
+                "status": "READY",
+            },
+        )
+    ).status_code == 200
     saved = (await api_client.get(f"{prefix}/contract")).json()
     assert saved["gate"] == {"ready_for_implementation": True, "missing": []}
     assert saved["task"]["acceptance"] == ["重启后规则仍存在"]
     assert saved["governance"]["rules"][-1] == "所有状态必须持久化"
     assert saved["governance"]["deliverables"] == ["测试报告", "发布产物"]
 
-    prepared = await api_client.post(f"{prefix}/handoffs", json={"recipient": "claude", "purpose": "review"})
+    prepared = await api_client.post(
+        f"{prefix}/handoffs", json={"recipient": "claude", "purpose": "review"}
+    )
     assert prepared.status_code == 201
     package = prepared.json()
     assert package["payload"]["contract"]["task_goal"] == "实现项目规则中心"

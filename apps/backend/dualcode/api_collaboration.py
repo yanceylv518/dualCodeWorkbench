@@ -58,6 +58,7 @@ from .handoff_compiler import compile_handoff_v2
 from .collaboration_orchestrator import (
     advance as advance_collaboration,
     cancel as cancel_collaboration,
+    ensure_contract_draft,
     resume as resume_collaboration,
     start_run as start_collaboration_run,
 )
@@ -77,9 +78,7 @@ class CollaborationScope:
 def _collaboration_scope(
     workspace_query: str | None = Query(default=None, alias="workspace_id"),
     thread_query: str | None = Query(default=None, alias="thread_id"),
-    workspace_header: str | None = Header(
-        default=None, alias="X-DualCode-Workspace-Id"
-    ),
+    workspace_header: str | None = Header(default=None, alias="X-DualCode-Workspace-Id"),
     thread_header: str | None = Header(default=None, alias="X-DualCode-Thread-Id"),
 ) -> CollaborationScope:
     """Accept query context for WebView calls while preserving header clients."""
@@ -103,9 +102,7 @@ def _collaboration_payload(run: CollaborationRun) -> dict[str, object]:
         "error": run.error,
         "created_at": run.created_at.isoformat(),
         "updated_at": run.updated_at.isoformat(),
-        "completed_at": (
-            run.completed_at.isoformat() if run.completed_at is not None else None
-        ),
+        "completed_at": (run.completed_at.isoformat() if run.completed_at is not None else None),
     }
 
 
@@ -132,7 +129,9 @@ async def _owned_collaboration_run(
 
 def _workspace_query():
     return select(Workspace).options(
-        selectinload(Workspace.threads).selectinload(Thread.messages).selectinload(Message.attachments)
+        selectinload(Workspace.threads)
+        .selectinload(Thread.messages)
+        .selectinload(Message.attachments)
     )
 
 
@@ -158,8 +157,12 @@ async def list_approvals(
     ]
 
 
-async def _handoff_payload(db: AsyncSession, workspace: Workspace, thread_id: str) -> dict[str, object]:
-    governance = await db.scalar(select(ProjectGovernance).where(ProjectGovernance.workspace_id == workspace.id))
+async def _handoff_payload(
+    db: AsyncSession, workspace: Workspace, thread_id: str
+) -> dict[str, object]:
+    governance = await db.scalar(
+        select(ProjectGovernance).where(ProjectGovernance.workspace_id == workspace.id)
+    )
     contract = await db.scalar(select(TaskContract).where(TaskContract.thread_id == thread_id))
     changes = (await db.scalars(select(FileChange).where(FileChange.thread_id == thread_id))).all()
     tests = (await db.scalars(select(TestRun).where(TestRun.thread_id == thread_id))).all()
@@ -168,23 +171,41 @@ async def _handoff_payload(db: AsyncSession, workspace: Workspace, thread_id: st
         "contract": {
             "product_goal": governance.product_goal if governance else "",
             "product_boundary": governance.product_boundary if governance else "",
-            "project_rules": recommended_rules(_json_list(governance.rules)) if governance else DEFAULT_PROJECT_RULES,
-            "deliverables": recommended_deliverables(_json_list(governance.deliverables)) if governance else DEFAULT_DELIVERABLES,
-            "task_goal": contract.goal if contract else "", "non_goals": _json_list(contract.non_goals) if contract else [],
-            "acceptance": _json_list(contract.acceptance) if contract else [], "constraints": _json_list(contract.constraints) if contract else [],
-            "known_risks": _json_list(contract.risks) if contract else [], "status": contract.status if contract else "DRAFT",
+            "project_rules": recommended_rules(_json_list(governance.rules))
+            if governance
+            else DEFAULT_PROJECT_RULES,
+            "deliverables": recommended_deliverables(_json_list(governance.deliverables))
+            if governance
+            else DEFAULT_DELIVERABLES,
+            "task_goal": contract.goal if contract else "",
+            "non_goals": _json_list(contract.non_goals) if contract else [],
+            "acceptance": _json_list(contract.acceptance) if contract else [],
+            "constraints": _json_list(contract.constraints) if contract else [],
+            "known_risks": _json_list(contract.risks) if contract else [],
+            "status": contract.status if contract else "DRAFT",
         },
-        "repository": {"branch": repository["branch"], "head": repository["head"], "upstream": repository["upstream"],
-                       "changed_files": [item.path for item in changes]},
+        "repository": {
+            "branch": repository["branch"],
+            "head": repository["head"],
+            "upstream": repository["upstream"],
+            "changed_files": [item.path for item in changes],
+        },
         "diff": changes[0].diff[:200_000] if changes else "",
-        "tests": [{"command": item.command, "exit_code": item.exit_code, "output": item.output[-20_000:]} for item in tests[-10:]],
+        "tests": [
+            {"command": item.command, "exit_code": item.exit_code, "output": item.output[-20_000:]}
+            for item in tests[-10:]
+        ],
     }
 
 
 @router.post("/workspaces/{workspace_id}/threads/{thread_id}/handoffs", status_code=201)
-async def prepare_handoff(workspace_id: str, thread_id: str, body: HandoffCreate, db: AsyncSession = Depends(get_session)):
+async def prepare_handoff(
+    workspace_id: str, thread_id: str, body: HandoffCreate, db: AsyncSession = Depends(get_session)
+):
     workspace = await db.get(Workspace, workspace_id)
-    thread = await db.scalar(select(Thread).where(Thread.id == thread_id, Thread.workspace_id == workspace_id))
+    thread = await db.scalar(
+        select(Thread).where(Thread.id == thread_id, Thread.workspace_id == workspace_id)
+    )
     if not workspace or not thread:
         raise HTTPException(404, "项目与任务不匹配")
     try:
@@ -203,45 +224,84 @@ async def prepare_handoff(workspace_id: str, thread_id: str, body: HandoffCreate
             payload = await _handoff_payload(db, workspace, thread_id)
     except GitError as exc:
         raise HTTPException(400, f"无法生成交接包：{exc}") from exc
-    item = HandoffPackage(workspace_id=workspace_id, thread_id=thread_id, recipient=body.recipient,
-                          purpose=body.purpose, payload=json.dumps(payload, ensure_ascii=False))
+    item = HandoffPackage(
+        workspace_id=workspace_id,
+        thread_id=thread_id,
+        recipient=body.recipient,
+        purpose=body.purpose,
+        payload=json.dumps(payload, ensure_ascii=False),
+    )
     db.add(item)
-    db.add(AuditLog(workspace_id=workspace_id, thread_id=thread_id, event="handoff.prepared",
-                    detail=f"recipient={body.recipient};purpose={body.purpose}"))
+    db.add(
+        AuditLog(
+            workspace_id=workspace_id,
+            thread_id=thread_id,
+            event="handoff.prepared",
+            detail=f"recipient={body.recipient};purpose={body.purpose}",
+        )
+    )
     await db.commit()
-    return {"id": item.id, "recipient": item.recipient, "purpose": item.purpose, "status": item.status, "payload": payload}
+    return {
+        "id": item.id,
+        "recipient": item.recipient,
+        "purpose": item.purpose,
+        "status": item.status,
+        "payload": payload,
+    }
 
 
 @router.get("/workspaces/{workspace_id}/threads/{thread_id}/handoffs")
 async def list_handoffs(workspace_id: str, thread_id: str, db: AsyncSession = Depends(get_session)):
-    items = (await db.scalars(select(HandoffPackage).where(HandoffPackage.workspace_id == workspace_id,
-                                                           HandoffPackage.thread_id == thread_id)
-                              .order_by(HandoffPackage.created_at.desc()).limit(20))).all()
-    return [{"id": item.id, "recipient": item.recipient, "purpose": item.purpose, "status": item.status,
-             "payload": json.loads(item.payload), "created_at": item.created_at.isoformat()} for item in items]
+    items = (
+        await db.scalars(
+            select(HandoffPackage)
+            .where(
+                HandoffPackage.workspace_id == workspace_id, HandoffPackage.thread_id == thread_id
+            )
+            .order_by(HandoffPackage.created_at.desc())
+            .limit(20)
+        )
+    ).all()
+    return [
+        {
+            "id": item.id,
+            "recipient": item.recipient,
+            "purpose": item.purpose,
+            "status": item.status,
+            "payload": json.loads(item.payload),
+            "created_at": item.created_at.isoformat(),
+        }
+        for item in items
+    ]
 
 
-@router.post("/workspaces/{workspace_id}/threads/{thread_id}/handoffs/{handoff_id}/send", status_code=202)
-async def send_handoff(workspace_id: str, thread_id: str, handoff_id: str, db: AsyncSession = Depends(get_session)):
-    thread = await db.scalar(select(Thread).where(Thread.id == thread_id, Thread.workspace_id == workspace_id))
-    item = await db.scalar(select(HandoffPackage).where(HandoffPackage.id == handoff_id,
-                                                        HandoffPackage.workspace_id == workspace_id,
-                                                        HandoffPackage.thread_id == thread_id))
+@router.post(
+    "/workspaces/{workspace_id}/threads/{thread_id}/handoffs/{handoff_id}/send", status_code=202
+)
+async def send_handoff(
+    workspace_id: str, thread_id: str, handoff_id: str, db: AsyncSession = Depends(get_session)
+):
+    thread = await db.scalar(
+        select(Thread).where(Thread.id == thread_id, Thread.workspace_id == workspace_id)
+    )
+    item = await db.scalar(
+        select(HandoffPackage).where(
+            HandoffPackage.id == handoff_id,
+            HandoffPackage.workspace_id == workspace_id,
+            HandoffPackage.thread_id == thread_id,
+        )
+    )
     if not thread or not item:
         raise HTTPException(404, "未找到交接包")
     if item.status != "PREPARED":
         raise HTTPException(409, "交接包已经发送")
     isolated_review = (
-        is_smart_collaboration_enabled()
-        and item.recipient == "claude"
-        and item.purpose == "review"
+        is_smart_collaboration_enabled() and item.recipient == "claude" and item.purpose == "review"
     )
     if isolated_review:
         run_id = await scheduler.start_handoff_review(thread_id, item.id)
     else:
-        run_id = await scheduler.start(
-            thread_id, _handoff_prompt(item), item.recipient, []
-        )
+        run_id = await scheduler.start(thread_id, _handoff_prompt(item), item.recipient, [])
         item.status = "SENT"
     db.add(
         AuditLog(
@@ -257,12 +317,20 @@ async def send_handoff(workspace_id: str, thread_id: str, handoff_id: str, db: A
 
 @router.get("/workspaces/{workspace_id}/threads/{thread_id}/contract")
 async def get_contract(workspace_id: str, thread_id: str, db: AsyncSession = Depends(get_session)):
-    thread = await db.scalar(select(Thread).where(Thread.id == thread_id, Thread.workspace_id == workspace_id))
+    thread = await db.scalar(
+        select(Thread).where(Thread.id == thread_id, Thread.workspace_id == workspace_id)
+    )
     if not thread:
         raise HTTPException(404, "项目与任务不匹配")
-    governance = await db.scalar(select(ProjectGovernance).where(ProjectGovernance.workspace_id == workspace_id))
+    governance = await db.scalar(
+        select(ProjectGovernance).where(ProjectGovernance.workspace_id == workspace_id)
+    )
     if not governance:
-        governance = ProjectGovernance(workspace_id=workspace_id, rules=json.dumps(DEFAULT_PROJECT_RULES, ensure_ascii=False), deliverables=json.dumps(DEFAULT_DELIVERABLES, ensure_ascii=False))
+        governance = ProjectGovernance(
+            workspace_id=workspace_id,
+            rules=json.dumps(DEFAULT_PROJECT_RULES, ensure_ascii=False),
+            deliverables=json.dumps(DEFAULT_DELIVERABLES, ensure_ascii=False),
+        )
         db.add(governance)
     else:
         stored_rules = _json_list(governance.rules)
@@ -281,39 +349,83 @@ async def get_contract(workspace_id: str, thread_id: str, db: AsyncSession = Dep
     rules = _json_list(governance.rules)
     acceptance = _json_list(contract.acceptance)
     return {
-        "governance": {"product_goal": governance.product_goal, "product_boundary": governance.product_boundary,
-                       "rules": rules, "deliverables": _json_list(governance.deliverables)},
-        "task": {"goal": contract.goal, "non_goals": _json_list(contract.non_goals),
-                 "acceptance": acceptance, "constraints": _json_list(contract.constraints),
-                 "risks": _json_list(contract.risks), "status": contract.status},
-        "gate": {"ready_for_implementation": bool(governance.product_goal.strip() and contract.goal.strip() and acceptance and PRODUCT_RULE in rules),
-                 "missing": [label for valid, label in [
-                     (bool(governance.product_goal.strip()), "产品目标"), (bool(contract.goal.strip()), "任务目标"),
-                     (bool(acceptance), "验收标准"), (PRODUCT_RULE in rules, "产品级实现原则")
-                 ] if not valid]},
+        "governance": {
+            "product_goal": governance.product_goal,
+            "product_boundary": governance.product_boundary,
+            "rules": rules,
+            "deliverables": _json_list(governance.deliverables),
+        },
+        "task": {
+            "goal": contract.goal,
+            "non_goals": _json_list(contract.non_goals),
+            "acceptance": acceptance,
+            "constraints": _json_list(contract.constraints),
+            "risks": _json_list(contract.risks),
+            "status": contract.status,
+        },
+        "gate": {
+            "ready_for_implementation": bool(
+                governance.product_goal.strip()
+                and contract.goal.strip()
+                and acceptance
+                and PRODUCT_RULE in rules
+            ),
+            "missing": [
+                label
+                for valid, label in [
+                    (bool(governance.product_goal.strip()), "产品目标"),
+                    (bool(contract.goal.strip()), "任务目标"),
+                    (bool(acceptance), "验收标准"),
+                    (PRODUCT_RULE in rules, "产品级实现原则"),
+                ]
+                if not valid
+            ],
+        },
     }
 
 
 @router.put("/workspaces/{workspace_id}/governance")
-async def update_governance(workspace_id: str, body: GovernanceUpdate, db: AsyncSession = Depends(get_session)):
+async def update_governance(
+    workspace_id: str, body: GovernanceUpdate, db: AsyncSession = Depends(get_session)
+):
     if not await db.get(Workspace, workspace_id):
         raise HTTPException(404, "未找到指定项目")
-    item = await db.scalar(select(ProjectGovernance).where(ProjectGovernance.workspace_id == workspace_id))
+    item = await db.scalar(
+        select(ProjectGovernance).where(ProjectGovernance.workspace_id == workspace_id)
+    )
     if not item:
         item = ProjectGovernance(workspace_id=workspace_id)
         db.add(item)
-    rules = list(dict.fromkeys([PRODUCT_RULE, *[rule.strip() for rule in body.rules if rule.strip()]]))
-    item.product_goal, item.product_boundary = body.product_goal.strip(), body.product_boundary.strip()
+    rules = list(
+        dict.fromkeys([PRODUCT_RULE, *[rule.strip() for rule in body.rules if rule.strip()]])
+    )
+    item.product_goal, item.product_boundary = (
+        body.product_goal.strip(),
+        body.product_boundary.strip(),
+    )
     item.rules = json.dumps(rules, ensure_ascii=False)
-    item.deliverables = json.dumps([value.strip() for value in body.deliverables if value.strip()], ensure_ascii=False)
-    db.add(AuditLog(workspace_id=workspace_id, event="governance.updated", detail=f"rules={len(rules)}"))
+    item.deliverables = json.dumps(
+        [value.strip() for value in body.deliverables if value.strip()], ensure_ascii=False
+    )
+    db.add(
+        AuditLog(
+            workspace_id=workspace_id, event="governance.updated", detail=f"rules={len(rules)}"
+        )
+    )
     await db.commit()
     return {"status": "saved"}
 
 
 @router.put("/workspaces/{workspace_id}/threads/{thread_id}/contract")
-async def update_contract(workspace_id: str, thread_id: str, body: TaskContractUpdate, db: AsyncSession = Depends(get_session)):
-    thread = await db.scalar(select(Thread).where(Thread.id == thread_id, Thread.workspace_id == workspace_id))
+async def update_contract(
+    workspace_id: str,
+    thread_id: str,
+    body: TaskContractUpdate,
+    db: AsyncSession = Depends(get_session),
+):
+    thread = await db.scalar(
+        select(Thread).where(Thread.id == thread_id, Thread.workspace_id == workspace_id)
+    )
     if not thread:
         raise HTTPException(404, "项目与任务不匹配")
     item = await db.scalar(select(TaskContract).where(TaskContract.thread_id == thread_id))
@@ -322,8 +434,22 @@ async def update_contract(workspace_id: str, thread_id: str, body: TaskContractU
         db.add(item)
     item.goal, item.status = body.goal.strip(), body.status
     for name in ("non_goals", "acceptance", "constraints", "risks"):
-        setattr(item, name, json.dumps([value.strip() for value in getattr(body, name) if value.strip()], ensure_ascii=False))
-    db.add(AuditLog(workspace_id=workspace_id, thread_id=thread_id, event="task.contract.updated", detail=f"status={body.status};acceptance={len(body.acceptance)}"))
+        setattr(
+            item,
+            name,
+            json.dumps(
+                [value.strip() for value in getattr(body, name) if value.strip()],
+                ensure_ascii=False,
+            ),
+        )
+    db.add(
+        AuditLog(
+            workspace_id=workspace_id,
+            thread_id=thread_id,
+            event="task.contract.updated",
+            detail=f"status={body.status};acceptance={len(body.acceptance)}",
+        )
+    )
     await db.commit()
     return {"status": "saved"}
 
@@ -337,20 +463,21 @@ async def thread_details(
     )
     if not thread:
         raise HTTPException(404, "项目与任务不匹配")
-    changes = (
-        await db.scalars(select(FileChange).where(FileChange.thread_id == thread_id))
-    ).all()
-    tests = (
-        await db.scalars(select(TestRun).where(TestRun.thread_id == thread_id))
-    ).all()
+    changes = (await db.scalars(select(FileChange).where(FileChange.thread_id == thread_id))).all()
+    tests = (await db.scalars(select(TestRun).where(TestRun.thread_id == thread_id))).all()
     session = await db.scalar(
         select(AgentSession)
         .where(AgentSession.thread_id == thread_id, AgentSession.agent == "codex")
         .order_by(AgentSession.id.desc())
     )
-    runs = (await db.scalars(
-        select(AgentRun).where(AgentRun.thread_id == thread_id).order_by(AgentRun.id.desc()).limit(20)
-    )).all()
+    runs = (
+        await db.scalars(
+            select(AgentRun)
+            .where(AgentRun.thread_id == thread_id)
+            .order_by(AgentRun.id.desc())
+            .limit(20)
+        )
+    ).all()
     return {
         "files": [{"path": item.path} for item in changes],
         "diff": changes[0].diff if changes else "",
@@ -365,8 +492,15 @@ async def thread_details(
         "worktree": session.workspace_path if session else "",
         "codex_session_id": session.external_session_id if session else "",
         "runs": [
-            {"id": item.id, "agent": item.agent, "state": item.state.value, "output": item.output[:2000],
-             "can_undo": item.agent == "codex" and bool(item.after_diff) and item.after_diff != item.before_diff}
+            {
+                "id": item.id,
+                "agent": item.agent,
+                "state": item.state.value,
+                "output": item.output[:2000],
+                "can_undo": item.agent == "codex"
+                and bool(item.after_diff)
+                and item.after_diff != item.before_diff,
+            }
             for item in runs
         ],
     }
@@ -386,22 +520,16 @@ async def create_collaboration_run(
         raise HTTPException(422, "智能协作功能尚未启用")
     workspace = await db.get(Workspace, workspace_id)
     thread = await db.scalar(
-        select(Thread).where(
-            Thread.id == thread_id, Thread.workspace_id == workspace_id
-        )
+        select(Thread).where(Thread.id == thread_id, Thread.workspace_id == workspace_id)
     )
     if not workspace or not thread:
         raise HTTPException(404, "项目与任务不匹配")
-    contract = await db.scalar(
-        select(TaskContract).where(TaskContract.thread_id == thread_id)
-    )
+    contract = await db.scalar(select(TaskContract).where(TaskContract.thread_id == thread_id))
     if contract is None:
         contract = TaskContract(thread_id=thread_id)
         db.add(contract)
     contract.goal = body.goal.strip()
-    run = await start_collaboration_run(
-        db, workspace, thread, decision=classify(body.goal)
-    )
+    run = await start_collaboration_run(db, workspace, thread, decision=classify(body.goal))
     await db.commit()
     await db.refresh(run)
     if run.state == CollaborationState.READY.value:
@@ -409,18 +537,14 @@ async def create_collaboration_run(
     return _collaboration_payload(run)
 
 
-@router.get(
-    "/workspaces/{workspace_id}/threads/{thread_id}/collaboration-runs/current"
-)
+@router.get("/workspaces/{workspace_id}/threads/{thread_id}/collaboration-runs/current")
 async def current_collaboration_run(
     workspace_id: str,
     thread_id: str,
     db: AsyncSession = Depends(get_session),
 ):
     thread = await db.scalar(
-        select(Thread).where(
-            Thread.id == thread_id, Thread.workspace_id == workspace_id
-        )
+        select(Thread).where(Thread.id == thread_id, Thread.workspace_id == workspace_id)
     )
     if not thread:
         raise HTTPException(404, "项目与任务不匹配")
@@ -436,9 +560,7 @@ async def current_collaboration_run(
                 ]
             ),
         )
-        .order_by(
-            CollaborationRun.updated_at.desc(), CollaborationRun.created_at.desc()
-        )
+        .order_by(CollaborationRun.updated_at.desc(), CollaborationRun.created_at.desc())
         .limit(1)
     )
     if not run:
@@ -456,9 +578,7 @@ async def pause_collaboration_run(
     run = await _owned_collaboration_run(db, run_id, workspace_id, thread_id)
     await scheduler.cancel(thread_id)
     try:
-        await advance_collaboration(
-            db, run, CollaborationState.BLOCKED, reason="用户暂停协作运行"
-        )
+        await advance_collaboration(db, run, CollaborationState.BLOCKED, reason="用户暂停协作运行")
     except ValueError as exc:
         raise HTTPException(409, str(exc)) from exc
     await db.commit()
@@ -480,12 +600,8 @@ async def resume_collaboration_run(
         raise HTTPException(409, str(exc)) from exc
     await db.commit()
     await db.refresh(run)
-    contract = await db.scalar(
-        select(TaskContract).where(TaskContract.thread_id == thread_id)
-    )
-    await scheduler.start_collaboration_run(
-        thread_id, run.id, contract.goal if contract else ""
-    )
+    contract = await db.scalar(select(TaskContract).where(TaskContract.thread_id == thread_id))
+    await scheduler.start_collaboration_run(thread_id, run.id, contract.goal if contract else "")
     return _collaboration_payload(run)
 
 
@@ -522,14 +638,19 @@ async def decide_collaboration_run(
     note = body.note.strip() or "用户已作出协作决策"
     try:
         if body.action == "cancel":
-            await cancel_collaboration(
-                db, run, reason=note, cancel_agent=scheduler.cancel
-            )
+            await cancel_collaboration(db, run, reason=note, cancel_agent=scheduler.cancel)
         else:
+            contract = await db.scalar(
+                select(TaskContract).where(TaskContract.thread_id == thread_id)
+            )
+            if contract is None:
+                contract = TaskContract(thread_id=thread_id)
+                db.add(contract)
+            if not (contract.goal or "").strip() and body.note.strip():
+                contract.goal = body.note.strip()
+            ensure_contract_draft(contract, classify(contract.goal))
             target = (
-                CollaborationState.READY
-                if body.action == "reenter"
-                else CollaborationState.FIXING
+                CollaborationState.READY if body.action == "reenter" else CollaborationState.FIXING
             )
             await advance_collaboration(db, run, target, reason=note)
     except ValueError as exc:
@@ -537,9 +658,7 @@ async def decide_collaboration_run(
     await db.commit()
     await db.refresh(run)
     if body.action != "cancel":
-        contract = await db.scalar(
-            select(TaskContract).where(TaskContract.thread_id == thread_id)
-        )
+        contract = await db.scalar(select(TaskContract).where(TaskContract.thread_id == thread_id))
         await scheduler.start_collaboration_run(
             thread_id, run.id, contract.goal if contract else ""
         )
@@ -601,11 +720,16 @@ async def decide_approval(
     if not thread or not approval:
         raise HTTPException(404, "未找到待处理审批")
     approval.status = "APPROVED" if body.approved else "REJECTED"
-    if body.approved and body.scope == "thread" and approval.action in {
-        "edit_files",
-        "remote_edit_files",
-        "relay_shadow_sync",
-    }:
+    if (
+        body.approved
+        and body.scope == "thread"
+        and approval.action
+        in {
+            "edit_files",
+            "remote_edit_files",
+            "relay_shadow_sync",
+        }
+    ):
         scheduler.grant_for_thread(thread_id, approval.action)
     job = await decide_job(db, approval.id, body.approved)
     db.add(
@@ -633,5 +757,3 @@ async def decide_approval(
         )
     )
     return {"status": approval.status, "delivered": delivered}
-
-

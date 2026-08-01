@@ -36,7 +36,7 @@ describe("CollaborationTimelineCard", () => {
     expect(act).toHaveBeenCalledWith("cancel", "");
   });
 
-  it("offers all WAITING_USER decisions with an optional note", () => {
+  it("explains that WAITING_USER needs no contract syntax", () => {
     const act = vi.fn(async () => undefined);
     render(
       <CollaborationTimelineCard
@@ -51,7 +51,8 @@ describe("CollaborationTimelineCard", () => {
     fireEvent.change(screen.getByLabelText("协作调整说明"), {
       target: { value: "缩小范围" },
     });
-    fireEvent.click(screen.getByRole("button", { name: "调整后重入" }));
+    expect(screen.getByText(/不用填写固定格式/)).toBeTruthy();
+    fireEvent.click(screen.getByRole("button", { name: "补充后继续" }));
     expect(act).toHaveBeenCalledWith("reenter", "缩小范围");
     expect(screen.getByRole("button", { name: "直接整改" })).toBeTruthy();
     expect(screen.getByText("请选择下一步")).toBeTruthy();

@@ -28,9 +28,7 @@ from dualcode.task_classifier import classify
 
 @pytest.fixture
 async def sessions(tmp_path):
-    engine = create_async_engine(
-        f"sqlite+aiosqlite:///{tmp_path / 'orchestrator.db'}"
-    )
+    engine = create_async_engine(f"sqlite+aiosqlite:///{tmp_path / 'orchestrator.db'}")
     async with engine.begin() as connection:
         await connection.run_sync(Base.metadata.create_all)
     yield async_sessionmaker(engine, expire_on_commit=False)
@@ -57,17 +55,13 @@ async def _project(session, *, ready: bool) -> tuple[Workspace, Thread]:
 
 
 @pytest.mark.asyncio
-async def test_start_run_goes_directly_ready_with_audit(
-    sessions, monkeypatch: pytest.MonkeyPatch
-):
+async def test_start_run_goes_directly_ready_with_audit(sessions, monkeypatch: pytest.MonkeyPatch):
     events = []
 
     async def publish(event):
         events.append(event)
 
-    monkeypatch.setattr(
-        "dualcode.collaboration_orchestrator.manager.publish", publish
-    )
+    monkeypatch.setattr("dualcode.collaboration_orchestrator.manager.publish", publish)
     async with sessions() as session:
         workspace, thread = await _project(session, ready=True)
         run = await start_run(
@@ -78,9 +72,7 @@ async def test_start_run_goes_directly_ready_with_audit(
         )
         await session.commit()
         audits = list(
-            await session.scalars(
-                select(AuditLog).where(AuditLog.thread_id == thread.id)
-            )
+            await session.scalars(select(AuditLog).where(AuditLog.thread_id == thread.id))
         )
 
     assert run.mode == "smart"
@@ -98,6 +90,34 @@ async def test_start_run_goes_directly_ready_with_audit(
 
 
 @pytest.mark.asyncio
+async def test_start_run_drafts_acceptance_from_a_clear_goal(
+    sessions, monkeypatch: pytest.MonkeyPatch
+):
+    async def publish(_event):
+        return None
+
+    monkeypatch.setattr("dualcode.collaboration_orchestrator.manager.publish", publish)
+    async with sessions() as session:
+        workspace, thread = await _project(session, ready=False)
+        contract = TaskContract(thread_id=thread.id, goal="修复保存后界面没有反馈")
+        session.add(contract)
+        await session.flush()
+        run = await start_run(
+            session,
+            workspace,
+            thread,
+            decision=classify(contract.goal),
+        )
+        await session.commit()
+
+    assert run.state == CollaborationState.READY.value
+    assert contract.status == "READY"
+    acceptance = json.loads(contract.acceptance)
+    assert len(acceptance) >= 2
+    assert any("验证" in item for item in acceptance)
+
+
+@pytest.mark.asyncio
 async def test_incomplete_contract_clarifies_then_waits_without_agent(
     sessions, monkeypatch: pytest.MonkeyPatch
 ):
@@ -106,9 +126,7 @@ async def test_incomplete_contract_clarifies_then_waits_without_agent(
     async def publish(event):
         events.append(event)
 
-    monkeypatch.setattr(
-        "dualcode.collaboration_orchestrator.manager.publish", publish
-    )
+    monkeypatch.setattr("dualcode.collaboration_orchestrator.manager.publish", publish)
     async with sessions() as session:
         workspace, thread = await _project(session, ready=False)
         run = await start_run(
@@ -126,17 +144,16 @@ async def test_incomplete_contract_clarifies_then_waits_without_agent(
             )
         )
         messages = list(
-            await session.scalars(
-                select(Message).where(Message.thread_id == thread.id)
-            )
+            await session.scalars(select(Message).where(Message.thread_id == thread.id))
         )
 
     assert run.state == CollaborationState.WAITING_USER.value
-    assert [
-        json.loads(item.detail)["to_state"] for item in audits
-    ] == ["CLARIFYING", "WAITING_USER"]
+    assert [json.loads(item.detail)["to_state"] for item in audits] == [
+        "CLARIFYING",
+        "WAITING_USER",
+    ]
     assert [message.role for message in messages] == ["system"]
-    assert "验收标准" in messages[0].content
+    assert "无需填写固定格式" in messages[0].content
     assert [event.type.value for event in events] == [
         "collaboration.started",
         "collaboration.stage_changed",
@@ -153,14 +170,10 @@ async def test_advance_rejects_illegal_transition_and_audits_legal_one(
     async def publish(_event):
         return None
 
-    monkeypatch.setattr(
-        "dualcode.collaboration_orchestrator.manager.publish", publish
-    )
+    monkeypatch.setattr("dualcode.collaboration_orchestrator.manager.publish", publish)
     async with sessions() as session:
         workspace, thread = await _project(session, ready=True)
-        run = await start_run(
-            session, workspace, thread, decision=classify("实现功能")
-        )
+        run = await start_run(session, workspace, thread, decision=classify("实现功能"))
         await advance(
             session,
             run,
@@ -176,9 +189,7 @@ async def test_advance_rejects_illegal_transition_and_audits_legal_one(
             )
         await session.commit()
         audits = list(
-            await session.scalars(
-                select(AuditLog).where(AuditLog.thread_id == thread.id)
-            )
+            await session.scalars(select(AuditLog).where(AuditLog.thread_id == thread.id))
         )
 
     assert run.state == CollaborationState.IMPLEMENTING.value
@@ -192,14 +203,10 @@ async def test_suspend_resume_returns_to_recorded_source_state(
     async def publish(_event):
         return None
 
-    monkeypatch.setattr(
-        "dualcode.collaboration_orchestrator.manager.publish", publish
-    )
+    monkeypatch.setattr("dualcode.collaboration_orchestrator.manager.publish", publish)
     async with sessions() as session:
         workspace, thread = await _project(session, ready=True)
-        run = await start_run(
-            session, workspace, thread, decision=classify("实现功能")
-        )
+        run = await start_run(session, workspace, thread, decision=classify("实现功能"))
         await advance(
             session,
             run,
@@ -219,15 +226,11 @@ async def test_suspend_resume_returns_to_recorded_source_state(
 
 
 @pytest.mark.asyncio
-async def test_cancel_stops_agent_and_marks_terminal(
-    sessions, monkeypatch: pytest.MonkeyPatch
-):
+async def test_cancel_stops_agent_and_marks_terminal(sessions, monkeypatch: pytest.MonkeyPatch):
     async def publish(_event):
         return None
 
-    monkeypatch.setattr(
-        "dualcode.collaboration_orchestrator.manager.publish", publish
-    )
+    monkeypatch.setattr("dualcode.collaboration_orchestrator.manager.publish", publish)
     cancelled: list[str] = []
 
     async def cancel_agent(thread_id: str):
@@ -235,9 +238,7 @@ async def test_cancel_stops_agent_and_marks_terminal(
 
     async with sessions() as session:
         workspace, thread = await _project(session, ready=True)
-        run = await start_run(
-            session, workspace, thread, decision=classify("实现功能")
-        )
+        run = await start_run(session, workspace, thread, decision=classify("实现功能"))
         await cancel(
             session,
             run,
@@ -257,9 +258,7 @@ async def test_startup_recovery_blocks_running_and_preserves_waiting(
     async def publish(_event):
         return None
 
-    monkeypatch.setattr(
-        "dualcode.collaboration_orchestrator.manager.publish", publish
-    )
+    monkeypatch.setattr("dualcode.collaboration_orchestrator.manager.publish", publish)
     async with sessions() as session:
         workspace, thread = await _project(session, ready=True)
         running = CollaborationRun(
@@ -283,9 +282,7 @@ async def test_startup_recovery_blocks_running_and_preserves_waiting(
         recovered = await recover_interrupted_runs(session)
         await session.commit()
         audits = list(
-            await session.scalars(
-                select(AuditLog).where(AuditLog.thread_id == thread.id)
-            )
+            await session.scalars(select(AuditLog).where(AuditLog.thread_id == thread.id))
         )
 
     assert recovered == [running.id]

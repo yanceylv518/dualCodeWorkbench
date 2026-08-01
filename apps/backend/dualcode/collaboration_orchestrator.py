@@ -42,12 +42,52 @@ RUNNING_STATES = frozenset(
         CollaborationState.FIXING,
     }
 )
-TERMINAL_STATES = frozenset(
-    {CollaborationState.COMPLETED, CollaborationState.CANCELLED}
-)
-SUSPENDED_STATES = frozenset(
-    {CollaborationState.WAITING_APPROVAL, CollaborationState.BLOCKED}
-)
+TERMINAL_STATES = frozenset({CollaborationState.COMPLETED, CollaborationState.CANCELLED})
+SUSPENDED_STATES = frozenset({CollaborationState.WAITING_APPROVAL, CollaborationState.BLOCKED})
+
+
+def draft_acceptance(goal: str, decision: RoutingDecision) -> list[str]:
+    """Build a conservative, verifiable contract from the user's own request."""
+
+    normalized_goal = goal.strip()
+    if not normalized_goal:
+        return []
+    if decision.category == "qa":
+        return [
+            "使用中文直接回答任务目标，并明确区分已验证事实、推断和未知项",
+            "结论引用当前项目中可复核的代码、文档或运行状态，不虚构完成情况",
+        ]
+    if decision.category == "test_build":
+        return [
+            "完成任务目标指定的测试、构建或发布操作，并记录命令、退出状态和产物",
+            "失败时给出真实失败原因和可执行的下一步，不把未验证结果标记为成功",
+        ]
+    return [
+        "完成任务目标中明确要求的范围，不使用演示数据、临时绕过或不可持续方案",
+        "运行与改动相关的自动化测试、类型检查或等价验证，并保留可复核结果",
+        "交付时说明实际变更、验证结果、潜在风险和仍未覆盖的内容",
+    ]
+
+
+def ensure_contract_draft(contract: TaskContract | None, decision: RoutingDecision) -> bool:
+    """Fill missing acceptance criteria when the user's goal is already clear."""
+
+    if contract is None or not contract.goal.strip():
+        return False
+    try:
+        parsed = json.loads(contract.acceptance or "[]")
+    except json.JSONDecodeError:
+        parsed = []
+    acceptance = (
+        [str(item).strip() for item in parsed if str(item).strip()]
+        if isinstance(parsed, list)
+        else []
+    )
+    if not acceptance:
+        acceptance = draft_acceptance(contract.goal, decision)
+        contract.acceptance = json.dumps(acceptance, ensure_ascii=False)
+        contract.status = "READY"
+    return bool(acceptance)
 
 
 @dataclass(frozen=True)
@@ -101,9 +141,7 @@ def _finding_key(item: object) -> tuple[str, str, str, str, str]:
     )
 
 
-async def _open_blocking_findings(
-    db: AsyncSession, run: CollaborationRun
-) -> list[ReviewFinding]:
+async def _open_blocking_findings(db: AsyncSession, run: CollaborationRun) -> list[ReviewFinding]:
     return list(
         (
             await db.scalars(
@@ -171,17 +209,12 @@ async def _progress_signature(db: AsyncSession, run: CollaborationRun) -> str:
         )
     ).all()
     test_count = len(
-        (
-            await db.scalars(
-                select(TestRun.id).where(TestRun.thread_id == run.thread_id)
-            )
-        ).all()
+        (await db.scalars(select(TestRun.id).where(TestRun.thread_id == run.thread_id))).all()
     )
     findings = await _open_blocking_findings(db, run)
     value = {
         "changes": [
-            [path, hashlib.sha256(diff.encode("utf-8")).hexdigest()]
-            for path, diff in changes
+            [path, hashlib.sha256(diff.encode("utf-8")).hexdigest()] for path, diff in changes
         ],
         "test_count": test_count,
         "findings": sorted({_finding_key(item) for item in findings}),
@@ -256,9 +289,7 @@ async def execute_pipeline(
     """Execute one C5 collaboration loop using injected, already-approved effects."""
 
     if CollaborationState(run.state) is CollaborationState.READY:
-        await advance(
-            db, run, CollaborationState.IMPLEMENTING, reason="开始 Codex 实现轮次"
-        )
+        await advance(db, run, CollaborationState.IMPLEMENTING, reason="开始 Codex 实现轮次")
 
     while CollaborationState(run.state) in {
         CollaborationState.IMPLEMENTING,
@@ -283,9 +314,7 @@ async def execute_pipeline(
                 await callbacks.record_system("尚未配置测试命令，本轮未生成测试证据。")
             elif not verified:
                 run.error = "验证失败，请检查测试输出"
-                return await advance(
-                    db, run, CollaborationState.BLOCKED, reason=run.error
-                )
+                return await advance(db, run, CollaborationState.BLOCKED, reason=run.error)
             await advance(
                 db,
                 run,
@@ -297,14 +326,10 @@ async def execute_pipeline(
                 snapshot = await callbacks.sync_snapshot()
             except Exception as exc:
                 run.error = f"审查快照同步失败：{str(exc)[:240]}"
-                return await advance(
-                    db, run, CollaborationState.BLOCKED, reason=run.error
-                )
+                return await advance(db, run, CollaborationState.BLOCKED, reason=run.error)
             run.base_sha = snapshot.base_sha
             run.snapshot_sha = snapshot.snapshot_sha
-            await advance(
-                db, run, CollaborationState.REVIEWING, reason="审查快照已同步"
-            )
+            await advance(db, run, CollaborationState.REVIEWING, reason="审查快照已同步")
         elif state is CollaborationState.REVIEWING:
             snapshot = SnapshotEvidence(run.base_sha or "", run.snapshot_sha or "")
             await _set_agent(run, "claude")
@@ -312,9 +337,7 @@ async def execute_pipeline(
                 review_turn = await callbacks.run_review(_REVIEW_SUFFIX, snapshot)
             except Exception as exc:
                 run.error = f"审查 Agent 失活：{str(exc)[:240]}"
-                return await advance(
-                    db, run, CollaborationState.BLOCKED, reason=run.error
-                )
+                return await advance(db, run, CollaborationState.BLOCKED, reason=run.error)
             await _publish(
                 EventType.COLLABORATION_HANDOFF_PREPARED,
                 run,
@@ -384,13 +407,9 @@ async def execute_pipeline(
                     reason=review.summary,
                 )
             else:
-                await advance(
-                    db, run, CollaborationState.ACCEPTED, reason=review.summary
-                )
+                await advance(db, run, CollaborationState.ACCEPTED, reason=review.summary)
         elif state is CollaborationState.CHANGES_REQUESTED:
-            await advance(
-                db, run, CollaborationState.FIXING, reason="编译阻断问题整改提示"
-            )
+            await advance(db, run, CollaborationState.FIXING, reason="编译阻断问题整改提示")
         elif state is CollaborationState.FIXING:
             await _set_agent(run, "codex")
             findings = await _open_blocking_findings(db, run)
@@ -404,12 +423,8 @@ async def execute_pipeline(
             run.round += 1
             await advance(db, run, CollaborationState.VERIFYING, reason="整改轮次完成")
         else:
-            await callbacks.record_system(
-                f"智能协作已完成，共经过 {run.round} 轮审查。"
-            )
-            await advance(
-                db, run, CollaborationState.COMPLETED, reason="审查已通过"
-            )
+            await callbacks.record_system(f"智能协作已完成，共经过 {run.round} 轮审查。")
+            await advance(db, run, CollaborationState.COMPLETED, reason="审查已通过")
     return run
 
 
@@ -507,25 +522,14 @@ async def start_run(
 ) -> CollaborationRun:
     """Create a run and stop for clarification when its contract is incomplete."""
 
-    contract = await db.scalar(
-        select(TaskContract).where(TaskContract.thread_id == thread.id)
-    )
-    acceptance: list[object] = []
-    if contract:
-        try:
-            parsed = json.loads(contract.acceptance or "[]")
-            acceptance = parsed if isinstance(parsed, list) else []
-        except json.JSONDecodeError:
-            acceptance = []
-    ready = bool(contract and contract.goal.strip() and acceptance)
+    contract = await db.scalar(select(TaskContract).where(TaskContract.thread_id == thread.id))
+    ready = ensure_contract_draft(contract, decision)
     run = CollaborationRun(
         workspace_id=workspace.id,
         thread_id=thread.id,
         mode="smart",
         state=CollaborationState.DRAFT.value,
-        current_agent=(
-            "claude" if decision.primary_agent.startswith("Claude") else "codex"
-        ),
+        current_agent=("claude" if decision.primary_agent.startswith("Claude") else "codex"),
         round=1,
         max_rounds=3,
         budget_json=json.dumps(
@@ -557,12 +561,15 @@ async def start_run(
         db,
         run,
         CollaborationState.CLARIFYING,
-        reason="任务契约缺少目标或验收标准",
+        reason="用户请求缺少可识别的任务目标",
     )
     message = Message(
         thread_id=thread.id,
         role="system",
-        content="智能协作需要先补全任务目标和至少一条验收标准。",
+        content=(
+            "暂时无法从当前消息识别任务目标。请直接描述希望完成的结果；"
+            "工具会自动生成任务契约和验收草案，无需填写固定格式。"
+        ),
     )
     db.add(message)
     await db.flush()
@@ -582,14 +589,12 @@ async def start_run(
         db,
         run,
         CollaborationState.WAITING_USER,
-        reason="等待用户补全任务契约",
+        reason="等待用户说明任务目标",
     )
     return run
 
 
-async def resume(
-    db: AsyncSession, run: CollaborationRun, *, reason: str
-) -> CollaborationRun:
+async def resume(db: AsyncSession, run: CollaborationRun, *, reason: str) -> CollaborationRun:
     current = CollaborationState(run.state)
     if current not in SUSPENDED_STATES:
         raise ValueError("当前协作任务不处于可恢复的挂起状态")
@@ -614,9 +619,7 @@ async def cancel(
         result = cancel_agent(run.thread_id)
         if inspect.isawaitable(result):
             await result
-    return await advance(
-        db, run, CollaborationState.CANCELLED, reason=reason
-    )
+    return await advance(db, run, CollaborationState.CANCELLED, reason=reason)
 
 
 async def recover_interrupted_runs(db: AsyncSession) -> list[str]:
@@ -625,9 +628,7 @@ async def recover_interrupted_runs(db: AsyncSession) -> list[str]:
     rows = (
         await db.scalars(
             select(CollaborationRun).where(
-                CollaborationRun.state.in_(
-                    [state.value for state in RUNNING_STATES]
-                )
+                CollaborationRun.state.in_([state.value for state in RUNNING_STATES])
             )
         )
     ).all()

@@ -93,15 +93,18 @@ export function CollaborationTimelineCard({ timeline, act }: Props) {
           )}
           {timeline.state === "WAITING_USER" && (
             <div className="collaboration-timeline__intervention">
+              <p className="collaboration-timeline__guidance">
+                不用填写固定格式。需要调整时直接说希望改什么；没有补充可直接继续，工具会自动维护任务契约。
+              </p>
               <input
                 value={note}
                 onChange={(event) => setNote(event.target.value)}
-                placeholder="可选：补充调整说明"
+                placeholder="例如：只做现状分析，不修改代码"
                 aria-label="协作调整说明"
               />
               <div>
                 <button disabled={busy} onClick={() => void submit("reenter")}>
-                  调整后重入
+                  补充后继续
                 </button>
                 <button disabled={busy} onClick={() => void submit("fix")}>
                   直接整改
