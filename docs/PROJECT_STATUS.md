@@ -1,5 +1,13 @@
 # DualCode Workbench 项目状态
 
+## 2026-08-02 C6-4-R2 本地候选构建
+
+- 六个 CI 报告的前端文件已完成 Prettier 机械格式化，推送前 Prettier 与改动侧全量
+  门禁已写入整改清单执行约定；既存的唯一 10px 终端字号同步提升为策略要求的 11px。
+- 前端 97 项、TypeScript、ESLint、Prettier、Ruff、Vite、Windows sidecar、Tauri
+  release、MSI 与 NSIS 已通过；新候选产物位于 `target-c6-r2`，校验和记录在智能协作
+  实施清单。CI 双平台待本提交推送后确认，确认前 R2 不关闭。
+
 ## 2026-08-01 C6-4-R1 Codex 64 KiB 读取根因修复
 
 - 按 Claude Code 审查结论将 app-server stdout 单行上限从 asyncio 默认 64 KiB 提升至 10 MiB，避免大段命令输出形成的 JSON-RPC 单行杀死读取协程。

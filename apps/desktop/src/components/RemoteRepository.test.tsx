@@ -1,4 +1,10 @@
-import { cleanup, fireEvent, render, screen, waitFor } from "@testing-library/react";
+import {
+  cleanup,
+  fireEvent,
+  render,
+  screen,
+  waitFor,
+} from "@testing-library/react";
 import { afterEach, describe, expect, it, vi } from "vitest";
 
 import { useStore } from "../store";
@@ -44,7 +50,10 @@ function job(
 }
 
 function renderRepository(status?: ExecutionJob["status"], lastError?: string) {
-  useStore.setState({ workspaceId: "workspace-1", refreshRemote: vi.fn(async () => undefined) });
+  useStore.setState({
+    workspaceId: "workspace-1",
+    refreshRemote: vi.fn(async () => undefined),
+  });
   const action = vi.fn(async () => undefined);
   render(
     <RemoteRepository
@@ -128,12 +137,21 @@ describe("RemoteRepository", () => {
     vi.spyOn(api, "fetchRepositoryAccess").mockResolvedValue({
       remote_url: remote.settings.remote_url,
       local: {
-        environment: "local", state: "ready", transport: "ssh",
-        read_access: true, write_access: "unknown", error_code: "", summary: "ready",
+        environment: "local",
+        state: "ready",
+        transport: "ssh",
+        read_access: true,
+        write_access: "unknown",
+        error_code: "",
+        summary: "ready",
       },
       vps: {
-        environment: "vps", state: "action_required", transport: "ssh",
-        read_access: false, write_access: "unknown", error_code: "SSH_KEY_NOT_AUTHORIZED",
+        environment: "vps",
+        state: "action_required",
+        transport: "ssh",
+        read_access: false,
+        write_access: "unknown",
+        error_code: "SSH_KEY_NOT_AUTHORIZED",
         summary: "当前 SSH 公钥尚未获得该仓库访问权限。",
       },
       key: {},
@@ -141,7 +159,9 @@ describe("RemoteRepository", () => {
     const action = renderRepository();
     fireEvent.click(screen.getByRole("button", { name: /仓库访问配置/ }));
     await waitFor(() => expect(screen.getByText("读取已验证")).toBeTruthy());
-    fireEvent.click(screen.getByRole("button", { name: /生成 VPS 项目专用密钥/ }));
+    fireEvent.click(
+      screen.getByRole("button", { name: /生成 VPS 项目专用密钥/ }),
+    );
     expect(action).toHaveBeenCalledWith("generate_access_key");
   });
 });

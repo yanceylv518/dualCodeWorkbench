@@ -1792,7 +1792,12 @@ function ContextPanel({
   openSettings: () => void;
   saveRemote: (url: string, path: string) => Promise<void>;
   remoteAction: (
-    action: "provision" | "repair_provision" | "fetch" | "pull" | "generate_access_key",
+    action:
+      | "provision"
+      | "repair_provision"
+      | "fetch"
+      | "pull"
+      | "generate_access_key",
   ) => Promise<void>;
   runTests: () => Promise<void>;
 }) {

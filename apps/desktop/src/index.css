@@ -2549,7 +2549,9 @@ button:disabled {
   gap: 6px;
 }
 
-.repository-access-toggle .expanded { transform: rotate(180deg); }
+.repository-access-toggle .expanded {
+  transform: rotate(180deg);
+}
 
 .repository-access-body {
   padding: 10px;
@@ -2575,22 +2577,37 @@ button:disabled {
   font-size: 11px;
 }
 
-.access-environment > div { display: flex; justify-content: space-between; }
-.access-environment.ready { border-left: 2px solid #48b982; }
+.access-environment > div {
+  display: flex;
+  justify-content: space-between;
+}
+.access-environment.ready {
+  border-left: 2px solid #48b982;
+}
 .access-environment.action_required,
-.access-environment.error { border-left: 2px solid #d66767; }
+.access-environment.error {
+  border-left: 2px solid #d66767;
+}
 
-.repository-key { display: grid; gap: 6px; }
+.repository-key {
+  display: grid;
+  gap: 6px;
+}
 .repository-key textarea {
   min-height: 76px;
   resize: vertical;
-  font: 10px/1.4 Consolas, "Cascadia Mono", monospace;
+  font:
+    11px/1.4 Consolas,
+    "Cascadia Mono",
+    monospace;
   word-break: break-all;
 }
 
 .repository-key button,
 .generate-access-key,
-.access-recheck { width: fit-content; }
+.access-recheck {
+  width: fit-content;
+}
 .remote-actions button {
   border: 1px solid #3a424a;
   border-radius: 6px;

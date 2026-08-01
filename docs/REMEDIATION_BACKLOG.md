@@ -15,6 +15,10 @@
 4. **不降低安全不变量**（见 PROJECT_STATUS.md 末尾）：审批、审计、known_hosts 校验、参数化命令调用等一律不得放宽。
 5. 完成一个 Phase 后停下，等待 Claude review 通过再进入下一个 Phase。review 意见以行内批注或本文档追加「Review 记录」的形式给出。
 6. 用户可见文案统一使用中文（错误提示、系统消息、状态徽标）；日志与审计明细可保留英文。
+7. **任何直接推送前必须先通过格式与改动侧全量门禁**：至少运行
+   `corepack pnpm --filter @dualcode/desktop exec prettier --check "src/**/*.{ts,tsx,css}"`；
+   前端改动同时运行 typecheck、test 与 lint，后端改动同时运行全量 pytest 与 Ruff。
+   验收调试期的快速修复也不得跳过该步骤。
 
 ## 验证命令速查
 

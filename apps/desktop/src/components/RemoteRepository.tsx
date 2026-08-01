@@ -1,11 +1,24 @@
 import { useEffect, useState } from "react";
-import { Check, ChevronDown, Cloud, Copy, KeyRound, LoaderCircle, RefreshCw } from "lucide-react";
+import {
+  Check,
+  ChevronDown,
+  Cloud,
+  Copy,
+  KeyRound,
+  LoaderCircle,
+  RefreshCw,
+} from "lucide-react";
 
 import * as api from "../api";
 import { useStore } from "../store";
-import type { ExecutionJob, RepositoryAccessStatus, WorkspaceRemoteStatus } from "../types";
+import type {
+  ExecutionJob,
+  RepositoryAccessStatus,
+  WorkspaceRemoteStatus,
+} from "../types";
 
-type RemoteAction = "provision" | "repair_provision" | "fetch" | "pull" | "generate_access_key";
+type RemoteAction =
+  "provision" | "repair_provision" | "fetch" | "pull" | "generate_access_key";
 type BusyAction = "save" | "refresh" | RemoteAction;
 
 function cloneJobFrom(jobs: ExecutionJob[]) {
@@ -77,7 +90,8 @@ export function RemoteRepository({
   const [accessLoading, setAccessLoading] = useState(false);
   const cloneJob = cloneJobFrom(jobs);
   const keyJob = jobs.find(
-    (job) => job.kind === "remote_git" && job.payload.action === "generate_access_key",
+    (job) =>
+      job.kind === "remote_git" && job.payload.action === "generate_access_key",
   );
   const cloneRunning = ["WAITING_APPROVAL", "READY", "RUNNING"].includes(
     cloneJob?.status ?? "",
@@ -216,39 +230,84 @@ export function RemoteRepository({
       {configured && (
         <div className="repository-access">
           <button className="repository-access-toggle" onClick={toggleAccess}>
-            <span><KeyRound size={13} /><strong>仓库访问配置</strong></span>
+            <span>
+              <KeyRound size={13} />
+              <strong>仓库访问配置</strong>
+            </span>
             <ChevronDown size={13} className={accessOpen ? "expanded" : ""} />
           </button>
           {accessOpen && (
             <div className="repository-access-body">
               <p>分别验证本机与 VPS 对当前仓库的读取权限，不会写入仓库。</p>
               {accessLoading && !access ? (
-                <div className="inspector-loading"><LoaderCircle size={13} className="spin" />正在检测仓库访问权限…</div>
+                <div className="inspector-loading">
+                  <LoaderCircle size={13} className="spin" />
+                  正在检测仓库访问权限…
+                </div>
               ) : access ? (
                 <>
                   {[access.local, access.vps].map((item) => (
-                    <div className={`access-environment ${item.state}`} key={item.environment}>
-                      <div><strong>{item.environment === "local" ? "本机" : "VPS"}</strong><span>{item.transport.toUpperCase()}</span></div>
-                      <span>{item.read_access ? "读取已验证" : item.summary}</span>
+                    <div
+                      className={`access-environment ${item.state}`}
+                      key={item.environment}
+                    >
+                      <div>
+                        <strong>
+                          {item.environment === "local" ? "本机" : "VPS"}
+                        </strong>
+                        <span>{item.transport.toUpperCase()}</span>
+                      </div>
+                      <span>
+                        {item.read_access ? "读取已验证" : item.summary}
+                      </span>
                     </div>
                   ))}
                   {access.key.public_key ? (
                     <div className="repository-key">
                       <strong>VPS 项目专用公钥</strong>
                       <small>{access.key.fingerprint}</small>
-                      <textarea readOnly value={access.key.public_key} aria-label="VPS Git public key" />
-                      <button onClick={() => void navigator.clipboard.writeText(access.key.public_key ?? "") }><Copy size={12} />复制公钥</button>
-                      <span>将公钥添加到 GitHub 仓库 Deploy keys（只需读取权限），然后重新检测。</span>
+                      <textarea
+                        readOnly
+                        value={access.key.public_key}
+                        aria-label="VPS Git public key"
+                      />
+                      <button
+                        onClick={() =>
+                          void navigator.clipboard.writeText(
+                            access.key.public_key ?? "",
+                          )
+                        }
+                      >
+                        <Copy size={12} />
+                        复制公钥
+                      </button>
+                      <span>
+                        将公钥添加到 GitHub 仓库 Deploy
+                        keys（只需读取权限），然后重新检测。
+                      </span>
                     </div>
                   ) : access.vps.transport === "ssh" &&
                     (access.vps.error_code === "SSH_KEY_NOT_AUTHORIZED" ||
                       access.vps.state === "action_required") ? (
-                    <button className="generate-access-key" onClick={() => void run("generate_access_key")} disabled={Boolean(busy)}>
-                      <KeyRound size={12} />生成 VPS 项目专用密钥
+                    <button
+                      className="generate-access-key"
+                      onClick={() => void run("generate_access_key")}
+                      disabled={Boolean(busy)}
+                    >
+                      <KeyRound size={12} />
+                      生成 VPS 项目专用密钥
                     </button>
                   ) : null}
-                  <button className="access-recheck" onClick={() => void checkAccess()} disabled={accessLoading}>
-                    <RefreshCw size={12} className={accessLoading ? "spin" : ""} />重新检测
+                  <button
+                    className="access-recheck"
+                    onClick={() => void checkAccess()}
+                    disabled={accessLoading}
+                  >
+                    <RefreshCw
+                      size={12}
+                      className={accessLoading ? "spin" : ""}
+                    />
+                    重新检测
                   </button>
                 </>
               ) : null}

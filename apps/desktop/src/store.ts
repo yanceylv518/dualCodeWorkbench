@@ -207,7 +207,12 @@ interface Store {
   saveRemote: (remote_url: string, vps_repo_path: string) => Promise<void>;
   refreshRemote: () => Promise<void>;
   remoteGitAction: (
-    action: "provision" | "repair_provision" | "fetch" | "pull" | "generate_access_key",
+    action:
+      | "provision"
+      | "repair_provision"
+      | "fetch"
+      | "pull"
+      | "generate_access_key",
   ) => Promise<void>;
   runTests: () => Promise<void>;
   refreshExecutionJobs: () => Promise<void>;
@@ -276,9 +281,12 @@ const toolStep = (
       "工具操作",
   );
   const failed = item.status === "failed" || Number(item.exit_code ?? 0) !== 0;
-  const terminalStatus = ["completed", "success", "failed", "cancelled"].includes(
-    String(item.status ?? "").toLowerCase(),
-  );
+  const terminalStatus = [
+    "completed",
+    "success",
+    "failed",
+    "cancelled",
+  ].includes(String(item.status ?? "").toLowerCase());
   return {
     id: String(item.id ?? `${kind}-${raw}`),
     kind,

@@ -1283,12 +1283,12 @@ Claude review。
 
 ### C6-4-R2 恢复 CI 绿并重建安装包（一个 commit + 产物）
 
-- [ ] 对 `apps/desktop/src` 下 6 个未格式化文件（`api.ts`、`App.tsx`、
+- [x] 对 `apps/desktop/src` 下 6 个未格式化文件（`api.ts`、`App.tsx`、
   `components/RemoteRepository.tsx`、`components/RemoteRepository.test.tsx`、
   `index.css`、`store.ts`）执行 Prettier 机械格式化，不改任何逻辑。
 - [ ] 推送并确认 CI 双平台绿后，重建安装包（含 C6-4-R1 读取通道修复与
   验收调试期全部改动），更新 C6-4 构建结果中的 SHA-256，旧校验和标注作废。
-- [ ] 流程备忘写入 `docs/REMEDIATION_BACKLOG.md` 执行约定（或本清单开头
+- [x] 流程备忘写入 `docs/REMEDIATION_BACKLOG.md` 执行约定（或本清单开头
   约定块）：任何直接推送（含验收调试期快速修复）前，本地必须先跑
   `pnpm --filter @dualcode/desktop exec prettier --check "src/**/*.{ts,tsx,css}"`
   与改动侧全量门禁——本项目已三次因跳过该步造成 CI 连红
@@ -1298,6 +1298,16 @@ Claude review。
   与可交付安装包被挡。
 - **验收**：CI 双平台绿；新 SHA-256 已记录、旧值作废；流程备忘落档。
   完成后用户凭新包复测大输出命令轮次并继续五项真实验收。
+- **本地实现结果（2026-08-02）**：六个指定文件已完成纯机械 Prettier 格式化；
+  同时将 `index.css` 中既存且违反 StylePolicy 的唯一 10px 终端字号提升为 11px，
+  否则格式门禁恢复后前端全量仍会失败。前端 97 项、TypeScript、ESLint、Prettier、
+  Vite 生产构建、Windows sidecar、Tauri release、MSI 与 NSIS 全部通过；Ruff 通过。
+  推送前门禁备忘已写入 `docs/REMEDIATION_BACKLOG.md`。CI 双平台结果待本提交推送后确认。
+  新产物（0.1.8，`target-c6-r2`）SHA-256：主程序
+  `278D82C2398329E37D05EF6430FD139193157463C357312F8517C01FB5F6AF9F`；NSIS
+  `504A638F192D3C7C7EF33F22E8DFD524B90A407A27BD254CDCA9D99298CBD5EA`；MSI
+  `F61E1B35E271F7F516A15867023C034436353C063A167250CCEA2DCC9D5B20A8`；sidecar
+  `C54366270EA978360F39F08994AB48EBEB11B74DADFF67BFCE1208E4DD9340B9`。
 
 ### C6-4 产品化构建与真实验收（需用户配合）
 
@@ -1322,8 +1332,8 @@ Claude review。
   `1ACE07C78E5E7E0F02F4C3AE8779E073BDAC490F553DD3CF87EA2D53DD291BE7`；
   MSI SHA-256：
   `7223539C340488A820915D183FD05A347D47D66A5D357077EA55395B90AC6BBB`。
-  旧校验和对应 CI 未全绿提交的产物，已作废。新产物对应双平台全绿的
-  `14d414b` 代码基线。
+  上述 0.1.7 校验和及后续 0.1.8 验收调试产物均已作废；当前候选产物为
+  C6-4-R2 `target-c6-r2` 构建，其 SHA-256 见 R2 实现结果。
   真实验收五项与默认入口切换仍待用户执行和确认。
 - **验证结果（2026-07-30）**：新增六条 HTTP API 驱动 E2E，使用可控 Agent
   回调与本地裸仓伪 VPS，覆盖直接通过、一次整改、整改到限、审批后续跑、审查中

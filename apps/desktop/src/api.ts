@@ -346,9 +346,7 @@ export async function fetchCollaborationFindings(
   runId: string,
 ): Promise<CollaborationFinding[]> {
   const scope = collaborationScope(workspaceId, threadId);
-  const r = await fetch(
-    `${API}/collaboration-runs/${runId}/findings?${scope}`,
-  );
+  const r = await fetch(`${API}/collaboration-runs/${runId}/findings?${scope}`);
   if (!r.ok) throw await responseError(r);
   return r.json();
 }
@@ -496,7 +494,8 @@ export async function saveWorkspaceRemote(
 export async function requestRemoteGitAction(
   workspaceId: string,
   threadId: string,
-  action: "provision" | "repair_provision" | "fetch" | "pull" | "generate_access_key",
+  action:
+    "provision" | "repair_provision" | "fetch" | "pull" | "generate_access_key",
 ) {
   const r = await fetch(
     `${API}/workspaces/${workspaceId}/threads/${threadId}/remote/actions`,
