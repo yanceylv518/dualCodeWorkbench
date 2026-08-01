@@ -107,9 +107,13 @@ class CodexAppServerAdapter(BaseCliAdapter):
         params = event.get("params") if isinstance(event.get("params"), dict) else {}
         item = params.get("item") if isinstance(params.get("item"), dict) else {}
         item_id = str(item.get("id") or params.get("itemId") or "")
+        status = str(item.get("status") or params.get("status") or "").lower()
         if method == "item/started" and item_id:
             active_items[item_id] = str(item.get("type") or "")
-        elif method == "item/completed" and item_id:
+        elif item_id and (
+            method == "item/completed"
+            or status in {"completed", "success", "failed", "cancelled"}
+        ):
             active_items.pop(item_id, None)
 
     async def _probe_thread(self, thread_id: str) -> bool:
@@ -363,8 +367,6 @@ class CodexAppServerAdapter(BaseCliAdapter):
                                 "id": "codex-watchdog", "type": "watchdog",
                                 "text": "命令仍在运行，连接探活正常，继续等待结果。",
                             }}, ensure_ascii=False)
-                            last_activity_at = time.monotonic()
-                            continue
                         if probe_succeeded:
                             try:
                                 event = await asyncio.wait_for(queue.get(), timeout=self.probe_grace_seconds)

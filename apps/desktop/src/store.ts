@@ -276,6 +276,9 @@ const toolStep = (
       "工具操作",
   );
   const failed = item.status === "failed" || Number(item.exit_code ?? 0) !== 0;
+  const terminalStatus = ["completed", "success", "failed", "cancelled"].includes(
+    String(item.status ?? "").toLowerCase(),
+  );
   return {
     id: String(item.id ?? `${kind}-${raw}`),
     kind,
@@ -291,7 +294,7 @@ const toolStep = (
     detail: raw,
     status: failed
       ? "failed"
-      : String(event).includes("completed")
+      : String(event).includes("completed") || terminalStatus
         ? "completed"
         : "running",
     startedAt: Date.now(),

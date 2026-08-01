@@ -503,6 +503,42 @@ describe("thread realtime event merging", () => {
     });
   });
 
+  it("settles a tool row when item updated carries a terminal status", async () => {
+    const socket = await connectThread();
+    emitSocketEvent(socket, {
+      type: "agent.tool",
+      run_id: "run-updated-terminal",
+      payload: {
+        agent: "codex",
+        event: "item/started",
+        item: {
+          id: "command-1",
+          type: "commandExecution",
+          command: "rg docs",
+        },
+      },
+    });
+    emitSocketEvent(socket, {
+      type: "agent.tool",
+      run_id: "run-updated-terminal",
+      payload: {
+        agent: "codex",
+        event: "item/updated",
+        item: {
+          id: "command-1",
+          type: "commandExecution",
+          command: "rg docs",
+          status: "completed",
+        },
+      },
+    });
+
+    expect(selectedMessages()[0].activity?.steps[0].status).toBe("completed");
+    expect(selectedMessages()[0].activity?.steps[0].completedAt).toBeTypeOf(
+      "number",
+    );
+  });
+
   it("merges Claude tool results into the named tool row", async () => {
     const socket = await connectThread();
     emitSocketEvent(socket, {

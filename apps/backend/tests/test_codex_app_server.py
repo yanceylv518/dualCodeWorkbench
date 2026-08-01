@@ -204,6 +204,56 @@ async def test_active_command_uses_extended_timeout(monkeypatch, tmp_path):
 
 
 @pytest.mark.asyncio
+async def test_stalled_active_command_is_interrupted_after_probe_grace(
+    monkeypatch, tmp_path
+):
+    process = FakeProcess()
+
+    def emit_stalled_command():
+        process.emit(
+            {
+                "method": "item/started",
+                "params": {
+                    "threadId": "thread-app-1",
+                    "turnId": "turn-1",
+                    "item": {
+                        "id": "cmd-stalled",
+                        "type": "commandExecution",
+                        "command": "stalled-command",
+                    },
+                },
+            }
+        )
+
+    process.emit_turn = emit_stalled_command
+    adapter = CodexAppServerAdapter(
+        "fake",
+        progress_timeout_seconds=0.01,
+        command_timeout_seconds=0.01,
+        probe_grace_seconds=0.01,
+    )
+    monkeypatch.setattr(adapter, "resolve_executable", lambda: "fake")
+    monkeypatch.setattr(
+        asyncio,
+        "create_subprocess_exec",
+        lambda *a, **k: asyncio.sleep(0, result=process),
+    )
+
+    with pytest.raises(AppServerNoProgressError) as caught:
+        await adapter.send(
+            AgentRequest("local-thread", "hello", {"workspace_path": str(tmp_path)})
+        )
+
+    assert caught.value.context["active_items"] == {
+        "cmd-stalled": "commandExecution"
+    }
+    assert any(
+        item.get("method") == "turn/interrupt" for item in process.stdin.writes
+    )
+    await adapter.close()
+
+
+@pytest.mark.asyncio
 async def test_app_server_routes_native_command_approval(monkeypatch, tmp_path):
     process = FakeProcess(request_approval=True)
     adapter = CodexAppServerAdapter("fake")
@@ -329,3 +379,23 @@ def test_unmapped_notification_methods_are_recorded_for_diagnostics():
     )
 
     assert adapter.unhandled_methods == {"turn/started": 2}
+
+
+def test_updated_terminal_item_clears_active_activity():
+    active = {"cmd-1": "commandExecution"}
+
+    CodexAppServerAdapter._track_activity(
+        {
+            "method": "item/updated",
+            "params": {
+                "item": {
+                    "id": "cmd-1",
+                    "type": "commandExecution",
+                    "status": "completed",
+                }
+            },
+        },
+        active,
+    )
+
+    assert active == {}
