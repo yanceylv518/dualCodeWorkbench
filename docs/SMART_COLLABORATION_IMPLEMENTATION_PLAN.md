@@ -1281,6 +1281,24 @@ Claude review。
     与 turn 队列，再终止失效进程，消除不可达通知。>64 KiB 单行和活进程读取异常
     两条根因回归均通过；Codex app-server 专项 19 项、后端全量与 Ruff 见本提交验证。
 
+### C6-4-R2 恢复 CI 绿并重建安装包（一个 commit + 产物）
+
+- [ ] 对 `apps/desktop/src` 下 6 个未格式化文件（`api.ts`、`App.tsx`、
+  `components/RemoteRepository.tsx`、`components/RemoteRepository.test.tsx`、
+  `index.css`、`store.ts`）执行 Prettier 机械格式化，不改任何逻辑。
+- [ ] 推送并确认 CI 双平台绿后，重建安装包（含 C6-4-R1 读取通道修复与
+  验收调试期全部改动），更新 C6-4 构建结果中的 SHA-256，旧校验和标注作废。
+- [ ] 流程备忘写入 `docs/REMEDIATION_BACKLOG.md` 执行约定（或本清单开头
+  约定块）：任何直接推送（含验收调试期快速修复）前，本地必须先跑
+  `pnpm --filter @dualcode/desktop exec prettier --check "src/**/*.{ts,tsx,css}"`
+  与改动侧全量门禁——本项目已三次因跳过该步造成 CI 连红
+  （C-R4 期间、C6-3b-R1、本次）。
+- **为什么**：见 C6-4-R1 复验——读取通道修复已通过，但验收调试期批量
+  提交遗留格式债使 CI 自 `4fd7909` 起连红，修复的「CI 双平台绿」验收项
+  与可交付安装包被挡。
+- **验收**：CI 双平台绿；新 SHA-256 已记录、旧值作废；流程备忘落档。
+  完成后用户凭新包复测大输出命令轮次并继续五项真实验收。
+
 ### C6-4 产品化构建与真实验收（需用户配合）
 
 - [x] 构建：Vite 生产构建、Windows sidecar、Tauri release 与安装包；
