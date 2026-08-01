@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import json
 import subprocess
 
 import pytest
@@ -15,11 +16,58 @@ from dualcode.models import (
     HandoffPackage,
     Message,
     RunState,
+    TaskContract,
     Thread,
     Workspace,
 )
 from dualcode.scheduler import RunScheduler
 from dualcode.task_classifier import classify
+
+
+@pytest.mark.asyncio
+async def test_dual_agent_route_builds_contract_from_original_prompt(
+    tmp_path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    engine = create_async_engine(f"sqlite+aiosqlite:///{tmp_path / 'contract.db'}")
+    async with engine.begin() as connection:
+        await connection.run_sync(Base.metadata.create_all)
+    sessions = async_sessionmaker(engine, expire_on_commit=False)
+    async with sessions() as db:
+        workspace = Workspace(name="Project", path=str(tmp_path))
+        db.add(workspace)
+        await db.flush()
+        thread = Thread(workspace_id=workspace.id, title="Task")
+        db.add(thread)
+        await db.commit()
+        thread_id = thread.id
+
+    monkeypatch.setattr("dualcode.scheduler.SessionLocal", sessions)
+
+    observed: list[str] = []
+
+    async def stop_after_contract(db, run, *, initial_prompt, callbacks):
+        del callbacks
+        contract = await db.scalar(
+            select(TaskContract).where(TaskContract.thread_id == thread_id)
+        )
+        assert contract is not None
+        observed.extend([contract.goal, contract.acceptance, run.state, initial_prompt])
+        return run
+
+    monkeypatch.setattr("dualcode.scheduler.execute_pipeline", stop_after_contract)
+    scheduler = RunScheduler.__new__(RunScheduler)
+    prompt = "阅读当前项目文档和代码，给出项目现状和三个风险"
+    await scheduler._execute_smart_collaboration(
+        thread_id,
+        prompt,
+        [],
+        classify(prompt),
+    )
+
+    assert observed[0] == prompt
+    assert len(json.loads(observed[1])) >= 2
+    assert observed[2:] == ["READY", prompt]
+    await engine.dispose()
 
 
 @pytest.mark.asyncio

@@ -529,6 +529,7 @@ async def create_collaboration_run(
         contract = TaskContract(thread_id=thread_id)
         db.add(contract)
     contract.goal = body.goal.strip()
+    await db.flush()
     run = await start_collaboration_run(db, workspace, thread, decision=classify(body.goal))
     await db.commit()
     await db.refresh(run)

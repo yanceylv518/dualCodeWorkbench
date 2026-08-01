@@ -25,6 +25,7 @@ from .collaboration_orchestrator import (
     SnapshotEvidence,
     StageCallbacks,
     advance as advance_collaboration,
+    ensure_contract_draft,
     execute_pipeline,
     resume as resume_collaboration,
     start_run as start_collaboration_run,
@@ -472,6 +473,16 @@ class RunScheduler:
             else:
                 if decision is None:
                     return
+                contract = await db.scalar(
+                    select(TaskContract).where(TaskContract.thread_id == thread_id)
+                )
+                if contract is None:
+                    contract = TaskContract(thread_id=thread_id)
+                    db.add(contract)
+                if not (contract.goal or "").strip():
+                    contract.goal = prompt.strip()
+                ensure_contract_draft(contract, decision)
+                await db.flush()
                 collaboration = await start_collaboration_run(
                     db, workspace, thread, decision=decision
                 )
