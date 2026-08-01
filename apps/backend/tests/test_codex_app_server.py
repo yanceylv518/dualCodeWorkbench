@@ -40,6 +40,7 @@ class FakeProcess:
         self.stdin = FakeStdin(self)
         self.returncode = None
         self.request_approval = request_approval
+        self.thread_read_result = {}
 
     def emit(self, value):
         self.stdout.queue.put_nowait((json.dumps(value) + "\n").encode())
@@ -57,6 +58,8 @@ class FakeProcess:
             result = {"thread": {"id": "thread-app-1"}}
         elif method == "thread/resume":
             result = {"thread": {"id": request["params"]["threadId"]}}
+        elif method == "thread/read":
+            result = self.thread_read_result
         elif method == "turn/start":
             result = {"turn": {"id": "turn-1"}}
         self.emit({"id": request["id"], "result": result})
@@ -165,6 +168,55 @@ async def test_app_server_resets_transport_when_turn_stops_emitting_events(
 
 def test_default_command_watchdog_does_not_wait_ten_minutes():
     assert CodexAppServerAdapter("fake").command_timeout_seconds == 180
+
+
+def test_recovered_result_does_not_duplicate_already_streamed_text():
+    assert CodexAppServerAdapter._recovered_suffix("hello world", "hello world") == ""
+    assert CodexAppServerAdapter._recovered_suffix("hello world", "hello ") == "world"
+
+
+@pytest.mark.asyncio
+async def test_completed_turn_is_recovered_when_completion_event_is_lost(
+    monkeypatch, tmp_path
+):
+    process = FakeProcess()
+
+    def emit_partial_turn():
+        process.emit({
+            "method": "item/agentMessage/delta",
+            "params": {
+                "threadId": "thread-app-1", "turnId": "turn-1",
+                "delta": "hello ",
+            },
+        })
+
+    process.emit_turn = emit_partial_turn
+    process.thread_read_result = {"thread": {"turns": [{
+        "id": "turn-1", "status": "completed",
+        "items": [{
+            "id": "message-1", "type": "agentMessage",
+            "phase": "final_answer", "text": "hello world",
+        }],
+    }]}}
+    adapter = CodexAppServerAdapter(
+        "fake", progress_timeout_seconds=0.01, probe_grace_seconds=0.01
+    )
+    monkeypatch.setattr(adapter, "resolve_executable", lambda: "fake")
+    monkeypatch.setattr(
+        asyncio, "create_subprocess_exec",
+        lambda *a, **k: asyncio.sleep(0, result=process),
+    )
+
+    response = await adapter.send(
+        AgentRequest("local-thread", "hello", {"workspace_path": str(tmp_path)})
+    )
+
+    assert response.content == "hello world"
+    assert not any(
+        item.get("method") == "turn/interrupt" for item in process.stdin.writes
+    )
+    assert process.returncode is None
+    await adapter.close()
 
 
 @pytest.mark.asyncio

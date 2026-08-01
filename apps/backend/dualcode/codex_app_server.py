@@ -120,14 +120,55 @@ class CodexAppServerAdapter(BaseCliAdapter):
         ):
             active_items.pop(item_id, None)
 
-    async def _probe_thread(self, thread_id: str) -> bool:
+    async def _read_thread(self, thread_id: str) -> dict | None:
         if self._process is None or self._process.returncode is not None:
-            return False
+            return None
         try:
-            await self._request("thread/read", {"threadId": thread_id, "includeTurns": False})
-            return True
+            return await self._request(
+                "thread/read", {"threadId": thread_id, "includeTurns": True}
+            )
         except Exception:
-            return False
+            return None
+
+    @staticmethod
+    def _turn_snapshot(result: dict | None, turn_id: str) -> tuple[str, str]:
+        thread = result.get("thread") if isinstance(result, dict) else None
+        turns = thread.get("turns") if isinstance(thread, dict) else None
+        if not isinstance(turns, list):
+            return "", ""
+        turn = next(
+            (
+                candidate
+                for candidate in turns
+                if isinstance(candidate, dict)
+                and str(candidate.get("id") or "") == turn_id
+            ),
+            None,
+        )
+        if not isinstance(turn, dict):
+            return "", ""
+        messages = [
+            item
+            for item in turn.get("items", [])
+            if isinstance(item, dict)
+            and item.get("type") == "agentMessage"
+            and isinstance(item.get("text"), str)
+        ]
+        # The live delta stream includes commentary and final answer messages.
+        # Preserve the persisted item order so prefix comparison can recover
+        # only the bytes that were not delivered before the notification loss.
+        texts = [str(item["text"]) for item in messages]
+        return str(turn.get("status") or ""), "".join(texts)
+
+    @staticmethod
+    def _recovered_suffix(full_text: str, streamed_text: str) -> str:
+        if not full_text:
+            return ""
+        if full_text.startswith(streamed_text):
+            return full_text[len(streamed_text):]
+        if streamed_text.endswith(full_text):
+            return ""
+        return full_text if not streamed_text else ""
 
     def command_args(self, request: AgentRequest) -> list[str]:
         return ["app-server"]
@@ -361,6 +402,7 @@ class CodexAppServerAdapter(BaseCliAdapter):
             raise AppServerProtocolError("turn/start returned no turn id")
         self._turn_queues[turn_id] = queue
         active_items: dict[str, str] = {}
+        streamed_text_parts: list[str] = []
         last_event: dict | None = None
         last_activity_at = time.monotonic()
         try:
@@ -374,7 +416,42 @@ class CodexAppServerAdapter(BaseCliAdapter):
                         event = await asyncio.wait_for(queue.get(), timeout=wait_seconds)
                     except TimeoutError as exc:
                         idle_seconds = time.monotonic() - last_activity_at
-                        probe_succeeded = await self._probe_thread(thread_id)
+                        thread_result = await self._read_thread(thread_id)
+                        probe_succeeded = thread_result is not None
+                        recovered_status, recovered_text = self._turn_snapshot(
+                            thread_result, turn_id
+                        )
+                        if recovered_status == "completed":
+                            suffix = self._recovered_suffix(
+                                recovered_text, "".join(streamed_text_parts)
+                            )
+                            if suffix:
+                                yield json.dumps(
+                                    {
+                                        "type": "agent_message.delta",
+                                        "thread_id": thread_id,
+                                        "text": suffix,
+                                    },
+                                    ensure_ascii=False,
+                                )
+                            yield json.dumps(
+                                {
+                                    "type": "turn.completed",
+                                    "thread_id": thread_id,
+                                    "turn": {
+                                        "id": turn_id,
+                                        "status": "completed",
+                                        "recovered": True,
+                                    },
+                                },
+                                ensure_ascii=False,
+                            )
+                            break
+                        if recovered_status in {"failed", "interrupted"}:
+                            await self.close()
+                            raise AppServerProtocolError(
+                                f"Codex turn ended with status {recovered_status}"
+                            )
                         if probe_succeeded and active_items:
                             yield json.dumps({"type": "watchdog.status", "thread_id": thread_id, "item": {
                                 "id": "codex-watchdog", "type": "watchdog",
@@ -392,6 +469,10 @@ class CodexAppServerAdapter(BaseCliAdapter):
                                 self._track_activity(event, active_items)
                                 normalized = self._normalize(event, thread_id)
                                 if normalized:
+                                    if normalized["type"] == "agent_message.delta":
+                                        streamed_text_parts.append(
+                                            str(normalized.get("text") or "")
+                                        )
                                     yield json.dumps(normalized, ensure_ascii=False)
                                     if normalized["type"] == "turn.completed":
                                         break
@@ -429,6 +510,10 @@ class CodexAppServerAdapter(BaseCliAdapter):
                         continue
                     normalized = self._normalize(event, thread_id)
                     if normalized:
+                        if normalized["type"] == "agent_message.delta":
+                            streamed_text_parts.append(
+                                str(normalized.get("text") or "")
+                            )
                         yield json.dumps(normalized, ensure_ascii=False)
                         if normalized["type"] == "turn.completed":
                             break
