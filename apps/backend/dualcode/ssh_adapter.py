@@ -119,12 +119,7 @@ class ClaudeSshAdapter(AgentAdapter):
             raise ValueError("审查任务标识必须是 UUID") from exc
         if not re.fullmatch(r"[0-9a-fA-F]{40}", snapshot_sha):
             raise ValueError("影子快照 SHA 无效")
-        target = (
-            self.config.remote_root
-            / "review-worktrees"
-            / safe_thread
-            / safe_run
-        )
+        target = self.config.remote_root / "review-worktrees" / safe_thread / safe_run
         connection = await self._connect()
         quoted_repository = shlex.quote(str(repository))
         quoted_target = shlex.quote(str(target))
@@ -133,28 +128,22 @@ class ClaudeSshAdapter(AgentAdapter):
         try:
             await connection.run(f"mkdir -p -- {quoted_parent}", check=True)
             await connection.run(
-                f"git -C {quoted_repository} worktree add --detach "
-                f"{quoted_target} {quoted_sha}",
+                f"git -C {quoted_repository} worktree add --detach {quoted_target} {quoted_sha}",
                 check=True,
             )
             return RemoteReviewWorktree(repository, target, snapshot_sha)
         except Exception:
             await connection.run(
-                f"git -C {quoted_repository} worktree remove --force "
-                f"{quoted_target}",
+                f"git -C {quoted_repository} worktree remove --force {quoted_target}",
                 check=False,
             )
-            await connection.run(
-                f"git -C {quoted_repository} worktree prune", check=False
-            )
+            await connection.run(f"git -C {quoted_repository} worktree prune", check=False)
             raise
         finally:
             connection.close()
             await connection.wait_closed()
 
-    async def remove_review_worktree(
-        self, worktree: RemoteReviewWorktree
-    ) -> list[str]:
+    async def remove_review_worktree(self, worktree: RemoteReviewWorktree) -> list[str]:
         """Best-effort cleanup which never hides the review result."""
 
         repository = self._validated_repository(worktree.repository)
@@ -171,21 +160,14 @@ class ClaudeSshAdapter(AgentAdapter):
         warnings: list[str] = []
         try:
             result = await connection.run(
-                f"git -C {quoted_repository} worktree remove --force "
-                f"{quoted_target}",
+                f"git -C {quoted_repository} worktree remove --force {quoted_target}",
                 check=False,
             )
             if result.exit_status != 0:
-                warnings.append(
-                    f"VPS 审查 worktree 清理失败：{str(result.stderr).strip()[:200]}"
-                )
-            prune = await connection.run(
-                f"git -C {quoted_repository} worktree prune", check=False
-            )
+                warnings.append(f"VPS 审查 worktree 清理失败：{str(result.stderr).strip()[:200]}")
+            prune = await connection.run(f"git -C {quoted_repository} worktree prune", check=False)
             if prune.exit_status != 0:
-                warnings.append(
-                    f"VPS worktree prune 失败：{str(prune.stderr).strip()[:200]}"
-                )
+                warnings.append(f"VPS worktree prune 失败：{str(prune.stderr).strip()[:200]}")
             return warnings
         finally:
             connection.close()
@@ -420,7 +402,11 @@ class ClaudeSshAdapter(AgentAdapter):
             await connection.wait_closed()
 
     async def repository_update(
-        self, repository: PurePosixPath, action: str, remote_url: str = ""
+        self,
+        repository: PurePosixPath,
+        action: str,
+        remote_url: str = "",
+        identity_file: PurePosixPath | None = None,
     ) -> str:
         if not repository.is_absolute() or ".." in repository.parts:
             raise ValueError("remote repository path must be absolute and normalized")
@@ -428,6 +414,7 @@ class ClaudeSshAdapter(AgentAdapter):
             raise ValueError("unsupported remote Git action")
         connection = await self._connect()
         quoted = shlex.quote(str(repository))
+        git_prefix = self._repository_git_prefix(identity_file)
         try:
             if action in {"provision", "repair_provision"}:
                 if not remote_url or any(char in remote_url for char in "\r\n\0"):
@@ -439,25 +426,83 @@ class ClaudeSshAdapter(AgentAdapter):
                         f"if git -C {quoted} rev-parse --is-inside-work-tree >/dev/null 2>&1 "
                         f"&& git -C {quoted} remote get-url origin >/dev/null 2>&1; then "
                         "printf 'Refusing to replace an existing valid Git repository' >&2; exit 65; "
-                        f"fi; rm -rf -- {quoted} && mkdir -p -- {parent} && git clone -- {remote} {quoted}"
+                        f"fi; rm -rf -- {quoted} && mkdir -p -- {parent} && {git_prefix}git clone -- {remote} {quoted}"
                     )
                 else:
-                    command = f"mkdir -p -- {parent} && git clone -- {remote} {quoted}"
+                    command = f"mkdir -p -- {parent} && {git_prefix}git clone -- {remote} {quoted}"
             elif action == "fetch":
-                command = f"git -C {quoted} fetch --prune"
+                command = f"{git_prefix}git -C {quoted} fetch --prune"
             else:
                 dirty = await connection.run(
                     f"git -C {quoted} status --porcelain", check=True, timeout=15
                 )
                 if dirty.stdout.strip():
                     raise ValueError("Remote pull refused: VPS workspace has uncommitted changes")
-                command = f"git -C {quoted} pull --ff-only"
+                command = f"{git_prefix}git -C {quoted} pull --ff-only"
             try:
                 result = await connection.run(command, check=True, timeout=120)
             except asyncssh.ProcessError as exc:
                 detail = (exc.stderr or exc.stdout or str(exc)).strip()
                 raise ValueError(f"远端 Git {action} 操作失败：{detail}") from exc
             return result.stdout.strip() or result.stderr.strip()
+        finally:
+            connection.close()
+            await connection.wait_closed()
+
+    @staticmethod
+    def _repository_git_prefix(identity_file: PurePosixPath | None) -> str:
+        if identity_file is None:
+            return "GIT_TERMINAL_PROMPT=0 "
+        if not identity_file.is_absolute() or ".." in identity_file.parts:
+            raise ValueError("repository identity path must be absolute and normalized")
+        ssh_command = (
+            f"ssh -i {shlex.quote(str(identity_file))} -o IdentitiesOnly=yes -o BatchMode=yes"
+        )
+        return f"GIT_TERMINAL_PROMPT=0 GIT_SSH_COMMAND={shlex.quote(ssh_command)} "
+
+    async def repository_access(
+        self, remote_url: str, identity_file: PurePosixPath | None = None
+    ) -> tuple[int, str]:
+        if not remote_url or any(char in remote_url for char in "\r\n\0"):
+            raise ValueError("A valid remote URL is required")
+        connection = await self._connect()
+        command = (
+            f"{self._repository_git_prefix(identity_file)}git ls-remote --exit-code -- "
+            f"{shlex.quote(remote_url)} HEAD"
+        )
+        try:
+            result = await connection.run(command, check=False, timeout=25)
+            return result.exit_status, (result.stderr or result.stdout or "").strip()
+        finally:
+            connection.close()
+            await connection.wait_closed()
+
+    async def generate_repository_key(
+        self, identity_file: PurePosixPath, comment: str
+    ) -> dict[str, str]:
+        if not identity_file.is_absolute() or ".." in identity_file.parts:
+            raise ValueError("repository identity path must be absolute and normalized")
+        if any(char in comment for char in "\r\n\0"):
+            raise ValueError("invalid key comment")
+        connection = await self._connect()
+        key = shlex.quote(str(identity_file))
+        parent = shlex.quote(str(identity_file.parent))
+        try:
+            command = (
+                f"mkdir -p -- {parent} && chmod 700 -- {parent}; "
+                f"if [ ! -f {key} ]; then ssh-keygen -q -t ed25519 -N '' -C "
+                f"{shlex.quote(comment)} -f {key}; fi; "
+                f"chmod 600 -- {key}; chmod 644 -- {key}.pub; "
+                f"cat -- {key}.pub; printf '\\n__FINGERPRINT__'; "
+                f"ssh-keygen -lf {key}.pub | awk '{{print $2}}'"
+            )
+            result = await connection.run(command, check=True, timeout=30)
+            public_key, fingerprint = result.stdout.split("\n__FINGERPRINT__", 1)
+            return {
+                "path": str(identity_file),
+                "public_key": public_key.strip(),
+                "fingerprint": fingerprint.strip(),
+            }
         finally:
             connection.close()
             await connection.wait_closed()

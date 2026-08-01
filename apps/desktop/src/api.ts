@@ -496,7 +496,7 @@ export async function saveWorkspaceRemote(
 export async function requestRemoteGitAction(
   workspaceId: string,
   threadId: string,
-  action: "provision" | "repair_provision" | "fetch" | "pull",
+  action: "provision" | "repair_provision" | "fetch" | "pull" | "generate_access_key",
 ) {
   const r = await fetch(
     `${API}/workspaces/${workspaceId}/threads/${threadId}/remote/actions`,
@@ -506,6 +506,13 @@ export async function requestRemoteGitAction(
       body: JSON.stringify({ action }),
     },
   );
+  if (!r.ok) throw new Error(await r.text());
+  return r.json();
+}
+export async function fetchRepositoryAccess(
+  workspaceId: string,
+): Promise<import("./types").RepositoryAccessStatus> {
+  const r = await fetch(`${API}/workspaces/${workspaceId}/repository-access`);
   if (!r.ok) throw new Error(await r.text());
   return r.json();
 }

@@ -2521,6 +2521,76 @@ button:disabled {
   gap: 6px;
   margin-top: 10px;
 }
+
+.repository-access {
+  margin-top: 10px;
+  border: 1px solid var(--border-subtle, #34383b);
+  border-radius: 8px;
+  overflow: hidden;
+}
+
+.repository-access-toggle {
+  width: 100%;
+  min-height: 34px;
+  padding: 0 10px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  background: transparent;
+  border: 0;
+}
+
+.repository-access-toggle span,
+.repository-key button,
+.generate-access-key,
+.access-recheck {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.repository-access-toggle .expanded { transform: rotate(180deg); }
+
+.repository-access-body {
+  padding: 10px;
+  border-top: 1px solid var(--border-subtle, #34383b);
+  display: grid;
+  gap: 8px;
+}
+
+.repository-access-body > p,
+.repository-key > span {
+  margin: 0;
+  color: var(--muted);
+  font-size: 11px;
+  line-height: 1.5;
+}
+
+.access-environment {
+  padding: 8px;
+  border-radius: 6px;
+  background: var(--surface-2);
+  display: grid;
+  gap: 5px;
+  font-size: 11px;
+}
+
+.access-environment > div { display: flex; justify-content: space-between; }
+.access-environment.ready { border-left: 2px solid #48b982; }
+.access-environment.action_required,
+.access-environment.error { border-left: 2px solid #d66767; }
+
+.repository-key { display: grid; gap: 6px; }
+.repository-key textarea {
+  min-height: 76px;
+  resize: vertical;
+  font: 10px/1.4 Consolas, "Cascadia Mono", monospace;
+  word-break: break-all;
+}
+
+.repository-key button,
+.generate-access-key,
+.access-recheck { width: fit-content; }
 .remote-actions button {
   border: 1px solid #3a424a;
   border-radius: 6px;

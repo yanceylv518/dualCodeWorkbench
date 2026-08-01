@@ -1,7 +1,8 @@
-import { cleanup, fireEvent, render, screen } from "@testing-library/react";
+import { cleanup, fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { afterEach, describe, expect, it, vi } from "vitest";
 
 import { useStore } from "../store";
+import * as api from "../api";
 import type { ExecutionJob, WorkspaceRemoteStatus } from "../types";
 import { deriveRemoteFeedback, RemoteRepository } from "./RemoteRepository";
 
@@ -43,7 +44,7 @@ function job(
 }
 
 function renderRepository(status?: ExecutionJob["status"], lastError?: string) {
-  useStore.setState({ refreshRemote: vi.fn(async () => undefined) });
+  useStore.setState({ workspaceId: "workspace-1", refreshRemote: vi.fn(async () => undefined) });
   const action = vi.fn(async () => undefined);
   render(
     <RemoteRepository
@@ -121,5 +122,26 @@ describe("RemoteRepository", () => {
       "disabled",
       true,
     );
+  });
+
+  it("shows actionable local and VPS access results and can request a dedicated key", async () => {
+    vi.spyOn(api, "fetchRepositoryAccess").mockResolvedValue({
+      remote_url: remote.settings.remote_url,
+      local: {
+        environment: "local", state: "ready", transport: "ssh",
+        read_access: true, write_access: "unknown", error_code: "", summary: "ready",
+      },
+      vps: {
+        environment: "vps", state: "action_required", transport: "ssh",
+        read_access: false, write_access: "unknown", error_code: "SSH_KEY_NOT_AUTHORIZED",
+        summary: "当前 SSH 公钥尚未获得该仓库访问权限。",
+      },
+      key: {},
+    });
+    const action = renderRepository();
+    fireEvent.click(screen.getByRole("button", { name: /仓库访问配置/ }));
+    await waitFor(() => expect(screen.getByText("读取已验证")).toBeTruthy());
+    fireEvent.click(screen.getByRole("button", { name: /生成 VPS 项目专用密钥/ }));
+    expect(action).toHaveBeenCalledWith("generate_access_key");
   });
 });

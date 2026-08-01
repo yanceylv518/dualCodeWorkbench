@@ -19,6 +19,21 @@ def test_workspace_remote_round_trip(tmp_path: Path):
     assert store.get("workspace") == value
 
 
+def test_workspace_remote_stores_public_key_metadata_without_private_material(tmp_path: Path):
+    store = WorkspaceRemoteStore(tmp_path / "remotes.json")
+    value = WorkspaceRemoteSettings(
+        remote_url="git@github.com:owner/repo.git",
+        vps_repo_path="/srv/repos/repo",
+        vps_git_key_path="/srv/dualcode/git-keys/workspace.ed25519",
+        vps_git_public_key="ssh-ed25519 AAAA test",
+        vps_git_key_fingerprint="SHA256:test",
+    )
+    store.save("workspace", value)
+    payload = (tmp_path / "remotes.json").read_text(encoding="utf-8")
+    assert "PRIVATE KEY" not in payload
+    assert store.get("workspace").vps_git_key_fingerprint == "SHA256:test"
+
+
 def test_workspace_remote_rejects_unsafe_path():
     with pytest.raises(ValueError):
         WorkspaceRemoteSettings(vps_repo_path="/srv/repos/../secret")

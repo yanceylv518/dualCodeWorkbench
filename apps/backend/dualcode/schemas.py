@@ -87,7 +87,7 @@ class GitActionCreate(BaseModel):
 
 
 class RemoteGitActionCreate(BaseModel):
-    action: str = Field(pattern="^(provision|repair_provision|fetch|pull)$")
+    action: str = Field(pattern="^(provision|repair_provision|fetch|pull|generate_access_key)$")
 
 
 class AttachmentRead(BaseModel):

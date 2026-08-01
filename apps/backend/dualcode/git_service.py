@@ -30,6 +30,7 @@ class GitService:
         *args: str,
         check: bool = True,
         env: dict[str, str] | None = None,
+        timeout: float | None = None,
     ) -> GitResult:
         repository = repository.resolve(strict=True)
         process_env = os.environ.copy()
@@ -45,7 +46,12 @@ class GitService:
             creationflags=getattr(subprocess, "CREATE_NO_WINDOW", 0),
             env=process_env,
         )
-        stdout, stderr = await process.communicate()
+        try:
+            stdout, stderr = await asyncio.wait_for(process.communicate(), timeout=timeout)
+        except TimeoutError:
+            process.kill()
+            await process.wait()
+            raise GitError("Git command timed out")
         result = GitResult(
             stdout.decode("utf-8", errors="replace"),
             stderr.decode("utf-8", errors="replace"),
@@ -54,6 +60,21 @@ class GitService:
         if check and result.returncode != 0:
             raise GitError(result.stderr.strip() or result.stdout.strip())
         return result
+
+    async def repository_access(self, repository: Path, remote_url: str) -> GitResult:
+        if not remote_url or any(char in remote_url for char in "\r\n\0"):
+            raise ValueError("A valid remote URL is required")
+        return await self.run(
+            repository,
+            "ls-remote",
+            "--exit-code",
+            "--",
+            remote_url,
+            "HEAD",
+            check=False,
+            env={"GIT_TERMINAL_PROMPT": "0"},
+            timeout=20,
+        )
 
     async def ensure_repository(self, repository: Path) -> Path:
         result = await self.run(repository, "rev-parse", "--show-toplevel")
@@ -141,12 +162,18 @@ class GitService:
         if reverse:
             args.append("--reverse")
         process = await asyncio.create_subprocess_exec(
-            *args, stdin=asyncio.subprocess.PIPE, stdout=asyncio.subprocess.PIPE,
-            stderr=asyncio.subprocess.PIPE, creationflags=getattr(subprocess, "CREATE_NO_WINDOW", 0),
+            *args,
+            stdin=asyncio.subprocess.PIPE,
+            stdout=asyncio.subprocess.PIPE,
+            stderr=asyncio.subprocess.PIPE,
+            creationflags=getattr(subprocess, "CREATE_NO_WINDOW", 0),
         )
         stdout, stderr = await process.communicate(patch.encode("utf-8"))
         if process.returncode != 0:
-            raise GitError((stderr or stdout).decode("utf-8", errors="replace").strip() or "Unable to apply checkpoint")
+            raise GitError(
+                (stderr or stdout).decode("utf-8", errors="replace").strip()
+                or "Unable to apply checkpoint"
+            )
 
     async def _untracked_files(self, worktree: Path) -> list[str]:
         return [entry[3:] for entry in await self.status(worktree) if entry.startswith("?? ")]
@@ -159,22 +186,33 @@ class GitService:
         remote_result = await self.run(repository, "remote", "get-url", "origin", check=False)
         remote = remote_result.stdout.strip() if remote_result.returncode == 0 else ""
         upstream_result = await self.run(
-            repository, "rev-parse", "--abbrev-ref", "--symbolic-full-name", "@{upstream}", check=False
+            repository,
+            "rev-parse",
+            "--abbrev-ref",
+            "--symbolic-full-name",
+            "@{upstream}",
+            check=False,
         )
         upstream = upstream_result.stdout.strip() if upstream_result.returncode == 0 else ""
         ahead = behind = 0
         if upstream:
-            counts = await self.run(repository, "rev-list", "--left-right", "--count", f"{upstream}...HEAD", check=False)
+            counts = await self.run(
+                repository, "rev-list", "--left-right", "--count", f"{upstream}...HEAD", check=False
+            )
             if counts.returncode == 0:
                 parts = counts.stdout.strip().split()
                 if len(parts) == 2:
                     behind, ahead = int(parts[0]), int(parts[1])
-        log = await self.run(repository, "log", "-5", "--pretty=format:%h%x09%an%x09%s%x09%cI", check=False)
+        log = await self.run(
+            repository, "log", "-5", "--pretty=format:%h%x09%an%x09%s%x09%cI", check=False
+        )
         commits = []
         for line in log.stdout.splitlines():
             parts = line.split("\t", 3)
             if len(parts) == 4:
-                commits.append({"sha": parts[0], "author": parts[1], "subject": parts[2], "date": parts[3]})
+                commits.append(
+                    {"sha": parts[0], "author": parts[1], "subject": parts[2], "date": parts[3]}
+                )
         return {
             "branch": branch,
             "head": head,
@@ -196,7 +234,14 @@ class GitService:
 
     async def push(self, repository: Path) -> str:
         await self.ensure_repository(repository)
-        upstream = await self.run(repository, "rev-parse", "--abbrev-ref", "--symbolic-full-name", "@{upstream}", check=False)
+        upstream = await self.run(
+            repository,
+            "rev-parse",
+            "--abbrev-ref",
+            "--symbolic-full-name",
+            "@{upstream}",
+            check=False,
+        )
         if upstream.returncode == 0:
             result = await self.run(repository, "push")
         else:

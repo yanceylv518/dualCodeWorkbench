@@ -22,6 +22,7 @@ from .execution_jobs import (
     request_retry,
 )
 from .git_service import GitError
+from .repository_access import RepositoryAccessResult, access_result
 from .models import (
     Approval,
     AuditLog,
@@ -46,6 +47,24 @@ from .workspace_remote import (
 from .api_runtime import git_tasks as _git_tasks
 
 router = APIRouter(prefix="/api")
+
+
+def _ssh_adapter(runtime) -> ClaudeSshAdapter:
+    return ClaudeSshAdapter(
+        ClaudeSshConfig(
+            host=runtime.claude_ssh_host,
+            username=runtime.claude_ssh_username,
+            port=runtime.claude_ssh_port,
+            known_hosts=Path(runtime.claude_ssh_known_hosts),
+            client_keys=(Path(runtime.claude_ssh_client_key),)
+            if runtime.claude_ssh_client_key
+            else (),
+            remote_root=PurePosixPath(runtime.claude_remote_root),
+            claude_executable=PurePosixPath(runtime.claude_ssh_executable),
+            model=runtime.claude_model,
+            reasoning_effort=runtime.claude_reasoning_effort,
+        )
+    )
 
 
 async def _persist_evidence(approval_id: str, phase: str, value: dict[str, object]) -> None:
@@ -409,11 +428,22 @@ async def update_workspace_remote(
     if not workspace:
         raise HTTPException(404, "未找到指定项目")
     runtime = agent_settings_store.load()
+    existing = workspace_remote_store.get(workspace_id)
+    key_metadata = (
+        {
+            "vps_git_key_path": existing.vps_git_key_path,
+            "vps_git_public_key": existing.vps_git_public_key,
+            "vps_git_key_fingerprint": existing.vps_git_key_fingerprint,
+        }
+        if normalize_remote_url(existing.remote_url) == normalize_remote_url(value.remote_url)
+        else {}
+    )
     value = value.model_copy(
         update={
             "vps_repo_path": derived_repository_path(
                 runtime.claude_ssh_projects_root, value.remote_url, workspace.name
-            )
+            ),
+            **key_metadata,
         }
     )
     workspace_remote_store.save(workspace_id, value)
@@ -427,6 +457,58 @@ async def update_workspace_remote(
     )
     await db.commit()
     return value
+
+
+@router.get("/workspaces/{workspace_id}/repository-access")
+async def workspace_repository_access(workspace_id: str, db: AsyncSession = Depends(get_session)):
+    workspace = await db.get(Workspace, workspace_id)
+    if not workspace:
+        raise HTTPException(404, "Workspace not found")
+    remote = workspace_remote_store.get(workspace_id)
+    local_status = await scheduler._git.repository_status(Path(workspace.path))
+    remote_url = remote.remote_url or str(local_status.get("remote", ""))
+    if not remote_url:
+
+        def empty(environment: str) -> dict[str, object]:
+            return RepositoryAccessResult(
+                environment=environment,
+                state="unconfigured",
+                summary="当前项目尚未配置远程仓库。",
+            ).model_dump()
+
+        return {"remote_url": "", "local": empty("local"), "vps": empty("vps"), "key": {}}
+    local_check = await scheduler._git.repository_access(Path(workspace.path), remote_url)
+    local = access_result(
+        "local", remote_url, local_check.returncode, local_check.stderr or local_check.stdout
+    )
+    runtime = agent_settings_store.load()
+    key = {
+        "path": remote.vps_git_key_path,
+        "public_key": remote.vps_git_public_key,
+        "fingerprint": remote.vps_git_key_fingerprint,
+    }
+    if not (
+        runtime.claude_ssh_enabled
+        and runtime.claude_ssh_host
+        and runtime.claude_ssh_username
+        and runtime.claude_ssh_known_hosts
+    ):
+        vps = RepositoryAccessResult(
+            environment="vps", state="unavailable", summary="尚未配置可用的 VPS SSH 连接。"
+        )
+    else:
+        try:
+            identity = PurePosixPath(remote.vps_git_key_path) if remote.vps_git_key_path else None
+            returncode, detail = await _ssh_adapter(runtime).repository_access(remote_url, identity)
+            vps = access_result("vps", remote_url, returncode, detail)
+        except Exception as exc:
+            vps = access_result("vps", remote_url, 1, str(exc))
+    return {
+        "remote_url": remote_url,
+        "local": local.model_dump(),
+        "vps": vps.model_dump(),
+        "key": key,
+    }
 
 
 @router.post("/workspaces/{workspace_id}/threads/{thread_id}/remote/actions", status_code=202)
@@ -443,7 +525,7 @@ async def request_remote_git_action(
     remote = workspace_remote_store.get(workspace_id)
     if not workspace or not thread:
         raise HTTPException(404, "未找到指定项目或任务")
-    if not remote.vps_repo_path:
+    if body.action != "generate_access_key" and not remote.vps_repo_path:
         raise HTTPException(400, "尚未配置 VPS 仓库路径")
     runtime = agent_settings_store.load()
     expected_repository = derived_repository_path(
@@ -453,30 +535,23 @@ async def request_remote_git_action(
     )
     if body.action == "repair_provision" and remote.vps_repo_path != expected_repository:
         raise HTTPException(400, "拒绝修复并非由当前项目自动生成的 VPS 路径")
-    adapter = ClaudeSshAdapter(
-        ClaudeSshConfig(
-            host=runtime.claude_ssh_host,
-            username=runtime.claude_ssh_username,
-            port=runtime.claude_ssh_port,
-            known_hosts=Path(runtime.claude_ssh_known_hosts),
-            client_keys=(Path(runtime.claude_ssh_client_key),)
-            if runtime.claude_ssh_client_key
-            else (),
-            remote_root=PurePosixPath(runtime.claude_remote_root),
-            claude_executable=PurePosixPath(runtime.claude_ssh_executable),
-            model=runtime.claude_model,
-            reasoning_effort=runtime.claude_reasoning_effort,
-        )
-    )
+    adapter = _ssh_adapter(runtime)
     action_name = f"remote_git_{body.action}"
+    key_reason = (
+        "在 VPS 上为当前项目生成独立的 Git SSH 密钥；私钥仅保留在 VPS，应用只保存公钥、指纹和路径。"
+    )
     reason = (
-        "在 VPS 项目根目录中创建项目目录并克隆远程仓库"
-        if body.action == "provision"
-        else "删除当前项目自动派生目录中的无效残留内容，并重新克隆远程仓库；有效 Git 仓库不会被删除"
-        if body.action == "repair_provision"
-        else "在 VPS 仓库执行 git fetch --prune"
-        if body.action == "fetch"
-        else "在 VPS 仓库执行 git pull --ff-only，不自动合并"
+        key_reason
+        if body.action == "generate_access_key"
+        else (
+            "在 VPS 项目根目录中创建项目目录并克隆远程仓库"
+            if body.action == "provision"
+            else "删除当前项目自动派生目录中的无效残留内容，并重新克隆远程仓库；有效 Git 仓库不会被删除"
+            if body.action == "repair_provision"
+            else "在 VPS 仓库执行 git fetch --prune"
+            if body.action == "fetch"
+            else "在 VPS 仓库执行 git pull --ff-only，不自动合并"
+        )
     )
     # Clicking "clone to VPS" is the user's explicit authorization for this
     # one clone. Persist that decision for audit/recovery, but do not ask for
@@ -595,16 +670,41 @@ async def request_remote_git_action(
         event = "remote.git.completed"
         try:
             remote_repository = PurePosixPath(remote.vps_repo_path)
-            if body.action not in {"provision", "repair_provision"}:
-                await _persist_evidence(
-                    approval.id, "before", await adapter.repository_status(remote_repository)
+            if body.action == "generate_access_key":
+                key_path = (
+                    PurePosixPath(runtime.claude_remote_root)
+                    / "git-keys"
+                    / f"{workspace_id}.ed25519"
                 )
-            output = await adapter.repository_update(
-                remote_repository, body.action, remote.remote_url
-            )
-            after = await adapter.repository_status(remote_repository)
-            after["verified"] = True
-            await _persist_evidence(approval.id, "after", after)
+                generated = await adapter.generate_repository_key(
+                    key_path, f"dualcode-{workspace_id}"
+                )
+                current = workspace_remote_store.get(workspace_id)
+                workspace_remote_store.save(
+                    workspace_id,
+                    current.model_copy(
+                        update={
+                            "vps_git_key_path": generated["path"],
+                            "vps_git_public_key": generated["public_key"],
+                            "vps_git_key_fingerprint": generated["fingerprint"],
+                        }
+                    ),
+                )
+                output = "VPS 项目专用 Git SSH 密钥已生成，请将公钥添加到 Git 服务后重新检测。"
+            else:
+                identity = (
+                    PurePosixPath(remote.vps_git_key_path) if remote.vps_git_key_path else None
+                )
+                if body.action not in {"provision", "repair_provision"}:
+                    await _persist_evidence(
+                        approval.id, "before", await adapter.repository_status(remote_repository)
+                    )
+                output = await adapter.repository_update(
+                    remote_repository, body.action, remote.remote_url, identity
+                )
+                after = await adapter.repository_status(remote_repository)
+                after["verified"] = True
+                await _persist_evidence(approval.id, "after", after)
         except Exception as exc:
             event = "remote.git.failed"
             output = str(exc)

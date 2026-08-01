@@ -207,7 +207,7 @@ interface Store {
   saveRemote: (remote_url: string, vps_repo_path: string) => Promise<void>;
   refreshRemote: () => Promise<void>;
   remoteGitAction: (
-    action: "provision" | "repair_provision" | "fetch" | "pull",
+    action: "provision" | "repair_provision" | "fetch" | "pull" | "generate_access_key",
   ) => Promise<void>;
   runTests: () => Promise<void>;
   refreshExecutionJobs: () => Promise<void>;

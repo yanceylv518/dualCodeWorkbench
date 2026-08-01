@@ -12,6 +12,9 @@ from .config import settings
 class WorkspaceRemoteSettings(BaseModel):
     remote_url: str = ""
     vps_repo_path: str = ""
+    vps_git_key_path: str = ""
+    vps_git_public_key: str = ""
+    vps_git_key_fingerprint: str = ""
 
     @field_validator("remote_url")
     @classmethod
@@ -21,7 +24,7 @@ class WorkspaceRemoteSettings(BaseModel):
             raise ValueError("invalid remote URL")
         return value
 
-    @field_validator("vps_repo_path")
+    @field_validator("vps_repo_path", "vps_git_key_path")
     @classmethod
     def safe_remote_path(cls, value: str) -> str:
         value = value.strip()

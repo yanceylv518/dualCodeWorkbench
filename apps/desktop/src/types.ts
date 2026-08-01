@@ -145,13 +145,34 @@ export interface GitStatus {
   commits: { sha: string; author: string; subject: string; date: string }[];
 }
 export interface WorkspaceRemoteStatus {
-  settings: { remote_url: string; vps_repo_path: string };
+  settings: {
+    remote_url: string;
+    vps_repo_path: string;
+    vps_git_key_path?: string;
+    vps_git_public_key?: string;
+    vps_git_key_fingerprint?: string;
+  };
   local: GitStatus;
   vps?: { branch: string; head: string; remote: string };
   same_remote: boolean;
   same_commit: boolean;
   state?: "not_cloned" | "ambiguous";
   error?: string;
+}
+export interface RepositoryAccessEnvironment {
+  environment: "local" | "vps";
+  state: "unconfigured" | "ready" | "action_required" | "error" | "unavailable";
+  transport: "ssh" | "https" | "unknown";
+  read_access: boolean;
+  write_access: "unknown";
+  error_code: string;
+  summary: string;
+}
+export interface RepositoryAccessStatus {
+  remote_url: string;
+  local: RepositoryAccessEnvironment;
+  vps: RepositoryAccessEnvironment;
+  key: { path?: string; public_key?: string; fingerprint?: string };
 }
 export interface ProjectContract {
   governance: {
