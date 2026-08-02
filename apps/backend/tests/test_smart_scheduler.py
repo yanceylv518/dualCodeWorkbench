@@ -75,6 +75,9 @@ async def test_dual_agent_route_builds_contract_from_original_prompt(
     ("prompt", "expected_agent", "expects_collaboration"),
     [
         ("解释一下这个字段是什么", "codex", False),
+        ("阅读当前项目文档和代码，给出项目现状，只做分析，不修改代码", "codex", False),
+        ("好的，继续", "codex", False),
+        ("接下来应该做什么", "codex", False),
         ("增加项目收藏功能", "codex", True),
         ("设计新的系统架构", "claude", True),
     ],
