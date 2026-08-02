@@ -25,6 +25,7 @@ vi.mock("./api", () => ({
   })),
   sendMessage: vi.fn(async () => ({
     message_id: "message-1",
+    thread_title: "实现一个面向专业交付的任务管理功能，并补",
     attachments: [],
   })),
   updateThread: vi.fn(async () => ({})),
@@ -293,7 +294,7 @@ describe("thread management", () => {
     );
   });
 
-  it("derives and persists a title from the first user message", async () => {
+  it("uses the title derived by the backend from the first user message", async () => {
     useStore.setState({
       workspaceId: "workspace",
       threadId: "thread",
@@ -319,11 +320,7 @@ describe("thread management", () => {
       .getState()
       .sendPrompt("实现一个面向专业交付的任务管理功能，并补齐测试");
 
-    expect(api.updateThread).toHaveBeenCalledWith(
-      "workspace",
-      "thread",
-      "实现一个面向专业交付的任务管理功能，并补",
-    );
+    expect(api.updateThread).not.toHaveBeenCalled();
     expect(useStore.getState().workspaces[0].threads[0].title).toBe(
       "实现一个面向专业交付的任务管理功能，并补",
     );

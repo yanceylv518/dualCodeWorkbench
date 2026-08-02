@@ -43,6 +43,32 @@ from .api_runtime import git_tasks as _git_tasks
 
 router = APIRouter(prefix="/api")
 _thread_create_locks: dict[str, asyncio.Lock] = {}
+_DEFAULT_THREAD_TITLE = "新开发任务"
+
+
+def _derive_thread_title(content: str) -> str:
+    return " ".join(content.split())[:20]
+
+
+def _backfill_default_thread_titles(workspaces: list[Workspace]) -> bool:
+    changed = False
+    for workspace in workspaces:
+        for thread in workspace.threads:
+            if thread.title != _DEFAULT_THREAD_TITLE:
+                continue
+            first_user_message = min(
+                (
+                    message
+                    for message in thread.messages
+                    if message.role == "user" and message.content.strip()
+                ),
+                key=lambda message: message.created_at,
+                default=None,
+            )
+            if first_user_message:
+                thread.title = _derive_thread_title(first_user_message.content)
+                changed = True
+    return changed
 
 
 def _workspace_query():
@@ -52,7 +78,10 @@ def _workspace_query():
 
 @router.get("/workspaces", response_model=list[WorkspaceRead])
 async def list_workspaces(db: AsyncSession = Depends(get_session)):
-    return list((await db.scalars(_workspace_query())).unique().all())
+    workspaces = list((await db.scalars(_workspace_query())).unique().all())
+    if _backfill_default_thread_titles(workspaces):
+        await db.commit()
+    return workspaces
 
 
 @router.post("/workspaces", status_code=201, response_model=WorkspaceRead)
@@ -66,7 +95,7 @@ async def create_workspace(body: WorkspaceCreate, db: AsyncSession = Depends(get
     if existing:
         return await db.scalar(_workspace_query().where(Workspace.id == existing.id))
     workspace = Workspace(name=body.name or path.name, path=str(path))
-    workspace.threads = [Thread(title="新开发任务")]
+    workspace.threads = [Thread(title=_DEFAULT_THREAD_TITLE)]
     db.add(workspace)
     await db.commit()
     db.add(AuditLog(workspace_id=workspace.id, event="workspace.created", detail=str(path)))
@@ -135,7 +164,11 @@ async def provision_workspace(body: WorkspaceProvision, db: AsyncSession = Depen
         if body.remote_url.strip():
             await _git_command("remote", "add", "origin", body.remote_url.strip(), cwd=path)
     await _create_neutral_baseline(path, body.name or path.name)
-    workspace = Workspace(name=body.name or path.name, path=str(path), threads=[Thread(title="新开发任务")])
+    workspace = Workspace(
+        name=body.name or path.name,
+        path=str(path),
+        threads=[Thread(title=_DEFAULT_THREAD_TITLE)],
+    )
     db.add(workspace)
     await db.commit()
     workspace_remote_store.save(workspace.id, WorkspaceRemoteSettings(remote_url=body.remote_url.strip()))
@@ -326,6 +359,15 @@ async def create_message(
     )
     if attachment_count != len(body.attachment_ids):
         raise HTTPException(400, "附件不属于当前项目或任务")
+    thread_title = thread.title
+    if thread.title == _DEFAULT_THREAD_TITLE:
+        has_user_message = await db.scalar(
+            select(exists().where(Message.thread_id == thread_id, Message.role == "user"))
+        )
+        derived_title = _derive_thread_title(body.content)
+        if not has_user_message and derived_title:
+            thread.title = derived_title
+            thread_title = derived_title
     message = Message(thread_id=thread_id, role="user", content=body.content)
     db.add(message)
     await db.flush()
@@ -357,10 +399,15 @@ async def create_message(
         run_id = await scheduler.start(thread_id, agent_prompt, body.mode, body.attachment_ids)
     except RuntimeError as exc:
         raise HTTPException(409, f"无法撤销本轮修改：{exc}") from exc
-    return {"message_id": message.id, "run_id": run_id, "attachments": [
-        {"id": item.id, "name": item.name, "media_type": item.media_type, "size": item.size}
-        for item in attached_items
-    ]}
+    return {
+        "message_id": message.id,
+        "run_id": run_id,
+        "thread_title": thread_title,
+        "attachments": [
+            {"id": item.id, "name": item.name, "media_type": item.media_type, "size": item.size}
+            for item in attached_items
+        ],
+    }
 
 
 @router.post("/threads/{thread_id}/cancel", status_code=202)

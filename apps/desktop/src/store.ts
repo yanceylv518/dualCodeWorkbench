@@ -960,14 +960,6 @@ export const useStore = create<Store>((set, get) => ({
     })),
   sendPrompt: async (text) => {
     const state = get();
-    const selectedThread = state.workspaces
-      .find((workspace) => workspace.id === state.workspaceId)
-      ?.threads.find((thread) => thread.id === state.threadId);
-    const autoTitle =
-      selectedThread?.title === "新开发任务" &&
-      !selectedThread.messages.some((message) => message.agent === "user")
-        ? text.trim().replace(/\s+/g, " ").slice(0, 20)
-        : "";
     try {
       const draft = state.draftAttachments;
       const result = (await api.sendMessage(
@@ -976,12 +968,16 @@ export const useStore = create<Store>((set, get) => ({
         text,
         state.mode,
         draft.map((item) => item.id),
-      )) as { message_id: string; attachments?: Message["attachments"] };
+      )) as {
+        message_id: string;
+        thread_title?: string;
+        attachments?: Message["attachments"];
+      };
       set((current) => ({
         activeAgent: state.mode === "smart" ? undefined : state.mode,
         draftAttachments: [],
         workspaces: mapThread(current, (thread) => {
-          const title = autoTitle || thread.title;
+          const title = result.thread_title || thread.title;
           if (thread.messages.some((item) => item.id === result.message_id))
             return {
               ...thread,
@@ -1008,13 +1004,6 @@ export const useStore = create<Store>((set, get) => ({
           };
         }),
       }));
-      if (autoTitle) {
-        try {
-          await api.updateThread(state.workspaceId, state.threadId, autoTitle);
-        } catch (error) {
-          get().notify("info", `任务标题保存失败：${String(error)}`);
-        }
-      }
     } catch (error) {
       get().notify("error", String(error));
       throw error;

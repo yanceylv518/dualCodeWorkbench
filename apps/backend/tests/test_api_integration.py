@@ -394,6 +394,46 @@ async def _set_smart_collaboration(api_client: httpx.AsyncClient, enabled: bool)
     return await api_client.put("/api/settings/agents", json=current)
 
 
+@pytest.mark.asyncio
+async def test_first_message_replaces_default_thread_title(
+    api_client: httpx.AsyncClient, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+):
+    workspace, thread = await _workspace(api_client, tmp_path)
+
+    async def fake_start(*_args):
+        return "title-run"
+
+    from dualcode import api_workspaces
+
+    monkeypatch.setattr(api_workspaces.scheduler, "start", fake_start)
+    response = await api_client.post(
+        f"/api/workspaces/{workspace['id']}/threads/{thread['id']}/messages",
+        json={"content": "  实现一个专业的任务列表， 并补齐测试  ", "mode": "codex"},
+    )
+
+    assert response.status_code == 202
+    assert response.json()["thread_title"] == "实现一个专业的任务列表， 并补齐测试"
+    listed = (await api_client.get("/api/workspaces")).json()
+    assert listed[0]["threads"][0]["title"] == "实现一个专业的任务列表， 并补齐测试"
+
+
+@pytest.mark.asyncio
+async def test_workspace_list_backfills_legacy_default_thread_title(
+    api_client: httpx.AsyncClient, tmp_path: Path
+):
+    workspace, thread = await _workspace(api_client, tmp_path)
+    sessions = api_client._dualcode_test_sessions  # type: ignore[attr-defined]
+    async with sessions() as db:
+        db.add(Message(thread_id=thread["id"], role="user", content="分析仓库现状并给出整改建议"))
+        await db.commit()
+
+    listed = (await api_client.get("/api/workspaces")).json()
+    assert listed[0]["threads"][0]["title"] == "分析仓库现状并给出整改建议"
+
+    listed_again = (await api_client.get("/api/workspaces")).json()
+    assert listed_again[0]["threads"][0]["title"] == "分析仓库现状并给出整改建议"
+
+
 def _collaboration_headers(workspace_id: str, thread_id: str) -> dict[str, str]:
     return {
         "X-DualCode-Workspace-Id": workspace_id,
