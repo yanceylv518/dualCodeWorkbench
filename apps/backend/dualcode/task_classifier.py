@@ -37,7 +37,20 @@ CLASSIFICATION_RULES: tuple[ClassificationRule, ...] = (
     ),
     ClassificationRule(
         "product_design",
-        ("需求不清", "产品设计", "交互设计", "用户流程", "验收标准", "方案设计"),
+        (
+            "需求不清",
+            "产品设计",
+            "交互设计",
+            "用户流程",
+            "验收标准",
+            "方案设计",
+            "功能规划",
+            "产品规划",
+            "需求规划",
+            "产品路线图",
+            "功能路线图",
+            "功能优先级",
+        ),
     ),
     ClassificationRule(
         "style_fix",

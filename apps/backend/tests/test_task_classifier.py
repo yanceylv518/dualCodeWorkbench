@@ -13,6 +13,7 @@ from dualcode.task_classifier import CLASSIFICATION_RULES, classify
         ("调整消息卡片的字体和间距", "style_fix", False),
         ("增加项目搜索功能", "feature", True),
         ("先做产品设计并明确用户流程", "product_design", True),
+        ("规划下一阶段功能和功能优先级", "product_design", True),
         ("完成系统架构迁移", "architecture", True),
         ("修复启动时报错的问题", "bugfix", True),
         ("检查鉴权安全和权限风险", "security_high_risk", True),
