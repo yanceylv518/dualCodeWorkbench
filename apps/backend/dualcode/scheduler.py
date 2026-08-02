@@ -668,6 +668,7 @@ class RunScheduler:
                         remote_workspace_path=str(worktree.path),
                         allow_remote_write=False,
                         skip_remote_approval=True,
+                        expose_response=False,
                     )
                     if result.status != "completed":
                         raise RuntimeError(result.error or "Claude 审查轮次未完成")
@@ -686,12 +687,25 @@ class RunScheduler:
                 await self._record_system_message(db, thread_id, text)
                 await db.commit()
 
+            async def record_review(text: str) -> None:
+                db.add(Message(thread_id=thread_id, role="claude", content=text))
+                await db.commit()
+                await manager.publish(
+                    AgentEvent(
+                        type=EventType.MESSAGE_CREATED,
+                        thread_id=thread_id,
+                        run_id=collaboration.id,
+                        payload={"role": "claude", "content": text},
+                    )
+                )
+
             callbacks = StageCallbacks(
                 run_codex=run_codex,
                 run_tests=run_tests,
                 sync_snapshot=sync_snapshot,
                 run_review=run_review,
                 record_system=record_system,
+                record_review=record_review,
             )
             try:
                 await execute_pipeline(
@@ -865,6 +879,7 @@ class RunScheduler:
         allow_remote_write: bool | None = None,
         skip_remote_approval: bool = False,
         approval_lifecycle: ApprovalLifecycle | None = None,
+        expose_response: bool = True,
     ) -> AgentTurnResult:
         """Run one turn for the selected agent without advancing an orchestration pipeline."""
         async with SessionLocal() as db:
@@ -892,6 +907,11 @@ class RunScheduler:
             await db.commit()
 
             async def emit(kind: EventType, payload: dict[str, object]) -> None:
+                if not expose_response and kind in {
+                    EventType.AGENT_DELTA,
+                    EventType.MESSAGE_CREATED,
+                }:
+                    return
                 await manager.publish(AgentEvent(type=kind, thread_id=thread_id, run_id=run_id, payload=payload))
 
             async def approve(action: str, reason: str) -> bool:
@@ -1043,7 +1063,8 @@ class RunScheduler:
                     for path in changed:
                         db.add(FileChange(thread_id=thread_id, path=path, diff=diff))
                     await emit(EventType.RUN_OUTPUT, {"kind": "workspace_changes", "files": changed, "diff": diff})
-                db.add(Message(thread_id=thread_id, role=agent, content=response.content))
+                if expose_response:
+                    db.add(Message(thread_id=thread_id, role=agent, content=response.content))
                 old_sessions = (await db.scalars(select(AgentSession).where(AgentSession.thread_id == thread_id, AgentSession.agent == agent))).all()
                 for old_session in old_sessions:
                     await db.delete(old_session)

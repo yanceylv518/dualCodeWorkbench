@@ -87,6 +87,7 @@ def _review(verdict: str, findings: list[dict] | None = None) -> str:
 async def test_pass_completes_all_stages(stage_context):
     db, _workspace, _thread, run = stage_context
     systems: list[str] = []
+    visible_reviews: list[str] = []
     callbacks = StageCallbacks(
         run_codex=lambda _prompt, _stage: _async(Turn()),
         run_tests=lambda: _async(True),
@@ -95,6 +96,7 @@ async def test_pass_completes_all_stages(stage_context):
             ReviewTurnResult(_review("pass"), "unused")
         ),
         record_system=lambda text: _append(systems, text),
+        record_review=lambda text: _append(visible_reviews, text),
     )
 
     result = await execute_pipeline(
@@ -104,6 +106,7 @@ async def test_pass_completes_all_stages(stage_context):
     assert result.state == CollaborationState.COMPLETED.value
     assert result.snapshot_sha == "b" * 40
     assert systems == ["智能协作已完成，共经过 1 轮审查。"]
+    assert visible_reviews == ["审查通过：pass summary"]
 
 
 @pytest.mark.asyncio
@@ -173,24 +176,59 @@ async def test_blocking_compiles_fix_prompt_and_resolves_after_pass(stage_contex
 
 @pytest.mark.asyncio
 @pytest.mark.parametrize("raw", ["没有 JSON", "```json\n{x}\n```"])
-async def test_parse_failure_waits_and_preserves_raw(stage_context, raw):
+async def test_parse_failure_retries_then_blocks_without_user_prompt(stage_context, raw):
     db, _workspace, _thread, run = stage_context
     systems: list[str] = []
+    review_prompts: list[str] = []
+
+    async def review(prompt, _snapshot):
+        review_prompts.append(prompt)
+        return ReviewTurnResult(raw, "unused")
+
     callbacks = StageCallbacks(
         run_codex=lambda _prompt, _stage: _async(Turn()),
         run_tests=lambda: _async(None),
         sync_snapshot=lambda: _async(SnapshotEvidence("a" * 40, "b" * 40)),
-        run_review=lambda _suffix, _snapshot: _async(
-            ReviewTurnResult(raw, "unused")
-        ),
+        run_review=review,
         record_system=lambda text: _append(systems, text),
     )
     result = await execute_pipeline(
         db, run, initial_prompt="implement", callbacks=callbacks
     )
 
-    assert result.state == CollaborationState.WAITING_USER.value
-    assert systems[-1] == raw
+    assert result.state == CollaborationState.BLOCKED.value
+    expected = "no_json" if raw == "没有 JSON" else "invalid_json"
+    assert result.error == f"审查结果协议校验失败：{expected}"
+    assert len(review_prompts) == 2
+    assert "不是用户需求不明确" in review_prompts[1]
+    assert systems == ["尚未配置测试命令，本轮未生成测试证据。"]
+
+
+@pytest.mark.asyncio
+async def test_parse_failure_recovers_after_protocol_retry(stage_context):
+    db, _workspace, _thread, run = stage_context
+    reviews = iter(["no protocol", _review("pass")])
+    prompts: list[str] = []
+
+    async def review(prompt, _snapshot):
+        prompts.append(prompt)
+        return ReviewTurnResult(next(reviews), "unused")
+
+    callbacks = StageCallbacks(
+        run_codex=lambda _prompt, _stage: _async(Turn()),
+        run_tests=lambda: _async(True),
+        sync_snapshot=lambda: _async(SnapshotEvidence("a" * 40, "b" * 40)),
+        run_review=review,
+        record_system=lambda _text: _async(None),
+    )
+
+    result = await execute_pipeline(
+        db, run, initial_prompt="implement", callbacks=callbacks
+    )
+
+    assert result.state == CollaborationState.COMPLETED.value
+    assert len(prompts) == 2
+    assert "不是用户需求不明确" in prompts[1]
 
 
 @pytest.mark.asyncio

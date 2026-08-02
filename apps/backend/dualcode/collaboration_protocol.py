@@ -114,6 +114,15 @@ class ReviewFinding(StrictModel):
     description: str
     acceptance: str
 
+    @field_validator("line", mode="before")
+    @classmethod
+    def normalize_line(cls, value: object) -> object:
+        """Accept the natural numeric line representation emitted by reviewers."""
+
+        if isinstance(value, int) and not isinstance(value, bool):
+            return str(value)
+        return value
+
 
 class ReviewV1(StrictModel):
     schema_version: Literal["review.v1"] = Field(alias="schema")

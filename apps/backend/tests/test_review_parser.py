@@ -45,6 +45,34 @@ def test_missing_required_field_is_schema_mismatch() -> None:
     assert result.error
 
 
+def test_numeric_finding_line_is_normalized() -> None:
+    raw = json.dumps(
+        {
+            "schema": "review.v1",
+            "verdict": "blocking",
+            "summary": "发现问题",
+            "findings": [
+                {
+                    "id": "F-1",
+                    "type": "risk",
+                    "severity": "advisory",
+                    "file": "docs/plan.md",
+                    "line": 3,
+                    "description": "描述",
+                    "acceptance": "验收",
+                }
+            ],
+        },
+        ensure_ascii=False,
+    )
+
+    result = parse_review(raw)
+
+    assert result.outcome == "parsed"
+    assert result.review is not None
+    assert result.review.findings[0].line == "3"
+
+
 def test_invalid_json_is_reported_without_guessing() -> None:
     raw = '```json\n{"schema":"review.v1","verdict": pass}\n```'
     result = parse_review(raw)

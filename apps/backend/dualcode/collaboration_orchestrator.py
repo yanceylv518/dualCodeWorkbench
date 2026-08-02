@@ -111,17 +111,44 @@ class StageCallbacks:
     sync_snapshot: Callable[[], Awaitable[SnapshotEvidence]]
     run_review: Callable[[str, SnapshotEvidence], Awaitable[ReviewTurnResult]]
     record_system: Callable[[str], Awaitable[None]]
+    record_review: Callable[[str], Awaitable[None]] | None = None
 
 
 _REVIEW_SUFFIX = """
 
-After the natural-language review, output exactly one fenced ```json object
-matching review.v1. Use Chinese finding descriptions. Required shape:
+先用中文给出简洁、专业的审查结论；标题、正文、摘要和问题说明全部使用中文。
+随后输出且只输出一个 fenced ```json 对象作为协议结果，匹配 review.v1。Required shape:
 {"schema":"review.v1","verdict":"pass|blocking|needs_user","summary":"...",
 "findings":[{"id":"F-1","type":"missing|partial|regression|risk|architecture|evidence",
 "severity":"blocking|advisory","file":null,"line":null,
 "description":"...","acceptance":"..."}]}
 """.strip()
+
+
+def _review_repair_suffix(outcome: str, error: str | None) -> str:
+    diagnostic = (error or outcome).replace("\n", " ")[:300]
+    return f"""
+上一次审查结果未通过 review.v1 协议校验（{diagnostic}）。
+这是输出协议问题，不是用户需求不明确。请根据同一份交接内容重新输出审查结果，
+不要询问用户，也不要添加解释性正文。只输出一个 fenced ```json 对象，严格匹配：
+{{"schema":"review.v1","verdict":"pass|blocking|needs_user","summary":"中文摘要",
+"findings":[{{"id":"F-1","type":"missing|partial|regression|risk|architecture|evidence",
+"severity":"blocking|advisory","file":null,"line":null,
+"description":"中文问题说明","acceptance":"中文验收标准"}}]}}
+没有问题时 findings 必须是空数组。line 使用字符串或 null。
+""".strip()
+
+
+def _visible_review(review: object) -> str:
+    verdict = str(getattr(review, "verdict", ""))
+    labels = {"pass": "审查通过", "blocking": "审查发现阻断问题", "needs_user": "审查需要确认"}
+    rows = [f"{labels.get(verdict, '审查完成')}：{getattr(review, 'summary', '')}"]
+    for finding in getattr(review, "findings", []):
+        location = getattr(finding, "file", None) or "未指定文件"
+        if getattr(finding, "line", None):
+            location += f":{finding.line}"
+        rows.append(f"- {location}：{finding.description}；验收：{finding.acceptance}")
+    return "\n".join(rows)
 
 
 def _turn_failure(result: object) -> str:
@@ -346,6 +373,17 @@ async def execute_pipeline(
                 snapshot_sha=snapshot.snapshot_sha,
             )
             parsed = parse_review(review_turn.raw_text)
+            if parsed.outcome != "parsed" or parsed.review is None:
+                try:
+                    review_turn = await callbacks.run_review(
+                        _review_repair_suffix(parsed.outcome, parsed.error), snapshot
+                    )
+                    parsed = parse_review(review_turn.raw_text)
+                except Exception as exc:
+                    run.error = f"审查协议自动重试失败：{str(exc)[:240]}"
+                    return await advance(
+                        db, run, CollaborationState.BLOCKED, reason=run.error
+                    )
             await _publish(
                 EventType.COLLABORATION_REVIEW_COMPLETED,
                 run,
@@ -355,14 +393,16 @@ async def execute_pipeline(
                 summary=(parsed.review.summary[:200] if parsed.review else ""),
             )
             if parsed.outcome != "parsed" or parsed.review is None:
-                await callbacks.record_system(review_turn.raw_text)
+                run.error = f"审查结果协议校验失败：{parsed.outcome}"
                 return await advance(
                     db,
                     run,
-                    CollaborationState.WAITING_USER,
-                    reason=f"审查裁决解析失败：{parsed.outcome}",
+                    CollaborationState.BLOCKED,
+                    reason=run.error,
                 )
             review = parsed.review
+            if callbacks.record_review is not None:
+                await callbacks.record_review(_visible_review(review))
             await _resolve_absent_findings(db, run, list(review.findings))
             await persist_review_findings(
                 db,
