@@ -244,6 +244,7 @@ def test_every_documented_state_is_reachable_from_draft() -> None:
 def test_routing_matrix_matches_all_documented_rows() -> None:
     expected = {
         "qa": ("简单问答、解释", "最匹配单 Agent", "无", "直接完成"),
+        "command": ("轻量命令与状态检查", "Codex", "无", "执行 → 返回结果"),
         "style_fix": ("小型样式或单点修复", "Codex", "按风险决定", "实现 → 验证"),
         "feature": ("普通功能开发", "Codex", "Claude", "实现 → 审查 → 必要整改"),
         "product_design": (

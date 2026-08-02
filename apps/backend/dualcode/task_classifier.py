@@ -63,9 +63,24 @@ CLASSIFICATION_RULES: tuple[ClassificationRule, ...] = (
             "然后呢",
         ),
     ),
+    ClassificationRule(
+        "command",
+        (
+            "只执行",
+            "执行命令",
+            "运行命令",
+            "查看状态",
+            "git status",
+            "git diff",
+            "pwd",
+            "uname",
+        ),
+    ),
 )
 
-SINGLE_AGENT_CATEGORIES: frozenset[RequestCategory] = frozenset({"qa", "style_fix"})
+SINGLE_AGENT_CATEGORIES: frozenset[RequestCategory] = frozenset(
+    {"qa", "command", "style_fix"}
+)
 
 
 class RoutingDecision(StrictModel):

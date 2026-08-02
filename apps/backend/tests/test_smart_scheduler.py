@@ -78,6 +78,7 @@ async def test_dual_agent_route_builds_contract_from_original_prompt(
         ("阅读当前项目文档和代码，给出项目现状，只做分析，不修改代码", "codex", False),
         ("好的，继续", "codex", False),
         ("接下来应该做什么", "codex", False),
+        ("只执行 git status 并返回结果", "codex", False),
         ("增加项目收藏功能", "codex", True),
         ("设计新的系统架构", "claude", True),
     ],

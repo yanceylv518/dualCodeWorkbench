@@ -9,6 +9,7 @@ from dualcode.task_classifier import CLASSIFICATION_RULES, classify
     ("prompt", "category", "dual_agent"),
     [
         ("解释一下这个字段是什么", "qa", False),
+        ("只执行 git status 并返回结果", "command", False),
         ("调整消息卡片的字体和间距", "style_fix", False),
         ("增加项目搜索功能", "feature", True),
         ("先做产品设计并明确用户流程", "product_design", True),

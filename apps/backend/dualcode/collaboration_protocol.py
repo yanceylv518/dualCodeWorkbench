@@ -36,6 +36,7 @@ FactConfidence = Literal["confirmed", "verified", "unverified", "stale"]
 FindingStatus = Literal["open", "resolved"]
 RequestCategory = Literal[
     "qa",
+    "command",
     "style_fix",
     "feature",
     "product_design",
@@ -268,6 +269,12 @@ ROUTING_MATRIX: dict[RequestCategory, RoutingRule] = {
     "qa": RoutingRule(
         label="简单问答、解释",
         primary_agent="最匹配单 Agent", collaborator="无", process="直接完成"
+    ),
+    "command": RoutingRule(
+        label="轻量命令与状态检查",
+        primary_agent="Codex",
+        collaborator="无",
+        process="执行 → 返回结果",
     ),
     "style_fix": RoutingRule(
         label="小型样式或单点修复",
