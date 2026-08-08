@@ -214,6 +214,39 @@ async def test_app_server_resumes_existing_thread(monkeypatch, tmp_path):
 
 
 @pytest.mark.asyncio
+async def test_app_server_persists_new_thread_before_turn_finishes(
+    monkeypatch, tmp_path
+):
+    process = FakeProcess()
+    process.emit_turn = lambda: None
+    adapter = CodexAppServerAdapter(
+        "fake", progress_timeout_seconds=0.01, probe_grace_seconds=0.01
+    )
+    monkeypatch.setattr(adapter, "resolve_executable", lambda: "fake")
+    monkeypatch.setattr(
+        asyncio,
+        "create_subprocess_exec",
+        lambda *a, **k: asyncio.sleep(0, result=process),
+    )
+    persisted: list[str] = []
+
+    async def persist(session_id: str) -> None:
+        persisted.append(session_id)
+
+    with pytest.raises(AppServerNoProgressError):
+        await adapter.send(
+            AgentRequest(
+                "local-thread",
+                "hello",
+                {"workspace_path": str(tmp_path), "session_callback": persist},
+            )
+        )
+
+    assert persisted == ["thread-app-1"]
+    await adapter.close()
+
+
+@pytest.mark.asyncio
 async def test_app_server_resets_transport_when_turn_stops_emitting_events(
     monkeypatch, tmp_path
 ):

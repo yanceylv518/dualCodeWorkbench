@@ -1,4 +1,5 @@
 import asyncio
+import inspect
 import json
 import os
 import re
@@ -426,6 +427,11 @@ class CodexAppServerAdapter(BaseCliAdapter):
                 "model": self.model or None,
             })
             self._loaded_threads.add(thread_id)
+        session_callback = request.context.get("session_callback")
+        if callable(session_callback):
+            callback_result = session_callback(thread_id)
+            if inspect.isawaitable(callback_result):
+                await callback_result
         yield json.dumps({"type": "thread.started", "thread_id": thread_id})
         queue: asyncio.Queue[dict] = asyncio.Queue()
         self._thread_queues[thread_id] = queue

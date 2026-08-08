@@ -971,7 +971,8 @@ class RunScheduler:
                 contract_text = truncate_contract(json.dumps(governance_context, ensure_ascii=False))
                 memory_text = await self._shared_memory_prompt(db, workspace, thread)
                 request_prompt = (
-                    "Continue this development conversation. Respond only as the selected agent. "
+                    f"CURRENT REQUEST:\n{prompt}\n\n"
+                    "Respond only as the selected agent. "
                     "Do not hand off to another agent or automatically advance a workflow. "
                     "Image generation is not available in DualCode; do not invoke imageGeneration or claim that an image was generated.\n\n"
                     "This is production product development, not a demo. Do not use temporary, simulated, hard-coded, bypass, or unsustainable architecture merely to complete the current feature. "
@@ -979,9 +980,38 @@ class RunScheduler:
                     "If the existing architecture is insufficient, propose a formal architectural change instead of disguising a temporary patch as complete.\n\n"
                     f"PROJECT AND TASK CONTRACT:\n{contract_text}\n\n"
                     f"{memory_text}"
-                    f"RECENT CONVERSATION:\n{transcript}\n\nCURRENT REQUEST:\n{prompt}"
+                    f"RECENT CONVERSATION:\n{transcript}"
                 )
                 context = {"workspace_path": workspace.path}
+
+                async def persist_agent_session(external_session_id: str) -> None:
+                    existing_sessions = (
+                        await db.scalars(
+                            select(AgentSession).where(
+                                AgentSession.thread_id == thread_id,
+                                AgentSession.agent == agent,
+                            )
+                        )
+                    ).all()
+                    if len(existing_sessions) == 1 and (
+                        existing_sessions[0].external_session_id
+                        == external_session_id
+                    ):
+                        return
+                    for existing_session in existing_sessions:
+                        await db.delete(existing_session)
+                    db.add(
+                        AgentSession(
+                            thread_id=thread_id,
+                            agent=agent,
+                            external_session_id=external_session_id,
+                            workspace_path=workspace.path,
+                        )
+                    )
+                    await db.commit()
+
+                context["session_callback"] = persist_agent_session
+
                 async def native_codex_approval(method: str, params: dict) -> bool:
                     if method == "item/commandExecution/requestApproval":
                         command = str(params.get("command") or "执行命令")
@@ -1065,15 +1095,7 @@ class RunScheduler:
                     await emit(EventType.RUN_OUTPUT, {"kind": "workspace_changes", "files": changed, "diff": diff})
                 if expose_response:
                     db.add(Message(thread_id=thread_id, role=agent, content=response.content))
-                old_sessions = (await db.scalars(select(AgentSession).where(AgentSession.thread_id == thread_id, AgentSession.agent == agent))).all()
-                for old_session in old_sessions:
-                    await db.delete(old_session)
-                db.add(AgentSession(
-                    thread_id=thread_id,
-                    agent=agent,
-                    external_session_id=response.run_id,
-                    workspace_path=workspace.path,
-                ))
+                await persist_agent_session(response.run_id)
                 run.output = response.content
                 run.state = RunState.COMPLETED
                 thread.state = RunState.CREATED

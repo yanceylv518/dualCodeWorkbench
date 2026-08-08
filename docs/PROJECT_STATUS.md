@@ -1,5 +1,11 @@
 # DualCode Workbench 项目状态
 
+## 2026-08-08 Codex 会话去重与标题修复
+
+- Codex app-server 创建或恢复线程后立即通过调度器持久化 `AgentSession`，不再等整轮成功完成；首轮超时、失败或用户停止后继续任务会复用已经创建的 Codex 线程，避免反复生成侧栏对话。
+- 发送给 Codex 的首段改为真实当前请求，固定的英文内部约束移到其后；Codex 侧新线程标题将反映用户任务，不再批量显示 `Continue this development conversation`。
+- 仍保持一个 Workbench 任务对应一个 Codex 会话；不同 Workbench 任务之间不共享原生线程，防止上下文和写操作串线。
+
 ## 2026-08-02 轻量命令路由与模型分级方向
 
 - 智能协作新增 `command` 请求类别；“只执行”、`git status`、`git diff`、`pwd` 等轻量命令和状态检查直接交给 Codex 单 Agent，执行后返回结果，不再进入三轮协作、任务契约和 Claude 审查。
