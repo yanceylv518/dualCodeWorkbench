@@ -415,6 +415,11 @@ class CodexAppServerAdapter(BaseCliAdapter):
             result = await self._request("thread/start", {
                 "cwd": str(workspace), "approvalPolicy": approval_policy, "sandbox": legacy_sandbox,
                 "model": self.model or None,
+                # DualCode owns the durable conversation history.  Keeping the
+                # transport thread ephemeral preserves app-server streaming and
+                # native approvals without adding an internal task to the Codex
+                # desktop sidebar for every Workbench task.
+                "ephemeral": True,
             })
             thread_id = self._thread_id(result)
             if not thread_id:

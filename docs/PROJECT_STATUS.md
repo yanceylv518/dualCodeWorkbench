@@ -1,5 +1,11 @@
 # DualCode Workbench 项目状态
 
+## 2026-08-10 Codex 临时传输线程
+
+- 本地 Codex 仍通过用户配置的 `codex` CLI 启动 `app-server` 子命令，以保留结构化流式输出、工具活动、原生审批、停止和故障诊断能力。
+- Workbench 新建的 Codex app-server 线程统一设置为 `ephemeral=true`，线程不再写入 Codex 会话存储，也不会为每个 Workbench 任务在 Codex 桌面端新增任务。
+- 多轮上下文的事实来源保持为 Workbench 自己的消息、任务契约和共享记忆；同一 app-server 进程存活期间可继续复用临时线程，进程重启后由已有上下文创建新的临时线程。
+
 ## 2026-08-08 Codex 会话去重与标题修复
 
 - Codex app-server 创建或恢复线程后立即通过调度器持久化 `AgentSession`，不再等整轮成功完成；首轮超时、失败或用户停止后继续任务会复用已经创建的 Codex 线程，避免反复生成侧栏对话。

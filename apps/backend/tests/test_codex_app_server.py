@@ -104,6 +104,10 @@ async def test_app_server_streams_real_deltas_and_activity(monkeypatch, tmp_path
     assert response.content == "hello world"
     methods = [item.get("method") for item in process.stdin.writes]
     assert methods[:4] == ["initialize", "initialized", "thread/start", "turn/start"]
+    thread_start = next(
+        item for item in process.stdin.writes if item.get("method") == "thread/start"
+    )
+    assert thread_start["params"]["ephemeral"] is True
     await adapter.close()
 
 
